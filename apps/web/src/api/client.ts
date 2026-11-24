@@ -6,6 +6,7 @@ import type {
   Attachment,
   AuthStateResponse,
   BehaviorSettingsResponse,
+  CallerUsageResponse,
   CancelResponse,
   ChannelResponse,
   CompactRequest,
@@ -126,6 +127,7 @@ import type {
   UpdateTimeZoneRequest,
   UpdateTitleSettingsRequest,
   UpdateTriggerRequest,
+  UsageCallersResponse,
   UsagePeriod,
   UsageResponse,
   WebDocumentResponse,
@@ -542,6 +544,15 @@ export function createApi(options: ApiOptions = {}) {
         "GET",
         `/api/usage?${new URLSearchParams({ period, ...(period === "custom" && range ? range : {}) })}`,
       ),
+    getUsageCallers: () => request<UsageCallersResponse>("GET", "/api/usage/callers"),
+    getGatewayUsage: (caller: string | null, period: UsagePeriod = "30d", range?: { from: string; to: string }) => {
+      const params = new URLSearchParams({
+        period,
+        ...(caller ? { caller } : {}),
+        ...(period === "custom" && range ? range : {}),
+      });
+      return request<CallerUsageResponse>("GET", `/api/usage/gateway?${params}`);
+    },
     getMemory: () => request<MemoryResponse>("GET", "/api/memory"),
     addMemoryLine: (req: AddMemoryLineRequest) => post<MemoryLineResponse>("/api/memory/lines", req),
     /** An edit by you; it also confirms the line. */

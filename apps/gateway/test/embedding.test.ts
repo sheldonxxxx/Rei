@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { embeddingHandler, embeddingTarget } from "../src/core/embedding.ts";
 import { createGatewayApp } from "../src/core/proxy.ts";
 import { createRedactor } from "../src/core/redact.ts";
+import { noopCallLog } from "./noop-calls.ts";
 
 const request = (
   path = "/embedding/v1/embeddings",
@@ -19,7 +20,7 @@ describe("fixed embedding gateway", () => {
         },
         status: async () => ({ signedIn: false, accessExpiresInS: null }),
       },
-      calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+      calls: noopCallLog(),
       models: () => [],
       version: "test",
       upstreams: [],
@@ -152,7 +153,7 @@ it("persists write-only embedding keys, retains a key for the same URL, and drop
     secrets,
     embedding: { baseUrl: "https://embedding.test", apiModel: "alias" },
     tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-    calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+    calls: noopCallLog(),
     models: () => [],
     version: "test",
     upstreams: [],
@@ -251,7 +252,7 @@ it("names the cause of a failed connection test without echoing upstream text or
     secrets,
     embedding: { baseUrl: "http://host.docker.internal:18000", apiModel: "alias" },
     tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-    calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+    calls: noopCallLog(),
     models: () => [],
     version: "test",
     upstreams: [],
@@ -295,7 +296,7 @@ it("explains a memory-limited oMLX refusal instead of a generic failure", async 
     standin: "standin",
     secrets,
     tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-    calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+    calls: noopCallLog(),
     models: () => [],
     version: "test",
     upstreams: [],

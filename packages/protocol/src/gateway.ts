@@ -137,7 +137,8 @@ export type GatewayLimitCode = "usage_limit" | "rate_limit";
 
 // ---- Callers (admin scope; docs/gateway-callers.md) ---------------------------------------------------------------
 
-export type GatewayCallerScope = "models" | "search" | "embeddings" | "read" | "read-local" | "admin";
+export const GATEWAY_CALLER_SCOPES = ["models", "search", "embeddings", "read", "read-local", "admin"] as const;
+export type GatewayCallerScope = (typeof GATEWAY_CALLER_SCOPES)[number];
 
 /** A caller's budget: how many calls it may have in flight at once. A cap is a whole number, or null for no cap. */
 export interface CallerBudget {
@@ -202,6 +203,101 @@ export interface GatewayCallsSummary {
   /** Calls the gateway refused because of a budget. Counted in memory since `refusalsSince`; never call records. */
   refusals: { caller: string; code: string; count: number }[];
   refusalsSince: number;
+}
+
+/** Aggregated model usage counters from the gateway's permanent daily rollups. */
+export interface GatewayModelUsage {
+  /** Sums over calls with token reports. Null if calls exist but none reported tokens; zero for an empty bucket. */
+  inputTotal: number | null;
+  inputCached: number | null;
+  inputUncached: number | null;
+  outputTotal: number | null;
+  totalProcessed: number | null;
+  /** Cached share of input over calls with token reports; null when inputTotal is null or 0. */
+  cacheHitPercent: number | null;
+  calls: number;
+  callsReported: number;
+  callsUnreported: number;
+  ok: number;
+  errors: number;
+  upstreamLimited: number;
+}
+
+export interface GatewayUsageModelRow extends GatewayModelUsage {
+  provider: string;
+  model: string;
+}
+
+export interface GatewayUsageCallerRow {
+  caller: string;
+  inputTotal: number | null;
+  inputCached: number | null;
+  outputTotal: number | null;
+  modelCalls: number;
+  searchCalls: number;
+  embeddingCalls: number;
+  readCalls: number;
+  errors: number;
+  upstreamLimited: number;
+  refusals: number;
+}
+
+export interface GatewayUsageServiceRow {
+  provider: string;
+  calls: number;
+  ok: number;
+  errors: number;
+  averageMs: number | null;
+}
+
+export interface GatewayUsageRefusal {
+  code: string;
+  count: number;
+}
+
+export interface GatewayUsageError {
+  code: string;
+  count: number;
+}
+
+export interface GatewayEmbeddingsUsage {
+  calls: number;
+  ok: number;
+  errors: number;
+  inputTokens: number | null;
+  averageMs: number | null;
+}
+
+export interface GatewayReadsUsage {
+  calls: number;
+  ok: number;
+  errors: number;
+  averageMs: number | null;
+}
+
+/** GET /usage?from=YYYY-MM-DD&to=YYYY-MM-DD[&caller=<id>] (admin scope). Days are UTC. */
+export interface GatewayUsageResponse {
+  trackingSince: string;
+  from: string;
+  to: string;
+  caller: string | null;
+  models: {
+    summary: GatewayModelUsage;
+    byModel: GatewayUsageModelRow[];
+  };
+  /** Per-caller rows when caller is null (All view); empty otherwise. */
+  byCaller: GatewayUsageCallerRow[];
+  search: {
+    calls: number;
+    ok: number;
+    errors: number;
+    averageMs: number | null;
+    byProvider: GatewayUsageServiceRow[];
+  };
+  embeddings: GatewayEmbeddingsUsage;
+  reads: GatewayReadsUsage;
+  refusals: GatewayUsageRefusal[];
+  errorBreakdown: GatewayUsageError[];
 }
 
 // ---- MCP connectors and notification senders. All routes need the admin scope (Rei's

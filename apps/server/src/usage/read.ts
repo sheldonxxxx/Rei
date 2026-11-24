@@ -22,14 +22,50 @@ type Row = {
   calls_reported: number;
   calls_unreported: number;
 } & Record<string, string | number>;
-const day = (n: number) => new Date(n).toISOString().slice(0, 10);
+export const utcDay = (n: number) => new Date(n).toISOString().slice(0, 10);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** A UTC calendar day as YYYY-MM-DD. Text that is not a real day (such as 2026-02-30) is rejected. */
-function parseDay(value: string | undefined, name: string): string {
+export function parseUsageDay(value: string | undefined, name: string): string {
   const time = value && DAY.test(value) ? Date.parse(`${value}T00:00:00Z`) : Number.NaN;
-  if (!value || !Number.isFinite(time) || day(time) !== value)
+  if (!value || !Number.isFinite(time) || utcDay(time) !== value)
     throw badRequest("bad_request", `${name} must be a date as YYYY-MM-DD.`);
   return value;
+}
+
+/** Validates period + custom range and computes the requested UTC date bounds before tracking-since clipping. */
+export function resolveRequestedWindow(
+  requested: string = "30d",
+  now: number = Date.now(),
+  range: UsageRange = {},
+): { period: UsagePeriod; from: string | undefined; to: string; today: string } {
+  if (!(USAGE_PERIODS as readonly string[]).includes(requested))
+    throw badRequest("bad_request", "period must be today, 7d, 30d, month, year, all or custom.");
+  const period = requested as UsagePeriod;
+  const date = new Date(now);
+  const today = utcDay(now);
+  if (period === "custom") {
+    const from = parseUsageDay(range.from, "from");
+    let to = parseUsageDay(range.to, "to");
+    if (to > today) to = today;
+    if (from > to)
+      throw badRequest(
+        "bad_request",
+        "A custom range must start on or before its end and include a day since tracking began.",
+      );
+    return { period, from, to, today };
+  }
+  if (range.from !== undefined || range.to !== undefined)
+    throw badRequest("bad_request", "from and to are only used with the custom period.");
+  if (period === "all") return { period, from: undefined, to: today, today };
+  const start =
+    period === "today"
+      ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+      : period === "7d" || period === "30d"
+        ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - (period === "7d" ? 6 : 29))
+        : period === "month"
+          ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
+          : Date.UTC(date.getUTCFullYear(), 0, 1);
+  return { period, from: utcDay(start), to: today, today };
 }
 function totals(rows: Row[]): UsageTotals {
   const callsReported = rows.reduce((n, r) => n + r.calls_reported, 0);
@@ -63,42 +99,21 @@ export function readUsage(
   providerNames: Record<string, string> = {},
   range: UsageRange = {},
 ): UsageResponse {
-  if (!(USAGE_PERIODS as readonly string[]).includes(requested))
-    throw badRequest("bad_request", "period must be today, 7d, 30d, month, year, all or custom.");
-  const period = requested as UsagePeriod;
   const installedAt = Number(db.get<{ value: string }>("SELECT value FROM meta WHERE key = 'installed_at'")!.value);
   const trackingSince = new Date(installedAt).toISOString();
-  const date = new Date(now);
-  const today = day(now);
-  let from: string;
-  let to: string;
-  if (period === "custom") {
-    const wantedFrom = parseDay(range.from, "from");
-    const wantedTo = parseDay(range.to, "to");
-    from = wantedFrom;
-    if (from < day(installedAt)) from = day(installedAt);
-    to = wantedTo;
-    if (to > today) to = today;
-    if (from > to)
+  const trackingDay = utcDay(installedAt);
+  const win = resolveRequestedWindow(requested, now, range);
+  const period = win.period;
+  const to = win.to;
+  let from = win.from ?? trackingDay;
+  if (from < trackingDay) from = trackingDay;
+  if (from > to) {
+    if (period === "custom")
       throw badRequest(
         "bad_request",
         "A custom range must start on or before its end and include a day since tracking began.",
       );
-  } else {
-    if (range.from !== undefined || range.to !== undefined)
-      throw badRequest("bad_request", "from and to are only used with the custom period.");
-    const start =
-      period === "today"
-        ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-        : period === "7d" || period === "30d"
-          ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - (period === "7d" ? 6 : 29))
-          : period === "month"
-            ? Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
-            : period === "year"
-              ? Date.UTC(date.getUTCFullYear(), 0, 1)
-              : installedAt;
-    from = day(Math.max(start, installedAt));
-    to = today;
+    from = to;
   }
   const rows = db.all<Row>(
     "SELECT * FROM usage_daily WHERE day >= ? AND day <= ? ORDER BY day, purpose, provider, model, agent_id",

@@ -14,6 +14,7 @@ const NAMES: Record<string, string> = {
   tavily: "Tavily",
   searxng: "SearXNG",
 };
+export const searchProviderName = (provider: string): string => NAMES[provider] ?? provider;
 const day = (n: number) => new Date(n).toISOString().slice(0, 10);
 
 /** Counters only. A provider counts as a fallback once an earlier provider was actually asked and did not answer. */

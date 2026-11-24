@@ -1,4 +1,5 @@
 import {
+  type CallerUsageResponse,
   type ImageFailureReason,
   type ImageUsageResponse,
   type SearchAttemptOutcome,
@@ -6,6 +7,7 @@ import {
   type SearchUsageProvider,
   type SearchUsageResponse,
   USAGE_PERIODS,
+  type UsageCallerSummary,
   type UsageMetric,
   type UsagePeriod,
   type UsagePurpose,
@@ -18,11 +20,28 @@ import { Card } from "@/components/primitives/card.tsx";
 import { Empty, EmptyDescription } from "@/components/primitives/empty.tsx";
 import { Input } from "@/components/primitives/input.tsx";
 import { Label } from "@/components/primitives/label.tsx";
+import { NativeSelect, NativeSelectOption } from "@/components/primitives/native-select.tsx";
+import { Tabs, TabsList, TabsTrigger } from "@/components/primitives/tabs.tsx";
 import { ToggleGroup, ToggleGroupItem } from "@/components/primitives/toggle-group.tsx";
 import type { Api } from "../api/client.ts";
+import { navigate, settingsHref } from "../lib/route.ts";
+import { CallerUsageSection } from "./CallerUsageSection.tsx";
 import { Icon } from "./Icon.tsx";
 import { InfoTip } from "./InfoTip.tsx";
 import { PageShell } from "./PageShell.tsx";
+import {
+  cacheHitLabel,
+  duration,
+  EmbeddingsUsageSection,
+  formatTokenCount,
+  number,
+  ReadsUsageSection,
+  USAGE_CARD_GRID,
+  UsageTable,
+  type UsageTableRow,
+} from "./usage-shared.tsx";
+
+const MAX_INLINE_CALLER_TABS = 5;
 
 const LABELS: Record<UsagePurpose, string> = {
   chat: "Chat",
@@ -55,8 +74,6 @@ const DEFINITIONS: Record<UsageMetric, string> = {
   outputTotal: "All output tokens, including reasoning tokens.",
   totalProcessed: "Total input and output tokens processed by the model.",
 };
-const USAGE_CARD_GRID =
-  "usage-cards m-0 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(140px,1fr))] [&>div]:rounded-2xl [&>div]:border [&>div]:p-4 [&_dt]:flex [&_dt]:items-center [&_dt]:gap-1 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:m-0 [&_dd]:mt-2 [&_dd]:text-xl [&_dd]:font-semibold [&_dd]:tabular-nums [&_dd]:[overflow-wrap:anywhere]";
 const SEARCH_OUTCOMES: Record<SearchAttemptOutcome, string> = {
   succeeded: "Succeeded",
   empty: "Empty result",
@@ -72,26 +89,66 @@ const SEARCH_REASONS: Record<string, string> = {
   search_failed: "search failed",
   fetch_failed: "could not be reached",
 };
-const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const number = (n: number) => compactNumber.format(n);
-function duration(ms: number): string {
-  return ms > 1000 ? `${Math.ceil(ms / 1000).toLocaleString("en-US")} s` : `${ms.toLocaleString("en-US")} ms`;
-}
-function token(u: UsageTotals, metric: UsageMetric): string {
-  const n = u.tokens[metric];
-  return n === null ? "Unavailable" : number(n);
-}
+const token = (u: UsageTotals, metric: UsageMetric): string => formatTokenCount(u.tokens[metric]);
+const toTableRow = (label: string, usage: UsageTotals): UsageTableRow => ({
+  label,
+  inputTotal: usage.tokens.inputTotal,
+  inputCached: usage.tokens.inputCached,
+  outputTotal: usage.tokens.outputTotal,
+  cacheHitPercent: usage.cacheHitPercent,
+  calls: usage.modelCalls,
+});
 /** A UTC day, YYYY-MM-DD, `offset` days from today. Periods and date inputs use UTC, as the server does. */
 const utcDay = (offset = 0) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
-export function UsagePage({ api }: { api: Api }) {
+export function UsagePage({ api, tab = null }: { api: Api; tab?: string | null }) {
+  const [selectedTab, setSelectedTab] = useState<string>(() => tab || "rei");
+  const [callers, setCallers] = useState<UsageCallerSummary[]>([]);
   const [period, setPeriod] = useState<UsagePeriod>("30d");
   const [range, setRange] = useState(() => ({ from: utcDay(-29), to: utcDay() }));
   const [retry, setRetry] = useState(0);
-  const [data, setData] = useState<UsageResponse | null>(null);
+  const [reiData, setReiData] = useState<UsageResponse | null>(null);
+  const [gatewayData, setGatewayData] = useState<CallerUsageResponse | null>(null);
   const [error, setError] = useState(false);
   const fromId = useId();
   const toId = useId();
+
+  useEffect(() => {
+    setSelectedTab(tab || "rei");
+  }, [tab]);
+
+  useEffect(() => {
+    if (typeof api.getUsageCallers !== "function") return;
+    let current = true;
+    api.getUsageCallers().then(
+      (res) => {
+        if (current && Array.isArray(res?.callers)) setCallers(res.callers);
+      },
+      () => {
+        if (current) setCallers([]);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [api]);
+
+  const selectTab = (next: string) => {
+    const normalized = next || "rei";
+    setSelectedTab(normalized);
+    navigate(settingsHref("usage", normalized === "rei" ? null : normalized));
+  };
+
+  const activeCallers = callers.filter((c) => c.revokedAt === null);
+  const hasRevokedHistory = callers.some((c) => c.revokedAt !== null && c.lastUsedAt !== null);
+  const selectedRevoked = callers.find((c) => c.revokedAt !== null && c.id === selectedTab);
+  const visibleCallers = selectedRevoked ? [...activeCallers, selectedRevoked] : activeCallers;
+  const showTabs = activeCallers.length > 0 || hasRevokedHistory || selectedTab !== "rei";
+  const compactCallers = activeCallers.length > MAX_INLINE_CALLER_TABS;
+  const isRei = selectedTab === "rei";
+  const isAll = selectedTab === "all";
+  const isOutsideCaller = !isRei && !isAll;
+
   const rangeProblem =
     period !== "custom"
       ? ""
@@ -100,26 +157,84 @@ export function UsagePage({ api }: { api: Api }) {
         : range.from > range.to
           ? "The To date must be on or after the From date."
           : "";
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: `retry` re-runs the request after "Try again"; the request does not read it.
   useEffect(() => {
     if (rangeProblem) return;
     let current = true;
-    setData(null);
     setError(false);
-    (period === "custom" ? api.getUsage(period, range) : api.getUsage(period)).then(
-      (r) => {
-        if (current) setData(r);
-      },
-      () => {
-        if (current) setError(true);
-      },
-    );
+    if (isRei) {
+      setReiData(null);
+      (period === "custom" ? api.getUsage(period, range) : api.getUsage(period)).then(
+        (r) => {
+          if (current) setReiData(r);
+        },
+        () => {
+          if (current) setError(true);
+        },
+      );
+    } else {
+      setGatewayData(null);
+      const callerParam = isAll ? null : selectedTab;
+      (period === "custom"
+        ? api.getGatewayUsage(callerParam, period, range)
+        : api.getGatewayUsage(callerParam, period)
+      ).then(
+        (r) => {
+          if (current) setGatewayData(r);
+        },
+        () => {
+          if (current) setError(true);
+        },
+      );
+    }
     return () => {
       current = false;
     };
-  }, [api, period, range, rangeProblem, retry]);
+  }, [api, isRei, isAll, selectedTab, period, range, rangeProblem, retry]);
+
+  const loading = isRei ? !reiData : !gatewayData;
+
   return (
     <PageShell title="Usage" className="usage-page min-w-0">
+      {showTabs && (
+        <div className="usage-callers flex flex-wrap items-center gap-2">
+          <Tabs
+            value={compactCallers && isOutsideCaller ? "" : selectedTab}
+            onValueChange={(value) => value && selectTab(value)}
+            className="min-w-0"
+          >
+            <TabsList aria-label="Usage caller" className="h-auto max-w-full flex-wrap">
+              <TabsTrigger value="rei">Rei</TabsTrigger>
+              {!compactCallers &&
+                visibleCallers.map((c) => (
+                  <TabsTrigger key={c.id} value={c.id} title={c.note || undefined}>
+                    {c.id}
+                  </TabsTrigger>
+                ))}
+              <TabsTrigger value="all">All</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {compactCallers && (
+            <NativeSelect
+              size="sm"
+              aria-label="Outside caller"
+              value={isOutsideCaller ? selectedTab : ""}
+              onChange={(e) => {
+                if (e.target.value) selectTab(e.target.value);
+              }}
+            >
+              <NativeSelectOption value="">Choose caller…</NativeSelectOption>
+              {visibleCallers.map((c) => (
+                <NativeSelectOption key={c.id} value={c.id}>
+                  {c.revokedAt !== null ? `${c.id} (revoked)` : c.id}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          )}
+        </div>
+      )}
+
       <div className="usage-period flex flex-wrap items-center gap-2">
         <ToggleGroup
           type="single"
@@ -167,6 +282,7 @@ export function UsagePage({ api }: { api: Api }) {
           </div>
         )}
       </div>
+
       {rangeProblem ? (
         <p role="alert" className="form-error m-0 rounded-2xl bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
           {rangeProblem}
@@ -181,18 +297,18 @@ export function UsagePage({ api }: { api: Api }) {
             Try again
           </Button>
         </div>
-      ) : !data ? (
+      ) : loading ? (
         <span className="spinner" role="status" aria-label="Loading usage" />
-      ) : (
+      ) : isRei && reiData ? (
         <>
-          <p className="m-0 text-sm text-muted-foreground">Since {data.trackingSince.slice(0, 10)} (UTC)</p>
+          <p className="m-0 text-sm text-muted-foreground">Since {reiData.trackingSince.slice(0, 10)} (UTC)</p>
           <p className="m-0 text-xs text-muted-foreground">
-            {data.from} to {data.to} · UTC
+            {reiData.from} to {reiData.to} · UTC
           </p>
-          {!data.summary.modelCalls && (
+          {!reiData.summary.modelCalls && (
             <Empty className="usage-empty border py-8">
               <EmptyDescription>
-                {data.period === "all" || data.from === data.trackingSince.slice(0, 10)
+                {reiData.period === "all" || reiData.from === reiData.trackingSince.slice(0, 10)
                   ? "No usage recorded since tracking began"
                   : "No usage recorded in this period"}
               </EmptyDescription>
@@ -205,7 +321,7 @@ export function UsagePage({ api }: { api: Api }) {
                   {label}
                   <InfoTip label={`About ${label.toLowerCase()}`}>{DEFINITIONS[m]}</InfoTip>
                 </dt>
-                <dd>{token(data.summary, m)}</dd>
+                <dd>{token(reiData.summary, m)}</dd>
               </Card>
             ))}
             <Card className="gap-0 py-0">
@@ -216,86 +332,38 @@ export function UsagePage({ api }: { api: Api }) {
                   both input and cached tokens. Other calls are left out.
                 </InfoTip>
               </dt>
-              <dd>{cacheHitLabel(data.summary.cacheHitPercent)}</dd>
+              <dd>{cacheHitLabel(reiData.summary.cacheHitPercent)}</dd>
             </Card>
             <Card className="gap-0 py-0">
               <dt>Model calls</dt>
-              <dd>{number(data.summary.modelCalls)}</dd>
+              <dd>{number(reiData.summary.modelCalls)}</dd>
             </Card>
           </dl>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>{number(data.summary.callsUnreported)} calls with missing or unreliable reports</span>
+            <span>{number(reiData.summary.callsUnreported)} calls with missing or unreliable reports</span>
             <InfoTip label="About unreliable reports">
               Unavailable means no reliable report. Totals count only calls with reliable reports. Cache hit leaves out
               calls that lack an input or cached count. Interrupted calls without a completion report are excluded.
               Aggregate counters persist regardless of detailed log expiration.
             </InfoTip>
           </div>
-          <UsageTable
-            title="By purpose"
-            rows={data.byPurpose.map((r) => ({ label: LABELS[r.purpose], usage: r.usage }))}
-          />
-          {!!data.byModel.length && (
+          <UsageTable title="By purpose" rows={reiData.byPurpose.map((r) => toTableRow(LABELS[r.purpose], r.usage))} />
+          {!!reiData.byModel.length && (
             <UsageTable
               title="By model"
               cacheHit
-              rows={data.byModel.map((r) => ({ label: `${r.providerName} / ${r.model}`, usage: r.usage }))}
+              rows={reiData.byModel.map((r) => toTableRow(`${r.providerName} / ${r.model}`, r.usage))}
             />
           )}
-          <SearchUsage search={data.search} />
-          <ImageUsage images={data.images} />
+          <SearchUsage search={reiData.search} />
+          <ImageUsage images={reiData.images} />
+          {reiData.embeddings && <EmbeddingsUsageSection embeddings={reiData.embeddings} />}
+          {reiData.reads && <ReadsUsageSection reads={reiData.reads} />}
         </>
-      )}
+      ) : gatewayData ? (
+        <CallerUsageSection data={gatewayData} onSelectCaller={selectTab} />
+      ) : null}
     </PageShell>
-  );
-}
-function cacheHitLabel(percent: number | null): string {
-  return percent === null ? "Unavailable" : `${percent.toFixed(1)}%`;
-}
-function UsageTable({
-  title,
-  rows,
-  cacheHit = false,
-}: {
-  title: string;
-  rows: { label: string; usage: UsageTotals }[];
-  cacheHit?: boolean;
-}) {
-  return (
-    <section className="usage-breakdown min-w-0 [&>h4]:mb-3 [&>h4]:text-sm [&>h4]:font-medium">
-      <h4>{title}</h4>
-      <div
-        className="usage-table-wrap max-w-full overflow-x-auto rounded-2xl border outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-        tabIndex={0}
-        role="region"
-        aria-label={`${title} usage table`}
-      >
-        <table className="usage-table min-w-[28rem] [&_th:first-child]:min-w-40 w-full border-collapse text-xs [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:px-3 [&_th]:py-3 [&_th]:text-right [&_th]:font-medium [&_td]:whitespace-nowrap [&_td]:border-b [&_td]:px-3 [&_td]:py-3 [&_td]:text-right [&_td]:tabular-nums [&_th:first-child]:max-w-55 [&_th:first-child]:whitespace-normal [&_th:first-child]:text-left [&_th:first-child]:[overflow-wrap:anywhere] [&_thead]:bg-muted/40 [&_tr:last-child_td]:border-b-0">
-          <thead>
-            <tr>
-              <th scope="col">Category</th>
-              <th scope="col">Input</th>
-              <th scope="col">Cached</th>
-              {cacheHit && <th scope="col">Cache hit</th>}
-              <th scope="col">Output</th>
-              <th scope="col">Calls</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ label, usage }, i) => (
-              <tr key={i}>
-                <th scope="row">{label}</th>
-                <td>{token(usage, "inputTotal")}</td>
-                <td>{token(usage, "inputCached")}</td>
-                {cacheHit && <td>{cacheHitLabel(usage.cacheHitPercent)}</td>}
-                <td>{token(usage, "outputTotal")}</td>
-                <td>{number(usage.modelCalls)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 

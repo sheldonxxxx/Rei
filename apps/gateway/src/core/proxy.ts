@@ -72,7 +72,15 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
     ...(deps.reiBudget ? { reiBudget: deps.reiBudget } : {}),
     ...(deps.secrets ? { secrets: deps.secrets } : {}),
   });
-  const budgets = createBudgets();
+  const budgets = createBudgets({
+    onRefusal: (callerId, code) => {
+      try {
+        deps.calls.recordRefusal(callerId, code, now());
+      } catch (cause) {
+        log.error("calllog.refusal_write_failed", classifyError(cause));
+      }
+    },
+  });
   /** Who made each request; set by the authentication middleware before any guarded handler runs. */
   const authenticated = new WeakMap<Request, Caller>();
   const callerOf = (req: Request): Caller => {
@@ -957,6 +965,27 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
       refusalsSince: startedAt,
     };
     return c.json(summary);
+  });
+  app.get("/usage", (c) => {
+    const dayStr = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const parseDay = (raw: string | undefined, fallback: string, name: string): string | Response => {
+      if (raw === undefined || raw === "") return fallback;
+      const ms = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? Date.parse(`${raw}T00:00:00Z`) : Number.NaN;
+      if (!Number.isFinite(ms) || dayStr(ms) !== raw)
+        return errorResponse(400, { code: "bad_request", message: `${name} must be a date as YYYY-MM-DD.` });
+      return raw;
+    };
+    const today = dayStr(now());
+    const trackingDay = deps.calls.trackingSince().slice(0, 10);
+    let defaultFrom = trackingDay;
+    if (defaultFrom > today) defaultFrom = today;
+    const from = parseDay(c.req.query("from"), defaultFrom, "from");
+    if (from instanceof Response) return from;
+    const to = parseDay(c.req.query("to"), today, "to");
+    if (to instanceof Response) return to;
+    if (from > to) return errorResponse(400, { code: "bad_request", message: "from must be on or before to." });
+    const caller = clean(c.req.query("caller"), 40) ?? undefined;
+    return c.json(deps.calls.usage(from, to, caller));
   });
   app.get("/callers", async (c) => c.json({ callers: await registry.list(deps.calls.lastUsed()) }));
   app.post("/callers", async (c) => {

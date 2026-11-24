@@ -229,7 +229,7 @@ function SettingsWindowBody({
     section === "general" ? (
       <GeneralSettings api={api} agents={agents} companion={companion} onLogout={onLogout} />
     ) : section === "usage" ? (
-      <UsagePage api={api} />
+      <UsagePage api={api} tab={route.id} />
     ) : section === "memory" ? (
       <MemoryPage api={api} agents={agents} rev={memoryRev} />
     ) : section === "triggers" ? (

@@ -19,6 +19,7 @@ import {
 import type { GrantsResponse } from "../api.ts";
 import type { EndTakeoverRequest, EndTakeoverResponse } from "../browser.ts";
 import type { Grant } from "../entities.ts";
+import { GATEWAY_CALLER_SCOPES, type GatewayModelUsage } from "../gateway.ts";
 import type { StorageStatusResponse } from "../memory.ts";
 import type { ScriptCall, StepSummary, ToolOutputPart, WebDocumentResponse, WebFetchDetails } from "../trace.ts";
 import type {
@@ -33,7 +34,16 @@ import type {
   TriggerUpdatedResponse,
   UpdateTriggerRequest,
 } from "../triggers.ts";
-import { USAGE_METRICS, USAGE_PERIODS, USAGE_PURPOSES, type UsageResponse, type UsageTotals } from "../usage.ts";
+import {
+  type CallerUsageResponse,
+  USAGE_METRICS,
+  USAGE_PERIODS,
+  USAGE_PURPOSES,
+  type UsageCallerSummary,
+  type UsageCallersResponse,
+  type UsageResponse,
+  type UsageTotals,
+} from "../usage.ts";
 import { OkSchema } from "./auth.ts";
 import { defineRoute, named } from "./define.ts";
 import { ActionClassSchema, ErrorInfoSchema, TakeoverSchema } from "./entities.ts";
@@ -255,6 +265,19 @@ export const UsageQuerySchema = obj({
   from: opt(UsageDaySchema("First UTC day (YYYY-MM-DD) of a custom period.")),
   to: opt(UsageDaySchema("Last UTC day (YYYY-MM-DD) of a custom period; later days count as today.")),
 });
+const GatewayEmbeddingsUsageSchema = obj({
+  calls: int(),
+  ok: int(),
+  errors: int(),
+  inputTokens: nullable(num()),
+  averageMs: nullable(int()),
+});
+const GatewayReadsUsageSchema = obj({
+  calls: int(),
+  ok: int(),
+  errors: int(),
+  averageMs: nullable(int()),
+});
 export const UsageResponseSchema = obj({
   period: oneOf(USAGE_PERIODS),
   timezone: lit("UTC"),
@@ -303,6 +326,8 @@ export const UsageResponseSchema = obj({
     averageMs: nullable(int()),
     failures: arr(obj({ reason: oneOf(["rate_limited", "busy", "sign_in_required", "error"] as const), calls: int() })),
   }),
+  embeddings: opt(GatewayEmbeddingsUsageSchema),
+  reads: opt(GatewayReadsUsageSchema),
 });
 true satisfies Same<Static<typeof UsageResponseSchema>, UsageResponse>;
 export const StorageStatusResponseSchema = obj({
@@ -328,6 +353,97 @@ export const StorageStatusResponseSchema = obj({
 });
 true satisfies Same<Static<typeof StorageStatusResponseSchema>, StorageStatusResponse>;
 
+export const UsageCallerSummarySchema = named(
+  "UsageCallerSummary",
+  obj({
+    id: str(),
+    note: str(),
+    scopes: arr(oneOf(GATEWAY_CALLER_SCOPES)),
+    revokedAt: nullable(num()),
+    lastUsedAt: nullable(num()),
+  }),
+);
+true satisfies Same<Static<typeof UsageCallerSummarySchema>, UsageCallerSummary>;
+
+export const UsageCallersResponseSchema = obj({
+  available: bool(),
+  callers: arr(UsageCallerSummarySchema),
+});
+true satisfies Same<Static<typeof UsageCallersResponseSchema>, UsageCallersResponse>;
+
+const gatewayModelUsageFields = {
+  inputTotal: nullable(num()),
+  inputCached: nullable(num()),
+  inputUncached: nullable(num()),
+  outputTotal: nullable(num()),
+  totalProcessed: nullable(num()),
+  cacheHitPercent: nullable(num()),
+  calls: int(),
+  callsReported: int(),
+  callsUnreported: int(),
+  ok: int(),
+  errors: int(),
+  upstreamLimited: int(),
+};
+export const GatewayModelUsageSchema = named("GatewayModelUsage", obj(gatewayModelUsageFields));
+true satisfies Same<Static<typeof GatewayModelUsageSchema>, GatewayModelUsage>;
+
+export const GatewayUsageQuerySchema = obj({
+  caller: opt(str({ maxLength: 40, description: "Outside caller id; omit for all callers combined." })),
+  period: opt(oneOf(USAGE_PERIODS, { description: "Default 30d." })),
+  from: opt(UsageDaySchema("First UTC day (YYYY-MM-DD) of a custom period.")),
+  to: opt(UsageDaySchema("Last UTC day (YYYY-MM-DD) of a custom period; later days count as today.")),
+});
+
+export const CallerUsageResponseSchema = obj({
+  period: oneOf(USAGE_PERIODS),
+  timezone: lit("UTC"),
+  trackingSince: str(),
+  from: str(),
+  to: str(),
+  caller: nullable(UsageCallerSummarySchema),
+  models: obj({
+    summary: GatewayModelUsageSchema,
+    byModel: arr(obj({ provider: str(), providerName: str(), model: str(), ...gatewayModelUsageFields })),
+  }),
+  byCaller: arr(
+    obj({
+      caller: str(),
+      inputTotal: nullable(num()),
+      inputCached: nullable(num()),
+      outputTotal: nullable(num()),
+      modelCalls: int(),
+      searchCalls: int(),
+      embeddingCalls: int(),
+      readCalls: int(),
+      errors: int(),
+      upstreamLimited: int(),
+      refusals: int(),
+    }),
+  ),
+  search: obj({
+    calls: int(),
+    ok: int(),
+    errors: int(),
+    averageMs: nullable(int()),
+    byProvider: arr(
+      obj({
+        provider: str(),
+        providerName: str(),
+        calls: int(),
+        ok: int(),
+        errors: int(),
+        averageMs: nullable(int()),
+      }),
+    ),
+  }),
+  embeddings: GatewayEmbeddingsUsageSchema,
+  reads: GatewayReadsUsageSchema,
+  refusals: arr(obj({ code: str(), count: int() })),
+  errorBreakdown: arr(obj({ code: str(), count: int() })),
+});
+true satisfies Same<Static<typeof CallerUsageResponseSchema>, CallerUsageResponse>;
+
 export const usageRoute = defineRoute({
   method: "GET",
   path: "/api/usage",
@@ -337,6 +453,23 @@ export const usageRoute = defineRoute({
     'Errors: "bad_request" (any other parameter, more than one period, from or to outside a custom period, a custom period missing from or to, or from after to).',
   query: UsageQuerySchema,
   response: UsageResponseSchema,
+});
+export const usageCallersRoute = defineRoute({
+  method: "GET",
+  path: "/api/usage/callers",
+  tag: "usage",
+  summary: "Outside gateway callers available on the Usage page (no tokens or fingerprints).",
+  response: UsageCallersResponseSchema,
+});
+export const gatewayUsageRoute = defineRoute({
+  method: "GET",
+  path: "/api/usage/gateway",
+  tag: "usage",
+  summary: "Gateway-recorded usage for one outside caller or all callers combined (UTC).",
+  description:
+    'Errors: "bad_request" (invalid period or range), "not_found" (unknown caller), "gateway_unavailable" (gateway unconfigured or unreachable).',
+  query: GatewayUsageQuerySchema,
+  response: CallerUsageResponseSchema,
 });
 export const storageDiagnosticsRoute = defineRoute({
   method: "GET",
@@ -592,6 +725,8 @@ export const operationRoutes = [
   deleteTriggerRoute,
   receiveEventRoute,
   usageRoute,
+  usageCallersRoute,
+  gatewayUsageRoute,
   storageDiagnosticsRoute,
   grantsRoute,
   revokeGrantRoute,
