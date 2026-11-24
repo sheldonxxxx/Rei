@@ -5,7 +5,7 @@
 **A self-hosted, inspectable AI assistant. One person's blend of an agent framework, open for anyone to borrow from.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node.js 24+](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=nodedotjs&logoColor=white)
+![Node.js 26+](https://img.shields.io/badge/node-%E2%89%A526-339933?logo=nodedotjs&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/docker-compose%20v2-2496ED?logo=docker&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Status: personal project](https://img.shields.io/badge/status-personal%20project-orange)
@@ -59,7 +59,7 @@ Dodai · 土台 is the shared service layer (gateway, web reader, and storage: G
 **Requirements**
 
 - Docker with Compose v2.20 or newer, on the machine that will run Rei. macOS or Linux; on Windows, WSL2 only. The stack is developed on macOS.
-- Node.js 24 or newer and npm.
+- Node.js 26 or newer and npm.
 - Internet access for dependencies and container images, and disk space for the images and your data.
 - For real replies, an account with a supported model provider (a ChatGPT sign-in or any OpenAI-compatible endpoint), connected in the web app. [oMLX](docs/embedding-providers.md) on Apple Silicon can serve local models. See the [installation guide](docs/installation.md) for the full list.
 

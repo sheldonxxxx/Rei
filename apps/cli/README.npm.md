@@ -5,7 +5,7 @@ The command-line installer for [Rei レイ](https://github.com/sheldonxxxx/Rei),
 ## Requirements
 
 - Docker with Docker Compose v2.20 or newer, running on this machine
-- Node.js 24 or newer
+- Node.js 26 or newer
 - macOS or Linux; on Windows, use WSL2
 
 ## Install

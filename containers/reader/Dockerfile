@@ -5,7 +5,7 @@
 # the only service on its network, and connects out through a second network.
 
 # ---- production dependencies of the reader workspace only --------------------------------------------------------------
-FROM node:24.22.1-trixie-slim AS deps
+FROM node:26.13.1-trixie-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/protocol/package.json packages/protocol/
@@ -21,7 +21,7 @@ COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund -w @rei/reader && npm cache clean --force
 
 # ---- Moli: the pinned release binary, checked against its published checksum -----------------------------------------------
-FROM node:24.22.1-trixie-slim AS moli
+FROM node:26.13.1-trixie-slim AS moli
 ARG TARGETARCH
 ARG MOLI_VERSION=1.1.25
 ARG MOLI_SHA256_ARM64=95c094a0214431193ee93142dec91cc7affbea79e9b35094213b8b9230ccd134
@@ -39,7 +39,7 @@ RUN set -eu; \
     test -x /moli/moli
 
 # ---- runtime ------------------------------------------------------------------------------------------------------
-FROM node:24.22.1-trixie-slim
+FROM node:26.13.1-trixie-slim
 # libfontconfig1: Moli's one shared-library dependency that the slim base lacks. chromium: Debian's own package, the
 # fallback engine (arm64 and amd64).
 RUN apt-get update \

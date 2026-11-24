@@ -7,7 +7,7 @@ import { fail, firstLine, ok, warn } from "../format.ts";
 import { appAddress, parsePublish } from "../validate.ts";
 
 export const MIN_COMPOSE: [number, number] = [2, 20];
-const MIN_NODE = 24;
+const MIN_NODE = 26;
 const MIN_FREE_BYTES = 5 * 1024 ** 3;
 
 export async function dockerDaemon(ctx: Ctx): Promise<CheckResult> {

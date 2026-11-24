@@ -5,7 +5,7 @@
 //   - authenticates to that proxy with a per-job token answered over CDP (Fetch.authRequired), so the proxy knows the job;
 //   - carries none of the profile's cookies, cannot keep a service worker, cannot download, and leaves nothing behind;
 //   - is read back as HTML after its text stops changing.
-// No dependencies: node 24 (global WebSocket). Prints one JSON report and exits 0 only when every check holds.
+// No dependencies: node 26 (global WebSocket). Prints one JSON report and exits 0 only when every check holds.
 import http from "node:http";
 import os from "node:os";
 

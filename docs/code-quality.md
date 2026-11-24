@@ -1,6 +1,6 @@
 # Local code quality
 
-Rei uses pinned tools from the root npm workspace. Node.js 24 or newer is required. Install with `npm ci`; the `prepare` script installs the local Husky hook. Environments without Git or development dependencies can use `HUSKY=0 npm ci` (container production installs already use `--ignore-scripts`).
+Rei uses pinned tools from the root npm workspace. Node.js 26 or newer is required. Install with `npm ci`; the `prepare` script installs the local Husky hook. Environments without Git or development dependencies can use `HUSKY=0 npm ci` (container production installs already use `--ignore-scripts`).
 
 Run `npm run verify` before handing off a change. It checks formatting/imports, lint regressions, strict TypeScript, architecture, dependency declarations, secrets, every Vitest project with coverage floors, and the production web build. It makes no deployments or Git commits. It is `npm run check:static` (the checks that need no test run), then `npm run test:coverage`, then `npm run build`. GitHub Actions runs the same scripts; see [Continuous integration](#continuous-integration).
 

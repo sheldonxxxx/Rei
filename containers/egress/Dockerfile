@@ -4,7 +4,7 @@
 # It listens on 3128 inside exec-net, asks the control plane over a unix socket in the egress-sock volume whether a host
 # may be reached, and connects out through its second network (egress-out). Run read-only, no capabilities.
 
-FROM node:24.22.1-alpine3.24
+FROM node:26.13.1-alpine3.24
 # The socket directory. The image's own "node" user is uid/gid 1000, the same uid the control plane runs as, which is
 # what lets the two containers share the socket in the volume.
 RUN mkdir /run/egress && chown 1000:1000 /run/egress

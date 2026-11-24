@@ -66,7 +66,7 @@ docker run --rm --network "$network" \
   -e REI_GARAGE_BUCKET=rei-files \
   -e REI_QDRANT_URL=http://rei-qdrant:6333 \
   --env-file "$repo/containers/.secrets/secrets.env" \
-  node:24-alpine node --experimental-strip-types /app/containers/live-storage-check.ts
+  node:26-alpine node --experimental-strip-types /app/containers/live-storage-check.ts
 check=$?
 report "Rei's own clients work against the live Garage and Qdrant" "$([[ $check == 0 ]] && echo ok)"
 

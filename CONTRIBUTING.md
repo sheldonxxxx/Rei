@@ -8,7 +8,7 @@ By contributing you agree that your work is released under the [MIT License](LIC
 
 ## Setup
 
-You need Node.js 24 or newer. Docker with Compose v2 is only needed to run the whole stack.
+You need Node.js 26 or newer. Docker with Compose v2 is only needed to run the whole stack.
 
 ```sh
 git clone https://github.com/sheldonxxxx/Rei.git
