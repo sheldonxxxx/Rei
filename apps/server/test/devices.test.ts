@@ -102,7 +102,7 @@ describe("devices", () => {
         CREATE TABLE push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, label TEXT NOT NULL, created_at INTEGER NOT NULL, last_ok_at INTEGER, failures INTEGER NOT NULL DEFAULT 0);
         INSERT INTO push_subscriptions (endpoint, p256dh, auth, label, created_at) VALUES ('https://push.example/1', 'k', 'a', 'Phone', 1);
         PRAGMA user_version = 14`);
-      expect(() => initializeDatabase(db)).toThrow(/empty data directory/);
+      expect(() => initializeDatabase(db)).toThrow(/schema 14, older than this release upgrades.*Nothing was changed/);
       expect(db.all("SELECT token_hash FROM auth_sessions ORDER BY token_hash")).toEqual([
         { token_hash: "h1" },
         { token_hash: "h2" },
