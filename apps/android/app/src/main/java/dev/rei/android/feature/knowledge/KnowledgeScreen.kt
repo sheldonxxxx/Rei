@@ -40,7 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -49,12 +52,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.R
 import dev.rei.android.data.KnowledgeHit
 import dev.rei.android.data.KnowledgeNode
 import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviews
+import dev.rei.android.ui.components.ReiScreenPreviewSurface
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
@@ -115,14 +121,14 @@ fun KnowledgeContent(
     var sheet by remember { mutableStateOf(false) }
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     val filters = buildList {
-        if (state.tab != KnowledgeTab.All) add(ActiveFilter(state.tab.label) { onTab(KnowledgeTab.All) })
+        if (state.tab != KnowledgeTab.All) add(ActiveFilter(stringResource(state.tab.labelRes)) { onTab(KnowledgeTab.All) })
         state.selectedTags.forEach { tag -> add(ActiveFilter("#$tag") { onToggleTag(tag) }) }
     }
     val rows = state.rows
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ReiTopBar("", scrolledTitle = "Knowledge", scrolled = scrolled)
+            ReiTopBar("", scrolledTitle = stringResource(R.string.knowledge_title), scrolled = scrolled)
             PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
                 MotionRegion(key = Triple(state.tab, state.selectedTags, state.searching), ready = state.loaded) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -130,15 +136,15 @@ fun KnowledgeContent(
                         item(key = "header", contentType = "header") {
                             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 WorkspaceHeader(
-                                    title = "Knowledge",
+                                    title = stringResource(R.string.knowledge_title),
                                     query = state.searchText,
                                     onQuery = onText,
-                                    searchLabel = "Search knowledge",
+                                    searchLabel = stringResource(R.string.knowledge_search),
                                     onFilter = { sheet = true },
                                     filters = filters,
                                 )
                                 state.error?.takeIf { state.loaded && !state.loadFailed }?.let { message ->
-                                    StatusBanner(message, kind = StatusKind.Error, actionLabel = "Dismiss", onAction = onDismissError)
+                                    StatusBanner(message.asString(), kind = StatusKind.Error, actionLabel = stringResource(R.string.common_dismiss), onAction = onDismissError)
                                 }
                             }
                         }
@@ -149,8 +155,8 @@ fun KnowledgeContent(
                                 }
                             }
                             state.loadFailed -> item(key = "error", contentType = "error") {
-                                EmptyState(ReiIcons.Alert, "Couldn’t load pages", body = state.error ?: "Try loading your pages again.") {
-                                    OutlinedButton(onRetry) { Text("Try again") }
+                                EmptyState(ReiIcons.Alert, stringResource(R.string.knowledge_empty_err_title), body = state.error?.asString() ?: stringResource(R.string.knowledge_empty_err_body)) {
+                                    OutlinedButton(onRetry) { Text(stringResource(R.string.common_try_again)) }
                                 }
                             }
                             state.searching -> {
@@ -179,7 +185,7 @@ fun KnowledgeContent(
             }
         }
         if (state.tab != KnowledgeTab.Trash) {
-            ReiFab("New page", ReiIcons.Plus, onNewPage, expanded = listState.fabExpanded(), modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
+            ReiFab(stringResource(R.string.knowledge_new_page), ReiIcons.Plus, onNewPage, expanded = listState.fabExpanded(), modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
         }
     }
     if (sheet) KnowledgeFilterSheet(state, onTab, onToggleTag, onResetFilters) { sheet = false }
@@ -210,11 +216,12 @@ private fun PageRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (!trash && node.childCount > 0) {
+                val collapsedRotation = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 90f else -90f
                 ReiIconButton(
                     ReiIcons.Chevron,
-                    if (row.expanded) "Collapse ${node.title}" else "Expand ${node.title}",
+                    stringResource(if (row.expanded) R.string.knowledge_collapse_page else R.string.knowledge_expand_page, node.title),
                     onToggle,
-                    modifier = Modifier.rotate(if (row.expanded) 0f else -90f),
+                    modifier = Modifier.rotate(if (row.expanded) 0f else collapsedRotation),
                     iconSize = 20.dp,
                 )
             } else {
@@ -225,8 +232,8 @@ private fun PageRow(
             Column(Modifier.weight(1f).padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(node.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (node.pinned) Icon(ReiIcons.Star, "Favorite", Modifier.size(14.dp), tint = colors.tertiary)
-                    if (node.locked) Icon(ReiIcons.Lock, "Locked", Modifier.size(14.dp), tint = colors.onSurfaceVariant)
+                    if (node.pinned) Icon(ReiIcons.Star, stringResource(R.string.library_file_favorite), Modifier.size(14.dp), tint = colors.tertiary)
+                    if (node.locked) Icon(ReiIcons.Lock, stringResource(R.string.knowledge_locked), Modifier.size(14.dp), tint = colors.onSurfaceVariant)
                 }
                 if (node.description.isNotBlank()) {
                     Text(node.description, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -234,7 +241,12 @@ private fun PageRow(
                 if (tags.isNotEmpty()) TagLine(tags)
                 Text(updated, style = MaterialTheme.typography.labelSmall.tabular(), color = colors.onSurfaceVariant)
             }
-            if (trash) TextButton(onRestore, modifier = Modifier.semantics { contentDescription = "Restore ${node.title}" }) { Text("Restore") }
+            if (trash) {
+                val restoreCd = stringResource(R.string.knowledge_restore_page, node.title)
+                TextButton(onRestore, modifier = Modifier.semantics { contentDescription = restoreCd }) {
+                    Text(stringResource(R.string.knowledge_restore))
+                }
+            }
         }
         HorizontalDivider(Modifier.padding(start = 16.dp), color = colors.outlineVariant)
     }
@@ -270,13 +282,13 @@ private fun HitRow(hit: KnowledgeHit, onOpen: () -> Unit, modifier: Modifier = M
 @Composable
 private fun KnowledgeEmpty(state: KnowledgeUiState, onReset: () -> Unit, onNewPage: () -> Unit) {
     when {
-        state.searching -> EmptyState(ReiIcons.Search, "No matching pages", body = "Try another search or clear your filters.") {
-            OutlinedButton(onReset) { Text("Clear filters") }
+        state.searching -> EmptyState(ReiIcons.Search, stringResource(R.string.knowledge_empty_no_match_title), body = stringResource(R.string.knowledge_empty_no_match_body)) {
+            OutlinedButton(onReset) { Text(stringResource(R.string.library_filters_clear)) }
         }
-        state.tab == KnowledgeTab.Trash -> EmptyState(ReiIcons.Trash, "Trash is empty", body = "Pages you move to Trash stay here until they’re restored.")
-        state.tab == KnowledgeTab.Favorites -> EmptyState(ReiIcons.Star, "No favorites yet", body = "Favorite a page from its menu to find it here.")
-        else -> EmptyState(ReiIcons.Knowledge, "No pages yet", body = "Write the first page, or ask an agent to save what it learns.") {
-            OutlinedButton(onNewPage) { Text("New page") }
+        state.tab == KnowledgeTab.Trash -> EmptyState(ReiIcons.Trash, stringResource(R.string.library_empty_trash_title), body = stringResource(R.string.knowledge_empty_trash_body))
+        state.tab == KnowledgeTab.Favorites -> EmptyState(ReiIcons.Star, stringResource(R.string.library_empty_favorites_title), body = stringResource(R.string.knowledge_empty_favorites_body))
+        else -> EmptyState(ReiIcons.Knowledge, stringResource(R.string.knowledge_empty_default_title), body = stringResource(R.string.knowledge_empty_default_body)) {
+            OutlinedButton(onNewPage) { Text(stringResource(R.string.knowledge_new_page)) }
         }
     }
 }
@@ -289,20 +301,20 @@ private fun KnowledgeFilterSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ReiSheet(onDismiss = onDismiss, title = "Filters") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.library_filters_title)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Show", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.library_filters_show), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                KnowledgeTab.entries.forEach { tab -> FilterChip(state.tab == tab, { onTab(tab) }, { Text(tab.label) }) }
+                KnowledgeTab.entries.forEach { tab -> FilterChip(state.tab == tab, { onTab(tab) }, { Text(stringResource(tab.labelRes)) }) }
             }
             if (state.allTags.isNotEmpty()) {
-                Text("Tags", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.knowledge_tags), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.allTags.forEach { tag -> FilterChip(tag in state.selectedTags, { onToggleTag(tag) }, { Text("#$tag") }) }
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onReset, enabled = state.tab != KnowledgeTab.All || state.selectedTags.isNotEmpty()) { Text("Reset filters") }
+                TextButton(onReset, enabled = state.tab != KnowledgeTab.All || state.selectedTags.isNotEmpty()) { Text(stringResource(R.string.library_filters_reset)) }
             }
         }
     }
@@ -312,4 +324,56 @@ private fun KnowledgeFilterSheet(
 internal fun relative(@Suppress("UNUSED_PARAMETER") context: android.content.Context, millis: Long): String {
     val now = System.currentTimeMillis()
     return DateUtils.getRelativeTimeSpanString(minOf(millis, now), now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
+}
+
+@ReiPreviews
+@Composable
+private fun KnowledgeContentPreview() = ReiScreenPreviewSurface {
+    KnowledgeContent(
+        state = KnowledgeUiState(
+            loaded = true,
+            tree = listOf(
+                KnowledgeNode(
+                    id = "p1",
+                    parentId = null,
+                    title = "Project handbook",
+                    description = "Core decisions and team conventions",
+                    updatedAt = 1_700_000_000_000L,
+                    updatedBy = "user",
+                    locked = false,
+                    pinned = true,
+                    inbox = false,
+                    childCount = 2,
+                    trashedAt = null,
+                ),
+                KnowledgeNode(
+                    id = "p2",
+                    parentId = "p1",
+                    title = "Release checklist",
+                    description = "Pre-flight steps before shipping",
+                    updatedAt = 1_700_000_000_000L,
+                    updatedBy = "agent",
+                    locked = true,
+                    pinned = false,
+                    inbox = false,
+                    childCount = 0,
+                    trashedAt = null,
+                ),
+            ),
+            expanded = setOf("p1"),
+            tags = mapOf("p1" to listOf("docs", "handbook")),
+        ),
+        onText = {},
+        onTab = {},
+        onToggleTag = {},
+        onResetFilters = {},
+        onToggleExpanded = {},
+        onEnsureTags = {},
+        onOpen = {},
+        onRestore = {},
+        onRefresh = {},
+        onRetry = {},
+        onNewPage = {},
+        onDismissError = {},
+    )
 }

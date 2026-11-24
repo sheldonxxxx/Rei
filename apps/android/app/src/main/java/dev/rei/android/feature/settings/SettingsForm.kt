@@ -19,11 +19,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
@@ -34,7 +37,10 @@ import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
 
 /** One option of a [ChoiceRow]: the value the server stores and the words the user sees. */
-internal data class Choice(val value: String, val label: String, val summary: String? = null, val enabled: Boolean = true)
+internal data class Choice(val value: String, val label: UiText, val summary: UiText? = null, val enabled: Boolean = true) {
+    constructor(value: String, label: String, summary: String? = null, enabled: Boolean = true) :
+        this(value, UiText.Literal(label), summary?.let(UiText::Literal), enabled)
+}
 
 /**
  * A settings row that shows its current choice and opens a sheet to change it: the phone's replacement for the web's select.
@@ -49,7 +55,7 @@ internal fun ChoiceRow(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     summary: String? = null,
-    placeholder: String = "Not set",
+    placeholder: String = stringResource(R.string.settings_not_set),
     enabled: Boolean = true,
     dividerBelow: Boolean = false,
 ) {
@@ -59,7 +65,7 @@ internal fun ChoiceRow(
         title = title,
         modifier = modifier,
         icon = icon,
-        summary = listOfNotNull(current?.label ?: placeholder, summary).joinToString("\n"),
+        summary = listOfNotNull(current?.label?.asString() ?: placeholder, summary).joinToString("\n"),
         onClick = if (enabled) ({ open = true }) else null,
         dividerBelow = dividerBelow,
         trailing = { SettingsChevron() },
@@ -69,10 +75,12 @@ internal fun ChoiceRow(
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 choices.forEach { choice ->
                     SettingsRow(
-                        choice.label,
-                        summary = choice.summary,
+                        choice.label.asString(),
+                        summary = choice.summary?.asString(),
                         onClick = if (choice.enabled) ({ open = false; if (choice.value != selected) onSelect(choice.value) }) else null,
-                        trailing = if (choice.value == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }) else null,
+                        trailing = if (choice.value == selected) {
+                            { androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = stringResource(R.string.settings_selected), tint = MaterialTheme.colorScheme.primary) }
+                        } else null,
                     )
                 }
             }
@@ -157,7 +165,7 @@ internal fun SecretField(
         trailingContent = {
             ReiIconButton(
                 if (visible) ReiIcons.EyeOff else ReiIcons.Eye,
-                if (visible) "Hide value" else "Show value",
+                stringResource(if (visible) R.string.settings_hide_value else R.string.settings_show_value),
                 { visible = !visible },
             )
         },

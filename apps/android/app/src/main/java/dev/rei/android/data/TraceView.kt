@@ -1,5 +1,7 @@
 package dev.rei.android.data
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -32,6 +34,7 @@ data class ContextMessage(
     /** A system message sent after the conversation began: a change to a prompt section, shown where it was sent. */
     val update: Boolean = false,
     val reasoning: String = "",
+    val encryptedReasoning: Boolean = false,
 )
 
 data class OfferedTool(val name: String, val description: String, val schema: JsonElement?)
@@ -88,9 +91,8 @@ private fun contentText(c: JsonElement?): Content {
 private fun reasoningItem(m: JsonObject): ContextMessage {
     val summary = m["summary"].arr()?.mapNotNull { it.obj()?.get("text").str() }.orEmpty().filter(String::isNotEmpty)
     val readable = (summary + contentText(m["content"]).text).filter(String::isNotEmpty).joinToString("\n")
-    // Encrypted reasoning cannot be read here; say so instead of showing an empty row.
-    val text = readable.ifEmpty { if (m["encrypted_content"] != null) "Encrypted reasoning (not readable here)." else "" }
-    return ContextMessage("reasoning", text, emptyList(), 0)
+    // Encrypted reasoning cannot be read here; flag it so the UI shows a localized note instead of an empty row.
+    return ContextMessage("reasoning", readable, emptyList(), 0, encryptedReasoning = readable.isEmpty() && m["encrypted_content"] != null)
 }
 
 private fun oneMessage(m: JsonElement?): ContextMessage? {
@@ -268,35 +270,39 @@ fun promptSectionLabel(name: String): String = when (name) {
 }
 
 /** A tool call's action class in words, as the web's policy labels it. */
-fun actionClassLabel(actionClass: String?): String = when (actionClass) {
-    "read_internal" -> "Read"
-    "read_external" -> "Read outside content"
-    "write_internal" -> "Write"
-    "write_external" -> "Reversible write"
-    "send" -> "Send"
-    "irreversible" -> "Irreversible"
-    "credentials" -> "Login"
-    "memory_write" -> "Memory write"
-    "configure" -> "Set up"
-    else -> actionClass.orEmpty()
+fun actionClassLabel(actionClass: String?): UiText = when (actionClass) {
+    "read_internal" -> UiText.Resource(R.string.chat_trace_class_read_internal)
+    "read_external" -> UiText.Resource(R.string.chat_trace_class_read_external)
+    "write_internal" -> UiText.Resource(R.string.chat_trace_class_write_internal)
+    "write_external" -> UiText.Resource(R.string.chat_trace_class_write_external)
+    "send" -> UiText.Resource(R.string.chat_trace_class_send)
+    "irreversible" -> UiText.Resource(R.string.chat_trace_class_irreversible)
+    "credentials" -> UiText.Resource(R.string.chat_trace_class_credentials)
+    "memory_write" -> UiText.Resource(R.string.chat_trace_class_memory_write)
+    "configure" -> UiText.Resource(R.string.chat_trace_class_configure)
+    else -> UiText.Literal(actionClass.orEmpty())
 }
 
 /** What the policy decided, in the web's words. */
-fun decisionLabel(decision: String?): String = when (decision) {
-    "allow" -> "allowed"
-    "granted" -> "granted"
-    "ask" -> "asked you"
-    "deny" -> "denied"
-    else -> "–"
+fun decisionLabel(decision: String?): UiText = when (decision) {
+    "allow" -> UiText.Resource(R.string.chat_trace_decision_allow)
+    "granted" -> UiText.Resource(R.string.chat_trace_decision_granted)
+    "ask" -> UiText.Resource(R.string.chat_trace_decision_ask)
+    "deny" -> UiText.Resource(R.string.chat_trace_decision_deny)
+    else -> UiText.Literal("–")
 }
 
 /** "13,584": thousands separated, as the web shows token counts. */
-fun groupedNumber(value: Long): String = "%,d".format(java.util.Locale.US, value)
+fun groupedNumber(value: Long): String = java.text.NumberFormat.getIntegerInstance().format(value)
 
 /** An untagged section is named by its first words. */
-fun sectionOpening(body: String): String {
+fun sectionOpening(body: String): UiText {
     val line = body.lineSequence().first().trim()
-    return if (line.length > 48) line.take(47).trimEnd() + "…" else line.ifEmpty { "Untitled" }
+    return when {
+        line.length > 48 -> UiText.Literal(line.take(47).trimEnd() + "…")
+        line.isEmpty() -> UiText.Resource(R.string.chat_trace_untitled)
+        else -> UiText.Literal(line)
+    }
 }
 
 /** The strings of a JSON array, for lists of names. */

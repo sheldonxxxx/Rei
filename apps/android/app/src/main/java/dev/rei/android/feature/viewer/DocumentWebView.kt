@@ -18,11 +18,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
+import dev.rei.android.R
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.icons.ReiIcons
 import java.io.ByteArrayInputStream
@@ -80,11 +82,11 @@ fun DocumentWebView(bytes: ByteArray, name: String, modifier: Modifier = Modifie
         }.getOrNull()
     }
     if (webView == null) {
-        EmptyState(ReiIcons.File, "No preview", modifier, body = "This device has no WebView to show documents with. Download the original instead.")
+        EmptyState(ReiIcons.File, stringResource(R.string.viewer_no_preview), modifier, body = stringResource(R.string.viewer_no_webview_body))
         return
     }
     if (stopped) {
-        EmptyState(ReiIcons.File, "Preview stopped", modifier, body = "The document viewer ran out of memory or crashed. Close this and open the file again.")
+        EmptyState(ReiIcons.File, stringResource(R.string.viewer_preview_stopped), modifier, body = stringResource(R.string.viewer_webview_crashed_body))
         DisposableEffect(webView) { onDispose { webView.destroy() } }
         return
     }

@@ -1,7 +1,9 @@
 package dev.rei.android.shell
 
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.Session
+import dev.rei.android.ui.UiText
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
@@ -33,13 +35,23 @@ class ChatGroupingTest {
         val groups = group(
             listOf(chat("a"), chat("b", 1), chat("c", 3), chat("d", 12), chat("e", 40), chat("f", 400)),
         )
-        assertEquals(listOf("Today", "Yesterday", "Previous 7 days", "Previous 30 days", "October", "October 2025"), groups.map { it.label })
+        assertEquals(
+            listOf(
+                UiText.Resource(R.string.drawer_group_today),
+                UiText.Resource(R.string.drawer_group_yesterday),
+                UiText.Resource(R.string.drawer_group_last_7_days),
+                UiText.Resource(R.string.drawer_group_last_30_days),
+                UiText.Literal("October"),
+                UiText.Resource(R.string.drawer_group_month_year, "October", 2025),
+            ),
+            groups.map { it.label },
+        )
     }
 
     @Test
     fun pinnedChatsComeFirstAndStayOutOfTheDateGroups() {
         val groups = group(listOf(chat("a"), chat("b", 5, pinned = true)))
-        assertEquals(listOf("Pinned", "Today"), groups.map { it.label })
+        assertEquals(listOf(UiText.Resource(R.string.drawer_group_pinned), UiText.Resource(R.string.drawer_group_today)), groups.map { it.label })
         assertEquals(listOf("b"), groups.first().sessions.map { it.id })
     }
 

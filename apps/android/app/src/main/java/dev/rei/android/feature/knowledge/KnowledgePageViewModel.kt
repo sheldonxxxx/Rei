@@ -8,6 +8,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
@@ -22,6 +23,8 @@ import dev.rei.android.data.saveKnowledgePage
 import dev.rei.android.data.setKnowledgePinned
 import dev.rei.android.data.trashKnowledgePage
 import dev.rei.android.di.AppContainer
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,13 +53,13 @@ data class PageUiState(
     val pageId: String? = null,
     val page: KnowledgePageData? = null,
     val loading: Boolean = true,
-    val error: String? = null,
+    val error: UiText? = null,
     val editing: Boolean = false,
     val draft: PageDraft = PageDraft(),
     val tagEntry: String = "",
-    val tagError: String? = null,
+    val tagError: UiText? = null,
     val saving: Boolean = false,
-    val saveError: String? = null,
+    val saveError: UiText? = null,
     /** The server holds a newer revision than the one being edited (HTTP 409). */
     val conflict: Boolean = false,
 ) {
@@ -157,7 +160,7 @@ class KnowledgePageViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                mutable.update { it.copy(loading = false, error = failure.localizedMessage ?: "Could not open this page.") }
+                mutable.update { it.copy(loading = false, error = failure.asUiText(UiText.Resource(R.string.knowledge_page_err_open))) }
             }
         }
     }
@@ -207,7 +210,7 @@ class KnowledgePageViewModel(
                 savedStateHandle[KeyTagEntry] = ""
                 mutable.update { it.copy(draft = it.draft.copy(tags = tags), tagEntry = "", tagError = null) }
             },
-            onFailure = { failure -> mutable.update { it.copy(tagError = failure.message) } },
+            onFailure = { failure -> mutable.update { it.copy(tagError = failure.asUiText(UiText.Resource(R.string.workspace_tag_too_long))) } },
         )
     }
 
@@ -237,10 +240,13 @@ class KnowledgePageViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: ReiApiException) {
-                if (failure.status == 409) mutable.update { it.copy(saving = false, conflict = true, saveError = "This page changed while you were editing.") }
-                else mutable.update { it.copy(saving = false, saveError = failure.localizedMessage ?: "Could not save the page.") }
+                if (failure.status == 409) {
+                    mutable.update { it.copy(saving = false, conflict = true, saveError = UiText.Resource(R.string.knowledge_page_err_conflict)) }
+                } else {
+                    mutable.update { it.copy(saving = false, saveError = failure.asUiText(UiText.Resource(R.string.knowledge_page_err_save))) }
+                }
             } catch (failure: Exception) {
-                mutable.update { it.copy(saving = false, saveError = failure.localizedMessage ?: "Could not save the page.") }
+                mutable.update { it.copy(saving = false, saveError = failure.asUiText(UiText.Resource(R.string.knowledge_page_err_save))) }
             }
         }
     }
@@ -276,12 +282,12 @@ class KnowledgePageViewModel(
             try {
                 api.trashKnowledgePage(page.id)
                 workspace.notifyPagesChanged()
-                workspace.showNotice("Moved “${page.title}” to Trash", UndoAction.RestorePage(page.id))
+                workspace.showNotice(UiText.Resource(R.string.knowledge_page_notice_trashed, page.title), UndoAction.RestorePage(page.id))
                 eventsFlow.tryEmit(PageEvent.Close)
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                workspace.showNotice(failure.localizedMessage ?: "Could not move the page to Trash.")
+                workspace.showNotice(failure.asUiText(UiText.Resource(R.string.knowledge_page_err_trash)))
             }
         }
     }
@@ -296,11 +302,11 @@ class KnowledgePageViewModel(
                 persistDraftState(editing = mutable.value.editing, draft = draft, tagEntry = mutable.value.tagEntry)
                 mutable.update { it.copy(page = restored, draft = draft) }
                 workspace.notifyPagesChanged()
-                workspace.showNotice("Restored “${restored.title}”")
+                workspace.showNotice(UiText.Resource(R.string.knowledge_notice_restored, restored.title))
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                workspace.showNotice(failure.localizedMessage ?: "Could not restore the page.")
+                workspace.showNotice(failure.asUiText(UiText.Resource(R.string.knowledge_err_restore)))
             }
         }
     }

@@ -1,12 +1,15 @@
 package dev.rei.android.feature.activity
 
 import androidx.compose.runtime.Immutable
+import dev.rei.android.R
 import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.data.SessionRepository
 import dev.rei.android.data.objects
 import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -33,22 +36,22 @@ data class ActivityUiState(
     /** The first fetch has finished (or failed); until then the list shows a quiet loading line. */
     val loaded: Boolean = false,
     val refreshing: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** Rows whose Retry or Undo is in flight. */
     val busy: Set<String> = emptySet(),
     /** A completed action to say in the snackbar ("Memory change undone"). */
-    val notice: String? = null,
+    val notice: UiText? = null,
     val agentNames: Map<String, String> = emptyMap(),
 )
 
-private data class Flags(val refreshing: Boolean = false, val busy: Set<String> = emptySet(), val error: String? = null)
+private data class Flags(val refreshing: Boolean = false, val busy: Set<String> = emptySet(), val error: UiText? = null)
 
 private data class Fetched(
     val jobs: List<BackgroundJob> = emptyList(),
     val triggers: List<TriggerSummary> = emptyList(),
     val changes: Map<String, List<MemoryChange>> = emptyMap(),
     val loaded: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 /**
@@ -66,7 +69,7 @@ class ActivityStore(
 ) {
     private val fetched = MutableStateFlow(Fetched())
     private val flags = MutableStateFlow(Flags())
-    private var notice = MutableStateFlow<String?>(null)
+    private var notice = MutableStateFlow<UiText?>(null)
     private var fetchJob: Job? = null
 
     val state: StateFlow<ActivityUiState> = combine(catalog.state, fetched, flags, notice) { live, data, flag, note ->
@@ -134,7 +137,7 @@ class ActivityStore(
             triggers = triggerResult.getOrNull() ?: previous.triggers,
             changes = details.mapNotNull { (id, result) -> result.getOrNull()?.let { id to it } }.toMap() + previous.changes.filterKeys { key -> details.none { it.first == key && it.second.isSuccess } },
             loaded = true,
-            error = failure?.let { it.message ?: "Couldn’t load Background Activity." },
+            error = failure?.asUiText(UiText.Resource(R.string.activity_err_load)),
         )
     }
 
@@ -143,7 +146,7 @@ class ActivityStore(
 
     fun retry(row: FailureRow) {
         val target = row.retry ?: return
-        act(row.key, "Retry started") { api ->
+        act(row.key, UiText.Resource(R.string.activity_notice_retry_started)) { api ->
             when (target) {
                 is RetryTarget.Job -> api.request("POST", listOf("api", "background", target.id, "retry"))
                 is RetryTarget.Trigger -> api.request("POST", listOf("api", "triggers", target.id, "run"))
@@ -151,7 +154,7 @@ class ActivityStore(
         }
     }
 
-    fun undo(change: MemoryChange) = act("change:${change.id}", "Memory change undone") { api ->
+    fun undo(change: MemoryChange) = act("change:${change.id}", UiText.Resource(R.string.activity_notice_memory_undone)) { api ->
         api.request("POST", listOf("api", "memory", "changes", change.id, "undo"))
     }
 
@@ -159,7 +162,7 @@ class ActivityStore(
 
     fun dismissError() { flags.update { it.copy(error = null) } }
 
-    private fun act(key: String, done: String, block: suspend (ReiApi) -> JsonObject) {
+    private fun act(key: String, done: UiText, block: suspend (ReiApi) -> JsonObject) {
         val api = session.currentApi ?: return
         if (key in flags.value.busy) return
         flags.update { it.copy(busy = it.busy + key, error = null) }
@@ -171,7 +174,7 @@ class ActivityStore(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                flags.update { it.copy(error = failure.message ?: "Couldn’t complete that. Try again.") }
+                flags.update { it.copy(error = failure.asUiText(UiText.Resource(R.string.activity_err_action))) }
             } finally {
                 flags.update { it.copy(busy = it.busy - key) }
             }

@@ -1,5 +1,6 @@
 package dev.rei.android.ui.components.chat
 
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -29,7 +30,7 @@ class SurfaceResolveTest {
             data("""{"name":"Rei"}"""),
         ) as SurfaceSpec.Stack
         assertEquals(SurfaceSpec.Markdown("Hi Rei"), spec.children[0])
-        assertEquals("Start", (spec.children[1] as SurfaceSpec.Action).label)
+        assertEquals(UiText.Literal("Start"), (spec.children[1] as SurfaceSpec.Action).label)
     }
 
     @Test

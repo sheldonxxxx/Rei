@@ -21,7 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.RunTrace
 import dev.rei.android.data.TraceStep
@@ -40,12 +43,13 @@ data class InspectTarget(val runId: String? = null, val stepId: String? = null)
 
 private const val MaxRuns = 8
 
+@Composable
 private fun runStatus(run: RunTrace) = when (run.status) {
-    "queued" -> "Queued"
-    "running" -> "Running"
-    "completed" -> "Finished"
-    "failed" -> "Failed"
-    "cancelled" -> "Cancelled"
+    "queued" -> stringResource(R.string.chat_run_queued)
+    "running" -> stringResource(R.string.chat_run_running)
+    "completed" -> stringResource(R.string.chat_run_finished)
+    "failed" -> stringResource(R.string.chat_run_failed)
+    "cancelled" -> stringResource(R.string.chat_run_cancelled)
     else -> run.status
 }
 
@@ -63,7 +67,7 @@ fun InspectSheet(
     approvalMessages: Map<String, String> = emptyMap(),
     onOpenApproval: (messageId: String) -> Unit = {},
 ) {
-    ReiSheet(onDismiss = onDismiss, title = "Inspect") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.chat_inspect_title)) {
         InspectBody(
             api = api,
             runs = runs,
@@ -96,8 +100,8 @@ fun InspectPane(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Inspect", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                ReiIconButton(ReiIcons.Close, "Close inspect", onDismiss)
+                Text(stringResource(R.string.chat_inspect_title), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                ReiIconButton(ReiIcons.Close, stringResource(R.string.chat_inspect_close), onDismiss)
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             InspectBody(
@@ -139,7 +143,7 @@ private fun InspectBody(
                 },
             )
             shown.isEmpty() -> Text(
-                "Nothing has been recorded for this reply yet. Older traces expire over time.",
+                stringResource(R.string.chat_inspect_empty),
                 Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -163,9 +167,10 @@ private fun RunView(run: RunTrace, latest: Boolean, onOpenStep: (TraceStep) -> U
     val models = run.steps.count { it.type == "llm.call" }
     val tools = run.steps.count { it.type == "tool.call" }
     val tokens = run.steps.sumOf { it.tokens ?: 0 }
+    val heading = activityHeading(run, waitingForApproval = false).asString()
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            (if (latest) "Latest · " else "") + activityHeading(run, waitingForApproval = false),
+            if (latest) stringResource(R.string.chat_inspect_latest, heading) else heading,
             Modifier.padding(start = 4.dp),
             style = MaterialTheme.typography.titleSmall,
         )
@@ -174,20 +179,23 @@ private fun RunView(run: RunTrace, latest: Boolean, onOpenStep: (TraceStep) -> U
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
+            val statusText = runStatus(run)
+            val durationText = duration(run.durationMs).asString()
+            val modelsText = pluralStringResource(R.plurals.chat_inspect_model_calls, models, models)
+            val toolsText = pluralStringResource(R.plurals.chat_inspect_tool_calls, tools, tools)
+            val totalsText = stringResource(R.string.chat_inspect_totals_value, modelsText, toolsText, groupedNumber(tokens))
             Facts(
-                buildList {
-                    add("Status" to runStatus(run))
-                    add("Duration" to duration(run.durationMs))
-                    add(
-                        "Totals" to "$models model ${if (models == 1) "call" else "calls"} · $tools tool ${if (tools == 1) "call" else "calls"} · ${groupedNumber(tokens)} tokens",
-                    )
-                },
+                listOf(
+                    stringResource(R.string.chat_inspect_status) to statusText,
+                    stringResource(R.string.chat_inspect_duration) to durationText,
+                    stringResource(R.string.chat_inspect_totals) to totalsText,
+                ),
                 Modifier.padding(14.dp),
             )
         }
-        SectionLabel("Steps · ${run.steps.size}")
+        SectionLabel(stringResource(R.string.chat_inspect_steps_header, run.steps.size))
         if (run.steps.isEmpty()) {
-            Text("No steps recorded for this run.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.chat_inspect_no_steps), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Surface(
                 shape = ReiShapes.Inset,

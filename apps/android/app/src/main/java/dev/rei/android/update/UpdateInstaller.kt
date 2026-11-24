@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import java.io.File
 import java.io.IOException
 
@@ -50,12 +52,13 @@ internal object UpdateInstaller {
 }
 
 /** A plain-language reason for a [PackageInstaller] failure status; [detail] is the system's own message, if any. */
-internal fun installFailureMessage(status: Int, detail: String?): String = when (status) {
-    PackageInstaller.STATUS_FAILURE_ABORTED -> "The update was cancelled."
-    PackageInstaller.STATUS_FAILURE_BLOCKED -> "Android blocked the install. Check that installs from Rei are allowed."
+internal fun installFailureMessage(status: Int, detail: String?): UiText = when (status) {
+    PackageInstaller.STATUS_FAILURE_ABORTED -> UiText.Resource(R.string.update_install_cancelled)
+    PackageInstaller.STATUS_FAILURE_BLOCKED -> UiText.Resource(R.string.update_install_blocked)
     PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
-        "Android refused the update: it is not signed with the same key as the installed app."
-    PackageInstaller.STATUS_FAILURE_INVALID -> "Android could not read the downloaded update."
-    PackageInstaller.STATUS_FAILURE_STORAGE -> "There is not enough storage on this device to install the update."
-    else -> detail?.takeIf { it.isNotBlank() }?.let { "The update could not be installed: $it" } ?: "The update could not be installed."
+        UiText.Resource(R.string.update_install_conflict)
+    PackageInstaller.STATUS_FAILURE_INVALID -> UiText.Resource(R.string.update_install_invalid)
+    PackageInstaller.STATUS_FAILURE_STORAGE -> UiText.Resource(R.string.update_install_storage)
+    else -> detail?.takeIf { it.isNotBlank() }?.let { UiText.Resource(R.string.update_install_failed_detail, it) }
+        ?: UiText.Resource(R.string.update_install_failed)
 }

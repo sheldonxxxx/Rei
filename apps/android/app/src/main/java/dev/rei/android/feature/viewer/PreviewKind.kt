@@ -43,7 +43,8 @@ fun previewKind(name: String, mediaType: String): PreviewKind {
 }
 
 /** The short label on a card without a thumbnail: the extension, upper case, at most eight characters. */
-fun typeLabel(name: String): String = name.substringAfterLast('.', "").take(8).uppercase().ifEmpty { "FILE" }
+fun typeLabel(name: String, fallback: String = "FILE"): String =
+    name.substringAfterLast('.', "").take(8).uppercase().ifEmpty { fallback }
 
 /** The same byte sizes as web: 1.2 KiB, 3.4 MiB. */
 fun fileBytes(size: Long): String = when {

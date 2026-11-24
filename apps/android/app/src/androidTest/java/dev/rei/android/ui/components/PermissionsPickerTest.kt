@@ -1,5 +1,6 @@
 package dev.rei.android.ui.components
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -13,6 +14,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import dev.rei.android.R
 import dev.rei.android.data.ChatProfile
 import dev.rei.android.ui.components.chat.Composer
 import dev.rei.android.ui.components.chat.ComposerState
@@ -26,6 +29,11 @@ import org.junit.Test
 class PermissionsPickerTest {
     @get:Rule
     val compose = createComposeRule()
+
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
 
     private val chosen = mutableListOf<ChatProfile>()
     private var settingsOpened = 0
@@ -67,47 +75,51 @@ class PermissionsPickerTest {
     @Test
     fun theChipNamesTheLevelAndPicksYoloFromTheSheet() {
         show(ChatProfile.Standard)
-        compose.onNodeWithContentDescription("Permissions: Standard. Change").performClick()
-        compose.onNodeWithText("Permissions").assertExists()
-        level("Standard").assertIsSelected()
-        level("Strict").assertExists()
-        level("YOLO").assertTextContains(ChatProfile.Yolo.description, substring = true)
-        level("YOLO").performClick()
+        val standard = str(ChatProfile.Standard.labelRes)
+        val strict = str(ChatProfile.Strict.labelRes)
+        val yolo = str(ChatProfile.Yolo.labelRes)
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, standard)).performClick()
+        compose.onNodeWithText(str(R.string.composer_permissions_title)).assertExists()
+        level(standard).assertIsSelected()
+        level(strict).assertExists()
+        level(yolo).assertTextContains(str(ChatProfile.Yolo.descriptionRes), substring = true)
+        level(yolo).performClick()
         assertEquals(listOf(ChatProfile.Yolo), chosen)
         // The sheet closed, and the chip now reads YOLO.
-        compose.onNodeWithText("This chat only.").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Permissions: YOLO. Change").assertExists()
+        compose.onNodeWithText(str(R.string.composer_permissions_this_chat)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, yolo)).assertExists()
     }
 
     @Test
     fun theCurrentLevelIsSelectedWhenTheSheetOpens() {
         show(ChatProfile.Strict)
-        compose.onNodeWithContentDescription("Permissions: Strict. Change").performClick()
-        level("Strict").assertIsSelected()
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, str(ChatProfile.Strict.labelRes))).performClick()
+        level(str(ChatProfile.Strict.labelRes)).assertIsSelected()
     }
 
     @Test
     fun anErrorShowsInTheSheetAndKeepsItOpen() {
-        show(ChatProfile.Standard, error = "Couldn’t reach Rei. Check your connection and try again.")
-        compose.onNodeWithContentDescription("Permissions: Standard. Change").performClick()
-        compose.onNodeWithText("Couldn’t reach Rei. Check your connection and try again.").assertExists()
-        compose.onNodeWithText("This chat only.").assertExists()
+        val networkErr = str(R.string.chat_err_network)
+        show(ChatProfile.Standard, error = networkErr)
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, str(ChatProfile.Standard.labelRes))).performClick()
+        compose.onNodeWithText(networkErr).assertExists()
+        compose.onNodeWithText(str(R.string.composer_permissions_this_chat)).assertExists()
     }
 
     @Test
     fun levelsWaitWhileASaveIsInFlight() {
         show(ChatProfile.Standard, saving = true)
-        compose.onNodeWithContentDescription("Permissions: Standard. Change").performClick()
-        level("YOLO").assertIsNotEnabled()
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, str(ChatProfile.Standard.labelRes))).performClick()
+        level(str(ChatProfile.Yolo.labelRes)).assertIsNotEnabled()
     }
 
     @Test
     fun theAgentDefaultOpensItsSettings() {
         show(ChatProfile.Standard)
-        compose.onNodeWithContentDescription("Permissions: Standard. Change").performClick()
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, str(ChatProfile.Standard.labelRes))).performClick()
         // The Permissions settings page is native, so the row must not claim to open the web app.
         compose.onNodeWithContentDescription("Opens in web").assertDoesNotExist()
-        compose.onNodeWithText("Settings → Permissions").assertIsEnabled().performClick()
+        compose.onNodeWithText(str(R.string.composer_permissions_settings)).assertIsEnabled().performClick()
         assertEquals(1, settingsOpened)
     }
 
@@ -121,6 +133,6 @@ class PermissionsPickerTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Permissions: Standard. Change").assertDoesNotExist()
+        compose.onNodeWithContentDescription(str(R.string.composer_permissions_desc, str(ChatProfile.Standard.labelRes))).assertDoesNotExist()
     }
 }

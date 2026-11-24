@@ -1,5 +1,6 @@
 package dev.rei.android.feature.knowledge
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -8,6 +9,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.KnowledgeHit
 import dev.rei.android.data.KnowledgeNode
 import dev.rei.android.data.ReiApi
@@ -21,6 +23,8 @@ import dev.rei.android.data.restoreKnowledgePage
 import dev.rei.android.data.searchKnowledge
 import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.di.AppContainer
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -36,7 +40,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-enum class KnowledgeTab(val label: String) { All("All pages"), Favorites("Favorites"), Trash("Trash") }
+enum class KnowledgeTab(@StringRes val labelRes: Int) {
+    All(R.string.knowledge_tab_all),
+    Favorites(R.string.workspace_tab_favorites),
+    Trash(R.string.workspace_tab_trash),
+}
 
 /** One visible line of the page list: a node at [depth], open or closed. */
 @Immutable
@@ -57,7 +65,7 @@ data class KnowledgeUiState(
     val loaded: Boolean = false,
     val refreshing: Boolean = false,
     val loadFailed: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 ) {
     /** Words or tags are set: the list shows search results instead of the tree. */
     val searching get() = searchText.isNotBlank() || selectedTags.isNotEmpty()
@@ -201,7 +209,7 @@ class KnowledgeViewModel(
                     loaded = true,
                     refreshing = false,
                     loadFailed = it.tree.isEmpty() && it.trash.isEmpty() && it.hits.isEmpty(),
-                    error = failure.localizedMessage ?: "Could not load pages.",
+                    error = failure.asUiText(UiText.Resource(R.string.knowledge_err_load)),
                 )
             }
         }
@@ -232,11 +240,11 @@ class KnowledgeViewModel(
                 api.restoreKnowledgePage(node.id)
                 mutable.update { it.copy(trash = it.trash.filterNot { page -> page.id == node.id }) }
                 workspace.notifyPagesChanged()
-                workspace.showNotice("Restored “${node.title}”")
+                workspace.showNotice(UiText.Resource(R.string.knowledge_notice_restored, node.title))
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                workspace.showNotice(failure.localizedMessage ?: "Could not restore the page.")
+                workspace.showNotice(failure.asUiText(UiText.Resource(R.string.knowledge_err_restore)))
             }
         }
     }

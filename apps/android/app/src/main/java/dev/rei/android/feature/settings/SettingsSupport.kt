@@ -22,12 +22,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.R
 import dev.rei.android.data.ReiApiException
 import dev.rei.android.shell.ReiTopBar
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import kotlinx.coroutines.CancellationException
@@ -37,17 +41,18 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.text.NumberFormat
 import java.util.Date
+import java.util.Locale
 
 /** Loaded data for a settings screen: [value] until it arrives is null; [reload] fetches again and keeps the old value showing. */
 @Stable
 class Resource<T> internal constructor(
     private val state: MutableState<T?>,
-    private val errorState: MutableState<String?>,
+    private val errorState: MutableState<UiText?>,
     private val loadingState: MutableState<Boolean>,
     private val onReload: () -> Unit,
 ) {
     val value: T? get() = state.value
-    val error: String? get() = errorState.value
+    val error: UiText? get() = errorState.value
     val loading: Boolean get() = loadingState.value
     fun reload() = onReload()
     fun set(value: T?) { state.value = value }
@@ -64,7 +69,7 @@ class SettingsScreenViewModel : ViewModel() {
 
     private class Entry<T>(var key: Any?, private val scope: CoroutineScope, var loader: suspend () -> T) {
         val state = mutableStateOf<T?>(null)
-        val error = mutableStateOf<String?>(null)
+        val error = mutableStateOf<UiText?>(null)
         val loading = mutableStateOf(true)
         var job: Job? = null
         val resource = Resource(state, error, loading) { start() }
@@ -130,7 +135,7 @@ internal fun <T> rememberSettingsState(init: () -> T): MutableState<T> {
 class Writes(private val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<UiText?>(null)
 
     /** Runs [block]; on success calls [onDone]. Ignored while another write is running. */
     fun run(onDone: () -> Unit = {}, block: suspend () -> Unit) {
@@ -171,7 +176,7 @@ fun SubScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     busy: Boolean = false,
-    error: String? = null,
+    error: UiText? = null,
     onRetry: (() -> Unit)? = null,
     actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
     content: @Composable () -> Unit,
@@ -192,15 +197,22 @@ fun SubScreen(
                     .padding(bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                if (error != null) StatusBanner(error, kind = StatusKind.Error, actionLabel = onRetry?.let { "Try again" }, onAction = onRetry)
+                if (error != null) {
+                    StatusBanner(
+                        error.asString(),
+                        kind = StatusKind.Error,
+                        actionLabel = onRetry?.let { stringResource(R.string.common_try_again) },
+                        onAction = onRetry,
+                    )
+                }
                 content()
             }
         }
     }
 }
 
-internal fun settingsError(failure: Exception): String =
-    (failure as? ReiApiException)?.message ?: failure.message ?: "Couldn’t complete that. Try again."
+internal fun settingsError(failure: Exception): UiText =
+    failure.asUiText(UiText.Resource(R.string.settings_err_generic))
 
 /** A stored millisecond timestamp as a short local date and time, or null when absent. */
 internal fun dateTime(millis: Long?): String? = millis?.let { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)) }
@@ -213,6 +225,21 @@ internal fun count(value: Long?): String = value?.let { NumberFormat.getIntegerI
  * { notation: "compact", maximumFractionDigits: 1 })`, which the web's Usage page uses. Use it for token and usage counts.
  */
 internal fun compactCount(value: Long): String {
+    if (kotlin.math.abs(value) < 1_000L) return value.toString()
+    return runCatching {
+        val formatter = android.icu.text.CompactDecimalFormat.getInstance(
+            Locale.getDefault(),
+            android.icu.text.CompactDecimalFormat.CompactStyle.SHORT,
+        )
+        formatter.maximumFractionDigits = 1
+        formatter.setRoundingMode(android.icu.math.BigDecimal.ROUND_HALF_UP)
+        formatter.format(value)
+    }.getOrElse {
+        compactCountFallback(value)
+    }
+}
+
+private fun compactCountFallback(value: Long): String {
     val thousand = java.math.BigDecimal(1_000)
     var scaled = java.math.BigDecimal(value).abs()
     if (scaled < thousand) return value.toString()

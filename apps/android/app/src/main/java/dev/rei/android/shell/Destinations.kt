@@ -1,5 +1,6 @@
 package dev.rei.android.shell
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -11,6 +12,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import dev.rei.android.R
 import dev.rei.android.feature.settings.ProviderSection
 import dev.rei.android.feature.settings.SettingsPage
 import dev.rei.android.ui.icons.ReiIcons
@@ -20,16 +22,16 @@ import kotlinx.serialization.Serializable
  * Top-level drawer destinations. [label] is the word used in the drawer and in the top bar
  * (the same words as web: Library, Knowledge, Background Activity).
  */
-enum class Destination(val label: String, val icon: ImageVector? = null) {
+enum class Destination(@StringRes val labelRes: Int, val icon: ImageVector? = null) {
     /** Home. Opening the app lands in the last active chat. */
-    Chat("Chat"),
-    Library("Library", ReiIcons.Library),
-    Knowledge("Knowledge", ReiIcons.Knowledge),
-    Activity("Background Activity", ReiIcons.Activity),
-    Settings("Settings", ReiIcons.Settings),
+    Chat(R.string.drawer_dest_chat),
+    Library(R.string.drawer_dest_library, ReiIcons.Library),
+    Knowledge(R.string.drawer_dest_knowledge, ReiIcons.Knowledge),
+    Activity(R.string.drawer_dest_activity, ReiIcons.Activity),
+    Settings(R.string.drawer_dest_settings, ReiIcons.Settings),
 
     /** Full-screen history search, opened from the drawer header. */
-    Search("Search"),
+    Search(R.string.drawer_dest_search),
     ;
 
     fun toRoute(): Any = when (this) {

@@ -108,7 +108,7 @@ class FileViewerViewModelTest {
                 while (notices.isEmpty()) delay(10)
             }
             assertEquals("hello world", out.toString("UTF-8"))
-            assertEquals("Saved readme.txt", notices.last().message)
+            assertEquals(dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.viewer_notice_saved, "readme.txt"), notices.last().message)
 
             recreated.setTrashed(true)
             withTimeout(5_000) {

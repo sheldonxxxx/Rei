@@ -60,10 +60,10 @@ class SkillsTest {
     }
 
     @Test fun `agents read and save as the web does`() {
-        assertEquals("All agents", agentsLine(null, agents))
-        assertEquals("Scout", agentsLine(listOf("b"), agents))
-        assertEquals("All agents", agentsLine(listOf("a", "b"), agents))
-        assertEquals("No agents", agentsLine(emptyList(), agents))
+        assertEquals(dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_skills_all_agents), agentsLine(null, agents))
+        assertEquals(dev.rei.android.ui.UiText.Literal("Scout"), agentsLine(listOf("b"), agents))
+        assertEquals(dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_skills_all_agents), agentsLine(listOf("a", "b"), agents))
+        assertEquals(dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_skills_no_agents), agentsLine(emptyList(), agents))
         assertEquals(JsonNull, agentsBody(false, setOf("a"), agents)["agents"])
         assertEquals(listOf("a", "b"), agentsBody(true, setOf("b", "a"), agents)["agents"]!!.jsonArray.map { it.jsonPrimitive.content })
     }

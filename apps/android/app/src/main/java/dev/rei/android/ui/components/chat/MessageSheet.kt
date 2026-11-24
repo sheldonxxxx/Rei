@@ -20,9 +20,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.Message
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
@@ -52,31 +54,32 @@ fun MessageSheet(message: Message, actions: MessageSheetActions, onDismiss: () -
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("Version", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+                    Text(stringResource(R.string.chat_msg_version_title), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ReiIconButton(ReiIcons.Back, "Previous version", { switch(false) }, enabled = versions.index > 1)
+                        ReiIconButton(ReiIcons.Back, stringResource(R.string.chat_msg_version_prev), { switch(false) }, enabled = versions.index > 1)
+                        val versionDesc = stringResource(R.string.chat_msg_version_of, versions.index, versions.count)
                         Text(
-                            "${versions.index}/${versions.count}",
-                            Modifier.semantics { contentDescription = "Version ${versions.index} of ${versions.count}" },
+                            stringResource(R.string.chat_msg_version_ratio, versions.index, versions.count),
+                            Modifier.semantics { contentDescription = versionDesc },
                             style = MaterialTheme.typography.bodyLarge,
                         )
-                        ReiIconButton(ReiIcons.Forward, "Next version", { switch(true) }, enabled = versions.index < versions.count)
+                        ReiIconButton(ReiIcons.Forward, stringResource(R.string.chat_msg_version_next), { switch(true) }, enabled = versions.index < versions.count)
                     }
                 }
             }
         }
-        SettingsRow("Copy", icon = ReiIcons.Copy, onClick = actions.onCopy)
-        SettingsRow("Select text", icon = ReiIcons.Pointer, onClick = actions.onSelectText)
-        actions.onEdit?.let { SettingsRow("Edit", icon = ReiIcons.Edit, onClick = it) }
-        actions.onRetry?.let { SettingsRow("Retry", icon = ReiIcons.Reload, onClick = it) }
-        actions.onFork?.let { SettingsRow("Fork into a new chat", icon = ReiIcons.Branch, onClick = it) }
+        SettingsRow(stringResource(R.string.common_copy), icon = ReiIcons.Copy, onClick = actions.onCopy)
+        SettingsRow(stringResource(R.string.drawer_select_text), icon = ReiIcons.Pointer, onClick = actions.onSelectText)
+        actions.onEdit?.let { SettingsRow(stringResource(R.string.common_edit), icon = ReiIcons.Edit, onClick = it) }
+        actions.onRetry?.let { SettingsRow(stringResource(R.string.common_retry), icon = ReiIcons.Reload, onClick = it) }
+        actions.onFork?.let { SettingsRow(stringResource(R.string.drawer_chat_fork), icon = ReiIcons.Branch, onClick = it) }
     }
 }
 
 /** The whole message as selectable text, for when a long press on the bubble opens the sheet instead of selecting. */
 @Composable
 fun SelectTextSheet(text: String, onDismiss: () -> Unit) {
-    ReiSheet(onDismiss = onDismiss, title = "Select text") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.drawer_select_text)) {
         SelectionContainer {
             Text(
                 text,
@@ -91,18 +94,18 @@ fun SelectTextSheet(text: String, onDismiss: () -> Unit) {
 @Composable
 fun EditMessageSheet(initial: String, onDismiss: () -> Unit, onSend: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
-    ReiSheet(onDismiss = onDismiss, title = "Edit message") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.chat_msg_edit_title)) {
         Column(Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ReiTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = "Edited message",
+                label = stringResource(R.string.chat_msg_edit_label),
                 singleLine = false,
                 minLines = 3,
                 maxLines = 8,
             )
             Text(
-                "Rei runs the edited message again from here. The earlier version stays available.",
+                stringResource(R.string.chat_msg_edit_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -110,7 +113,7 @@ fun EditMessageSheet(initial: String, onDismiss: () -> Unit, onSend: (String) ->
                 onClick = { onSend(text.trim()) },
                 enabled = text.isNotBlank() && text.length <= 32_000,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            ) { Text("Send edited message") }
+            ) { Text(stringResource(R.string.chat_msg_edit_send)) }
         }
     }
 }

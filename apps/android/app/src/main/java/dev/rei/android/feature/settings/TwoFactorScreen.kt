@@ -12,12 +12,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.autofill.ContentType
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.string
 import dev.rei.android.ui.components.ReiIconButton
@@ -41,6 +44,7 @@ internal fun totpDigits(text: String): String = text.filter(Char::isDigit).take(
  */
 @Composable
 fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
+    val resources = LocalResources.current
     val context = LocalContext.current
     val writes = rememberWrites()
     val state = rememberResource(api) { api.authState().totpEnabled }
@@ -52,56 +56,62 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
     // The authenticator key is on screen only while enrolling: keep it out of screenshots and the recent-apps thumbnail.
     SecureWindow(enabled = enrol != null)
     fun reset() { editing = false; enrol = null; password = ""; code = "" }
-    SubScreen("Two-factor authentication", onBack, busy = writes.busy || state.loading, error = writes.error ?: state.error, onRetry = state::reload) {
+    SubScreen(stringResource(R.string.settings_page_two_factor), onBack, busy = writes.busy || state.loading, error = writes.error ?: state.error, onRetry = state::reload) {
         if (enabled != null) {
             SettingsGroup {
                 SettingsRow(
-                    if (enabled) "Enabled" else "Off",
-                    summary = if (enabled) "Sign in with your password and an authenticator code." else "Sign in with your password. Add an authenticator for an extra sign-in step.",
+                    stringResource(if (enabled) R.string.settings_tfa_enabled else R.string.settings_tfa_off),
+                    summary = stringResource(if (enabled) R.string.settings_tfa_enabled_summary else R.string.settings_tfa_off_summary),
                 )
             }
             if (!editing) {
                 FormGroup {
-                    FormButton(if (enabled) "Disable two-factor authentication" else "Set up authenticator", { editing = true })
+                    FormButton(stringResource(if (enabled) R.string.settings_tfa_disable else R.string.settings_tfa_setup), { editing = true })
                 }
             } else {
                 FormGroup {
                     var showPassword by remember { mutableStateOf(false) }
                     ReiTextField(
-                        password, { password = it }, "Current password", enabled = !writes.busy,
+                        password, { password = it }, stringResource(R.string.settings_tfa_current_password), enabled = !writes.busy,
                         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         contentType = ContentType.Password,
                         trailingContent = {
                             ReiIconButton(
                                 if (showPassword) ReiIcons.EyeOff else ReiIcons.Eye,
-                                if (showPassword) "Hide password" else "Show password",
+                                stringResource(if (showPassword) R.string.connect_hide_password else R.string.connect_show_password),
                                 { showPassword = !showPassword },
                             )
                         },
                     )
                     enrol?.let { (uri, secret) ->
-                        Text("Add this key to your authenticator app:", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.settings_tfa_add_key), style = MaterialTheme.typography.bodyMedium)
                         SelectionContainer { Text(secret, style = MaterialTheme.typography.titleMedium) }
-                        FormButton("Open in authenticator app", primary = false, onClick = {
+                        FormButton(stringResource(R.string.settings_tfa_open_app), primary = false, onClick = {
                             try {
                                 if (!isOtpAuthUri(uri)) throw ActivityNotFoundException()
                                 context.startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
                             } catch (_: ActivityNotFoundException) {
-                                Toast.makeText(context, "No authenticator app found. Enter the key by hand.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, resources.getString(R.string.settings_tfa_no_app), Toast.LENGTH_LONG).show()
                             }
                         })
-                        Text("Two-factor authentication stays off until you confirm a code.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.settings_tfa_pending_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (enabled || enrol != null) {
                         ReiTextField(
-                            code, { code = totpDigits(it) }, "6-digit code", enabled = !writes.busy,
+                            code, { code = totpDigits(it) }, stringResource(R.string.settings_tfa_code_label), enabled = !writes.busy,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             contentType = ContentType.SmsOtpCode,
                         )
                     }
                     FormButton(
-                        if (enabled) "Disable authenticator" else if (enrol != null) "Enable authenticator" else "Continue",
+                        stringResource(
+                            when {
+                                enabled -> R.string.settings_tfa_disable_action
+                                enrol != null -> R.string.settings_tfa_enable_action
+                                else -> R.string.common_continue
+                            },
+                        ),
                         enabled = !writes.busy && password.isNotEmpty() && ((!enabled && enrol == null) || code.length == 6),
                         onClick = {
                             val pass = password
@@ -119,7 +129,7 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
                             }
                         },
                     )
-                    FormButton("Cancel", primary = false, enabled = !writes.busy, onClick = ::reset)
+                    FormButton(stringResource(R.string.common_cancel), primary = false, enabled = !writes.busy, onClick = ::reset)
                 }
             }
         }

@@ -32,7 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -41,9 +46,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.RunTrace
 import dev.rei.android.data.TraceStep
 import dev.rei.android.data.groupedNumber
+import dev.rei.android.ui.components.ReiPreviewSurface
+import dev.rei.android.ui.components.ReiPreviews
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiEnter
@@ -77,30 +85,31 @@ fun ToolActivityRow(
     val capped = !detail && run.live && expanded == null
     val shown = if (capped) steps.takeLast(SimpleLiveRows) else steps
     val acted = steps.count { it.sideEffect }
-    val heading = activityHeading(run, waitingForApproval)
+    val context = LocalContext.current
+    val heading = activityHeading(run, waitingForApproval).asString()
     val scale = LocalMotionScale.current
     val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val collapsedRotation = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 90f else -90f
     val rotation by animateFloatAsState(
-        if (open) 0f else -90f,
+        if (open) 0f else collapsedRotation,
         tween(if (scale <= 0f) 0 else (ReiMotion.CeilingMs * 0.5f).toInt()),
         label = "chevron",
     )
 
+    val waitText = if (!run.live && run.approvalWaitMs > 0) {
+        stringResource(R.string.chat_activity_waited, duration(run.approvalWaitMs).asString())
+    } else null
+    val clickActionLabel = stringResource(if (open) R.string.chat_activity_hide else R.string.chat_activity_show)
+    val toggleStateDesc = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
     Column(modifier.fillMaxWidth().arrive(ReiEnter.Rise), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .clickable(onClickLabel = if (open) "Hide activity" else "Show activity", role = Role.Button) { expanded = !open }
+                .clickable(onClickLabel = clickActionLabel, role = Role.Button) { expanded = !open }
                 .semantics(mergeDescendants = true) {
-                    stateDescription = if (open) "Expanded" else "Collapsed"
-                    contentDescription = buildString {
-                        append(heading)
-                        if (!run.live && run.approvalWaitMs > 0) {
-                            append(". Waited for approval ")
-                            append(duration(run.approvalWaitMs))
-                        }
-                    }
+                    stateDescription = toggleStateDesc
+                    contentDescription = if (waitText != null) "$heading. $waitText" else heading
                 }
                 .padding(horizontal = 4.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -117,9 +126,9 @@ fun ToolActivityRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!run.live && run.approvalWaitMs > 0) {
+            if (waitText != null) {
                 Text(
-                    "Waited for approval ${duration(run.approvalWaitMs)}",
+                    waitText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -128,8 +137,10 @@ fun ToolActivityRow(
         AnimatedVisibility(open, enter = ReiMotion.enter(ReiEnter.Fade, scale, density), exit = ReiMotion.exit(scale)) {
             Column(Modifier.padding(bottom = 4.dp).testTag("activity-list"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (detail) {
+                    val stepsSummary = pluralStringResource(R.plurals.chat_activity_steps, steps.size, steps.size) +
+                        if (acted > 0) stringResource(R.string.chat_activity_acted_outside_suffix, acted) else ""
                     Text(
-                        "${steps.size} ${if (steps.size == 1) "step" else "steps"}" + if (acted > 0) " · $acted acted outside" else "",
+                        stepsSummary,
                         Modifier.padding(start = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -151,7 +162,7 @@ fun ToolActivityRow(
                         val hidden = steps.size - shown.size
                         if (hidden > 0) {
                             Text(
-                                "+$hidden earlier ${if (hidden == 1) "step" else "steps"}",
+                                pluralStringResource(R.plurals.chat_activity_hidden_steps, hidden, hidden),
                                 Modifier.padding(vertical = 2.dp),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -177,31 +188,34 @@ internal fun ActivityRowItem(
     onOpenPage: (String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val label = activityLabel(step)
-    val status = activityStatus(step, outcomes, waitingForApproval)
-    val allowed = decidedWord(step, outcomes) == "Allowed"
+    val label = activityLabel(step).asString()
+    val status = activityStatus(step, outcomes, waitingForApproval).asString()
+    val decided = decidedWord(step, outcomes)
+    val allowed = (decided as? dev.rei.android.ui.UiText.Resource)?.id == R.string.chat_activity_allowed
     val tone = when {
         allowed -> colors.primary
         step.status == "error" -> colors.error
-        step.status == "blocked" && decidedWord(step, outcomes) == null -> colors.onTertiaryContainer
+        step.status == "blocked" && decided == null -> colors.onTertiaryContainer
         step.status == "running" -> colors.onSurface
         else -> colors.onSurfaceVariant
     }
     // A model call is the quiet backdrop; a tool call is what the run did, so it reads one step darker.
     val labelColor = if (tone == colors.onSurfaceVariant && step.type != "llm.call") colors.onSurface else tone
     val facts = if (detail) listOfNotNull(
-        step.latencyMs?.let { duration(it) },
+        step.latencyMs?.let { duration(it).asString() },
         step.model?.substringAfterLast('/'),
-        step.tokens?.let { "${groupedNumber(it)} tokens" },
+        step.tokens?.let { stringResource(R.string.chat_activity_tokens, groupedNumber(it)) },
         step.errorCode,
     ) else emptyList()
+    val inspectStepLabel = stringResource(R.string.chat_activity_inspect_step)
+    val rowDesc = stringResource(R.string.chat_activity_row_desc, label, status)
     Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .then(if (onInspect != null) Modifier.clickable(onClickLabel = "Inspect step", role = Role.Button) { onInspect(step.id) } else Modifier)
-                .semantics(mergeDescendants = true) { contentDescription = "$label — $status" }
+                .then(if (onInspect != null) Modifier.clickable(onClickLabel = inspectStepLabel, role = Role.Button) { onInspect(step.id) } else Modifier)
+                .semantics(mergeDescendants = true) { contentDescription = rowDesc }
                 .padding(horizontal = if (detail) 12.dp else 0.dp, vertical = if (detail) 8.dp else 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -226,7 +240,7 @@ internal fun ActivityRowItem(
                         }
                         if (step.sideEffect) {
                             Text(
-                                "acted outside",
+                                stringResource(R.string.chat_activity_acted_outside_chip),
                                 Modifier.background(colors.tertiaryContainer, ReiShapes.Pill).padding(horizontal = 8.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.onTertiaryContainer,
@@ -244,7 +258,7 @@ internal fun ActivityRowItem(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: "Page") { onOpenPage(id) } }
+                step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: stringResource(R.string.chat_activity_page)) { onOpenPage(id) } }
                 step.webTitle?.let { title -> ChipLabel(ReiIcons.Globe, listOfNotNull(title, step.webHost).joinToString(" · "), null) }
             }
         }
@@ -296,4 +310,41 @@ internal fun activityIcon(step: TraceStep, allowed: Boolean = false): ImageVecto
         name.startsWith("knowledge_") -> ReiIcons.Knowledge
         else -> ReiIcons.Wrench
     }
+}
+
+@ReiPreviews
+@Composable
+private fun ToolActivityRowPreview() = ReiPreviewSurface {
+    ToolActivityRow(
+        run = RunTrace(
+            runId = "r1",
+            status = "completed",
+            triggerMessageId = "m1",
+            steps = listOf(
+                TraceStep(
+                    id = "st1",
+                    type = "tool.call",
+                    status = "completed",
+                    startedAt = 0L,
+                    latencyMs = 420L,
+                    sideEffect = false,
+                    toolName = "knowledge_search",
+                    decision = "allow",
+                    approvalId = null,
+                    summary = "Search Q3 notes",
+                    activity = "Searching knowledge",
+                    pageId = null,
+                    pageTitle = null,
+                    webTitle = null,
+                    webHost = null,
+                    model = null,
+                    tokens = null,
+                    errorCode = null,
+                ),
+            ),
+            durationMs = 1400L,
+            approvalWaitMs = 0L,
+        ),
+        detail = true,
+    )
 }

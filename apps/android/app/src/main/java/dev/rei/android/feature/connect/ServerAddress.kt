@@ -1,5 +1,7 @@
 package dev.rei.android.feature.connect
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Checks a typed server address before it is sent anywhere, with the plain-language message to show under the field. */
@@ -11,18 +13,21 @@ object ServerAddress {
      * button is simply off). Release builds only connect over HTTPS; [allowCleartext] (debug builds) also accepts http
      * for the local machine, the way `ReiApi` does.
      */
-    fun validate(raw: String, allowCleartext: Boolean): String? {
+    fun validate(raw: String, allowCleartext: Boolean): UiText? {
         val text = raw.trim()
         if (text.isEmpty()) return null
-        if (text.any(Char::isWhitespace)) return "The address can’t contain spaces."
-        if (!text.contains("://")) return "Start with https://, for example https://rei.example.com."
+        if (text.any(Char::isWhitespace)) return UiText.Resource(R.string.connect_err_spaces)
+        if (!text.contains("://")) return UiText.Resource(R.string.connect_err_scheme_example)
         val url = text.toHttpUrlOrNull()
-            ?: return if (text.startsWith("http://") || text.startsWith("https://")) "That isn’t a valid address." else "Use an https:// address."
-        if (url.username.isNotEmpty() || url.password.isNotEmpty()) return "Leave the username and password out of the address."
-        if (url.query != null || url.fragment != null || url.encodedPath != "/") return "Use only the server address, without a path."
+            ?: return UiText.Resource(
+                if (text.startsWith("http://") || text.startsWith("https://")) R.string.connect_err_invalid
+                else R.string.connect_err_use_https,
+            )
+        if (url.username.isNotEmpty() || url.password.isNotEmpty()) return UiText.Resource(R.string.connect_err_credentials)
+        if (url.query != null || url.fragment != null || url.encodedPath != "/") return UiText.Resource(R.string.connect_err_path)
         if (!url.isHttps) {
             val local = url.host in localHosts
-            if (!(allowCleartext && local)) return "Use https:// — Rei only connects to a server over HTTPS."
+            if (!(allowCleartext && local)) return UiText.Resource(R.string.connect_err_https_only)
         }
         return null
     }
@@ -35,8 +40,8 @@ object ServerAddress {
     }
 
     /** A gentle nudge while typing, before there is anything wrong: shown for a release build and an http address. */
-    fun hint(raw: String, allowCleartext: Boolean): String? {
+    fun hint(raw: String, allowCleartext: Boolean): UiText? {
         val text = raw.trim()
-        return if (!allowCleartext && text.startsWith("http://")) "Use https:// — Rei only connects to a server over HTTPS." else null
+        return if (!allowCleartext && text.startsWith("http://")) UiText.Resource(R.string.connect_err_https_only) else null
     }
 }

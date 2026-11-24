@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.ReiTheme
@@ -142,13 +143,36 @@ fun SettingsChevron(tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
 private fun SettingsPreview() = ReiPreviewSurface {
     val dark = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SettingsGroup(title = "App") {
-            SettingsRow("Appearance", icon = ReiIcons.Eye, summary = "System", onClick = {}, dividerBelow = true, trailing = { SettingsChevron() })
-            SettingsSwitchRow("Show details by default", dark.value, { dark.value = it }, icon = ReiIcons.Sliders)
+        SettingsGroup(title = androidx.compose.ui.res.stringResource(R.string.settings_group_app)) {
+            SettingsRow(
+                androidx.compose.ui.res.stringResource(R.string.settings_page_appearance),
+                icon = ReiIcons.Eye,
+                summary = androidx.compose.ui.res.stringResource(R.string.theme_system),
+                onClick = {},
+                dividerBelow = true,
+                trailing = { SettingsChevron() },
+            )
+            SettingsSwitchRow(
+                androidx.compose.ui.res.stringResource(R.string.settings_show_details),
+                dark.value,
+                { dark.value = it },
+                icon = ReiIcons.Sliders,
+            )
         }
-        SettingsGroup(title = "Rei") {
-            SettingsRow("Providers", icon = ReiIcons.Globe, onClick = {}, dividerBelow = true, trailing = { SettingsChevron() })
-            SettingsRow("Disconnect server", icon = ReiIcons.Logout, onClick = {}, destructive = true)
+        SettingsGroup(title = androidx.compose.ui.res.stringResource(R.string.app_name)) {
+            SettingsRow(
+                androidx.compose.ui.res.stringResource(R.string.settings_page_providers),
+                icon = ReiIcons.Globe,
+                onClick = {},
+                dividerBelow = true,
+                trailing = { SettingsChevron() },
+            )
+            SettingsRow(
+                androidx.compose.ui.res.stringResource(R.string.settings_disconnect_row),
+                icon = ReiIcons.Logout,
+                onClick = {},
+                destructive = true,
+            )
         }
     }
 }

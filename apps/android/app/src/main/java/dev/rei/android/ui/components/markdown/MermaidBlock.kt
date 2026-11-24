@@ -38,11 +38,13 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import dev.rei.android.R
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -65,7 +67,6 @@ import java.io.IOException
 
 private const val MermaidHost = "rei-mermaid.invalid"
 private const val MermaidOrigin = "https://$MermaidHost"
-private const val SyntaxErrorNote = "This diagram has a syntax error, so its source is shown."
 
 /** What a diagram came to: its height in dp, or one of the two reasons it is shown as code. */
 private sealed interface MermaidResult {
@@ -103,32 +104,34 @@ internal fun MermaidBlock(source: String) {
     val key = "$theme\n$source"
     var result by remember(key) { mutableStateOf(results.get(key)) }
     when (result) {
-        MermaidResult.SyntaxError -> return CodeBlock("mermaid", source, note = SyntaxErrorNote)
+        MermaidResult.SyntaxError -> return CodeBlock("mermaid", source, note = stringResource(R.string.markdown_mermaid_syntax_error))
         MermaidResult.Unavailable -> return CodeBlock("mermaid", source)
         else -> Unit
     }
     val height = (result as? MermaidResult.Drawn)?.height
     var showSource by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    val codeClipboardLabel = stringResource(R.string.markdown_clipboard_code_label)
     CodeFrame("mermaid", actions = {
         if (height != null) {
             ReiIconButton(
                 ReiIcons.Expand,
-                "Expand diagram",
+                stringResource(R.string.markdown_mermaid_expand),
                 { expanded = true },
             )
             ReiIconButton(
                 ReiIcons.Code,
-                if (showSource) "Show diagram" else "Show source",
+                stringResource(if (showSource) R.string.markdown_mermaid_show_diagram else R.string.markdown_mermaid_show_source),
                 { showSource = !showSource },
                 toggled = showSource,
             )
         }
-        ReiIconButton(ReiIcons.Copy, "Copy code", { copyToClipboard(context, "Rei code", source.trimEnd()) })
+        ReiIconButton(ReiIcons.Copy, stringResource(R.string.markdown_copy_code), { copyToClipboard(context, codeClipboardLabel, source.trimEnd()) })
     }) {
         if (height == null || showSource) CodeText(AnnotatedString(source.trimEnd()))
         // The WebView stays composed while the source shows, so toggling back does not draw the diagram again.
         val visible = height != null && !showSource
+        val diagramDesc = stringResource(R.string.markdown_mermaid_diagram)
         // Clipped: a WebView keeps painting its page outside a zero-height box.
         Box(Modifier.fillMaxWidth().height(if (visible) height!!.dp else 0.dp).clipToBounds()) {
             MermaidView(source, theme, { drawn ->
@@ -141,7 +144,7 @@ internal fun MermaidBlock(source: String) {
                     .matchParentSize()
                     .pointerInput(Unit) {}
                     .semantics {
-                        contentDescription = "Diagram"
+                        contentDescription = diagramDesc
                         role = Role.Image
                     },
             )
@@ -198,7 +201,7 @@ private fun FullscreenMermaidDialog(source: String, theme: String, diagramHeight
             }
             ReiIconButton(
                 ReiIcons.Close,
-                "Close diagram",
+                stringResource(R.string.markdown_mermaid_close),
                 onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             )

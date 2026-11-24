@@ -10,12 +10,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.chatDraftKey
 import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.SessionRepository
 import dev.rei.android.data.uploadBody
 import dev.rei.android.di.AppContainer
 import dev.rei.android.di.AppDispatchers
+import dev.rei.android.ui.UiText
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.ChatProfile
@@ -69,7 +71,7 @@ data class PendingSend(
     val skills: List<SkillOption> = emptyList(),
     /** The send did not reach Rei: shown under the message with Retry. */
     val failed: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 @Immutable
@@ -99,9 +101,9 @@ data class ChatUiState(
     val stopping: Boolean = false,
     /** The stream dropped and is being re-established. */
     val reconnecting: Boolean = false,
-    val streamError: String? = null,
+    val streamError: UiText? = null,
     /** A one-off message for a snackbar (something an action could not do). */
-    val notice: String? = null,
+    val notice: UiText? = null,
     val showDetails: Boolean = false,
     val models: ModelCatalog? = null,
     val usage: ContextUsage? = null,
@@ -111,7 +113,7 @@ data class ChatUiState(
     val profileChoice: ChatProfile? = null,
     val savingProfile: Boolean = false,
     /** Why the last change of level failed, for the permissions sheet. */
-    val profileError: String? = null,
+    val profileError: UiText? = null,
 ) {
     /** This chat's permission level. It follows the stream, so a change made on the web shows up here. */
     val profile: ChatProfile get() = profileChoice ?: (detail?.session ?: session)?.profile ?: ChatProfile.Standard
@@ -196,7 +198,7 @@ class ChatViewModel(
                 } catch (failure: Exception) {
                     if (failure is ReiApiException && failure.status == 404) {
                         catalog.closeChat()
-                        mutableState.update { it.copy(notice = "This chat is no longer available.") }
+                        mutableState.update { it.copy(notice = UiText.Resource(R.string.chat_err_gone)) }
                     } else if (failure is ReiApiException && failure.status in setOf(401, 426)) {
                         session.reportFailure(failure)
                     } else {
@@ -247,7 +249,7 @@ class ChatViewModel(
             pending = request?.let {
                 PendingSend(
                     it, local.getString("$key:request:text", "").orEmpty(), loadAttachments("$key:request"),
-                    failed = true, error = "Not sent. Retry to check whether Rei received it.",
+                    failed = true, error = UiText.Resource(R.string.chat_err_send_pending),
                 )
             },
         )
@@ -469,11 +471,11 @@ class ChatViewModel(
     fun addAttachment(attachment: AttachmentRef) {
         val attachments = current.attachments
         if (attachments.any { it.versionId == attachment.versionId }) {
-            mutableState.update { it.copy(notice = "This file version is already attached.") }
+            mutableState.update { it.copy(notice = UiText.Resource(R.string.chat_err_already_attached)) }
             return
         }
         if (attachments.size >= AttachmentRef.MaxCount || attachments.sumOf { it.size } + attachment.size > AttachmentRef.MaxTotalBytes) {
-            mutableState.update { it.copy(notice = "Choose at most 10 files totaling 2 GiB.") }
+            mutableState.update { it.copy(notice = UiText.Resource(R.string.chat_err_attachment_limit)) }
             return
         }
         updateAttachments(attachments + attachment)
@@ -483,7 +485,7 @@ class ChatViewModel(
 
     fun setUploading(uploading: Boolean) = mutableState.update { it.copy(uploading = uploading) }
 
-    fun uploadFailed(message: String) = mutableState.update { it.copy(notice = message) }
+    fun uploadFailed(message: UiText) = mutableState.update { it.copy(notice = message) }
 
     private fun updateAttachments(attachments: List<AttachmentRef>) {
         val api = session.currentApi ?: return
@@ -523,7 +525,7 @@ class ChatViewModel(
         val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         if (current.busy) {
-            mutableState.update { it.copy(notice = "The chat is busy. Wait for the reply to finish, then try /compact again.") }
+            mutableState.update { it.copy(notice = UiText.Resource(R.string.chat_err_compact_busy)) }
             return
         }
         viewModelScope.launch {
@@ -532,7 +534,7 @@ class ChatViewModel(
                 val key = chatDraftKey(api.serverUrl, id)
                 local.edit().remove(key).apply()
                 typed = ""
-                mutableState.update { it.copy(draft = "", draftEpoch = it.draftEpoch + 1, notice = "Compacting chat…") }
+                mutableState.update { it.copy(draft = "", draftEpoch = it.draftEpoch + 1, notice = UiText.Resource(R.string.chat_notice_compacting)) }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
@@ -612,19 +614,19 @@ class ChatViewModel(
                     // Rei refused it: back to the composer with the reason.
                     clearPending(api, id, send.requestId)
                     restoreDraft(send.text)
-                    mutableState.update { it.copy(attachments = send.attachments, notice = failure.message) }
+                    mutableState.update { it.copy(attachments = send.attachments, notice = failure.message?.let(UiText::Literal)) }
                 } else {
-                    markFailed(id, send.requestId, "Not sent. ${reason(failure)}")
+                    markFailed(id, send.requestId, UiText.Resource(R.string.chat_err_not_sent_reason, reason(failure)))
                 }
             } catch (failure: Exception) {
-                markFailed(id, send.requestId, "Not sent. ${reason(failure)}")
+                markFailed(id, send.requestId, UiText.Resource(R.string.chat_err_not_sent_reason, reason(failure)))
             } finally {
                 mutableState.update { it.copy(sending = false) }
             }
         }
     }
 
-    private fun markFailed(id: String, request: String, message: String) {
+    private fun markFailed(id: String, request: String, message: UiText) {
         mutableState.update {
             if (it.sessionId == id && it.pending?.requestId == request) it.copy(pending = it.pending.copy(failed = true, error = message)) else it
         }
@@ -705,7 +707,10 @@ class ChatViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                uploadFailed((failure as? ReiApiException)?.message ?: "Couldn’t attach that file. Try again.")
+                uploadFailed(
+                    (failure as? ReiApiException)?.message?.let(UiText::Literal)
+                        ?: UiText.Resource(R.string.chat_err_attach_file),
+                )
             } finally {
                 setUploading(false)
             }
@@ -777,7 +782,7 @@ class ChatViewModel(
 
     fun consumeNotice() = mutableState.update { it.copy(notice = null) }
 
-    fun showNotice(message: String) = mutableState.update { it.copy(notice = message) }
+    fun showNotice(message: String) = mutableState.update { it.copy(notice = UiText.Literal(message)) }
 
     private fun fail(failure: Exception) {
         if (failure is ReiApiException && failure.status in setOf(401, 426)) {
@@ -787,10 +792,11 @@ class ChatViewModel(
         }
     }
 
-    private fun reason(failure: Exception): String = when (failure) {
-        is ReiApiException -> failure.message.orEmpty().ifBlank { "Rei could not complete the request." }
-        is IOException -> "Couldn’t reach Rei. Check your connection and try again."
-        else -> "Rei returned a response this app couldn’t read."
+    private fun reason(failure: Exception): UiText = when (failure) {
+        is ReiApiException -> failure.message.orEmpty().takeIf { it.isNotBlank() }?.let(UiText::Literal)
+            ?: UiText.Resource(R.string.chat_err_request)
+        is IOException -> UiText.Resource(R.string.chat_err_network)
+        else -> UiText.Resource(R.string.chat_err_unreadable)
     }
 
     private fun attachmentsJson(attachments: List<AttachmentRef>) = JsonArray(attachments.map { it.toJson() }).toString()

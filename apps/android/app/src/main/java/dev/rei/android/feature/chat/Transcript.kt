@@ -1,7 +1,9 @@
 package dev.rei.android.feature.chat
 
+import dev.rei.android.R
 import dev.rei.android.data.Message
 import dev.rei.android.data.RunTrace
+import dev.rei.android.ui.UiText
 
 /** One thing in the transcript, in reading order. [key] is stable across updates so the list never jumps. */
 sealed interface TranscriptItem {
@@ -28,7 +30,7 @@ sealed interface TranscriptItem {
         override val key get() = message.id
     }
 
-    data class Notice(val id: String, val text: String) : TranscriptItem {
+    data class Notice(val id: String, val text: UiText) : TranscriptItem {
         override val key get() = "notice:$id"
     }
 
@@ -81,8 +83,14 @@ fun buildTranscript(
                 val visible = message.text.isNotBlank() || message.parts.isNotEmpty() || message.status == "failed" || message.status == "cancelled"
                 if (visible) items += TranscriptItem.Reply(message, isLast = message.id == lastReply, retryOf = lastUser)
             }
-            message.role == "compaction" -> items += TranscriptItem.Notice(message.id, message.text.ifBlank { "Earlier context was summarized." })
-            message.role == "reset" -> items += TranscriptItem.Notice(message.id, message.text.ifBlank { "New context" })
+            message.role == "compaction" -> items += TranscriptItem.Notice(
+                message.id,
+                if (message.text.isNotBlank()) UiText.Literal(message.text) else UiText.Resource(R.string.chat_notice_compacted),
+            )
+            message.role == "reset" -> items += TranscriptItem.Notice(
+                message.id,
+                if (message.text.isNotBlank()) UiText.Literal(message.text) else UiText.Resource(R.string.chat_notice_reset),
+            )
         }
     }
     // A live run whose message is not on screen (the trigger scrolled out of the window) still shows its activity.

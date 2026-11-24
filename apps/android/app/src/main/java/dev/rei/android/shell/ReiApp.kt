@@ -42,6 +42,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -49,6 +51,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.window.core.layout.WindowSizeClass
 import dev.rei.android.NotificationTarget
+import dev.rei.android.R
 import dev.rei.android.ReiUiState
 import dev.rei.android.data.ReiApi
 import dev.rei.android.di.AppContainer
@@ -123,14 +126,16 @@ internal fun ReiApp(
         }
     }
 
-    LaunchedEffect(container, snackbar) {
+    val context = LocalContext.current
+    LaunchedEffect(container, snackbar, context) {
         container.workspaceRepository.notices.collect { notice ->
             snackbar.currentSnackbarData?.dismiss()
+            val actionLabel = notice.actionLabel?.asString(context)
             val result = snackbar.showSnackbar(
-                message = notice.message,
-                actionLabel = notice.actionLabel,
-                withDismissAction = notice.actionLabel == null,
-                duration = if (notice.actionLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
+                message = notice.message.asString(context),
+                actionLabel = actionLabel,
+                withDismissAction = actionLabel == null,
+                duration = if (actionLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed && notice.undo != null) {
                 container.workspaceRepository.performUndo(notice.undo)
@@ -319,9 +324,9 @@ internal fun ReiApp(
         }
         pendingNavigation?.let { proceed ->
             ConfirmDialog(
-                title = "Discard changes?",
-                text = "What you typed on this page won’t be saved.",
-                confirmLabel = "Discard",
+                title = stringResource(R.string.common_discard_title),
+                text = stringResource(R.string.common_discard_body),
+                confirmLabel = stringResource(R.string.common_discard),
                 destructive = true,
                 onConfirm = {
                     knowledgeDirty = false

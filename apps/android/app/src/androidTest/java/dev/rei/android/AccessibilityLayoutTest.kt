@@ -1,10 +1,12 @@
 package dev.rei.android
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -19,7 +21,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import dev.rei.android.data.Message
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.TakeoverInfo
@@ -44,12 +48,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/** Verifies TalkBack semantics (headings, roles, merged toggles, custom actions), touch targets, and 200% font scale layouts. */
+/** Verifies TalkBack semantics (headings, roles, merged toggles, custom actions), touch targets, RTL, and 200% font scale layouts. */
 class AccessibilityLayoutTest {
     @get:Rule
     val compose = createComposeRule()
 
     private val api = ReiApi("http://127.0.0.1:1")
+
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
 
     @Test
     fun topBarAndMarkdownHeadingsCarryHeadingSemantics() {
@@ -117,13 +126,16 @@ class AccessibilityLayoutTest {
         compose.onNodeWithText("Check deployment status").assertIsDisplayed()
         compose.onNodeWithText("All checks passed.").assertIsDisplayed()
 
+        val optionsLabel = str(R.string.chat_msg_options)
+        val copyLabel = str(R.string.common_copy)
+        val inspectLabel = str(R.string.chat_msg_inspect)
         val userActionsNode = compose.onNode(
             SemanticsMatcher.keyIsDefined(SemanticsActions.CustomActions) and
                 androidx.compose.ui.test.hasAnyDescendant(androidx.compose.ui.test.hasText("Check deployment status")),
         ).fetchSemanticsNode()
         val userActions = userActionsNode.config[SemanticsActions.CustomActions]
-        assertTrue(userActions.any { it.label == "Message options" })
-        userActions.first { it.label == "Message options" }.action()
+        assertTrue(userActions.any { it.label == optionsLabel })
+        userActions.first { it.label == optionsLabel }.action()
         assertEquals(1, optionsCalls)
 
         val assistantActionsNode = compose.onNode(
@@ -131,9 +143,9 @@ class AccessibilityLayoutTest {
                 androidx.compose.ui.test.hasAnyDescendant(androidx.compose.ui.test.hasText("All checks passed.")),
         ).fetchSemanticsNode()
         val assistantActions = assistantActionsNode.config[SemanticsActions.CustomActions]
-        assertEquals(listOf("Message options", "Copy", "Inspect"), assistantActions.map { it.label })
-        assistantActions.first { it.label == "Copy" }.action()
-        assistantActions.first { it.label == "Inspect" }.action()
+        assertEquals(listOf(optionsLabel, copyLabel, inspectLabel), assistantActions.map { it.label })
+        assistantActions.first { it.label == copyLabel }.action()
+        assistantActions.first { it.label == inspectLabel }.action()
         assertEquals(1, copyCalls)
         assertEquals(1, inspectCalls)
     }
@@ -154,10 +166,10 @@ class AccessibilityLayoutTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Send message")
+        compose.onNodeWithContentDescription(str(R.string.composer_send))
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithText("Message Rei").assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.composer_placeholder_agent, "Rei")).assertDoesNotExist()
     }
 
     @Test
@@ -191,9 +203,50 @@ class AccessibilityLayoutTest {
                 }
             }
         }
-        compose.onNodeWithText("Rei wants you to take over the browser").assertIsDisplayed()
-        compose.onNodeWithText("Open").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithContentDescription("Send message")
+        compose.onNodeWithText(str(R.string.chat_takeover_prompt, "Rei")).assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.browser_open)).assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithContentDescription(str(R.string.composer_send))
+            .assert(SemanticsMatcher("non-empty bounds") { it.boundsInRoot.height > 0f && it.boundsInRoot.width > 0f })
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun rtlAndDoubleFontScaleLayoutsPreserveControlsAndBounds() {
+        val takeover = TakeoverInfo(
+            id = "tk-rtl",
+            url = "https://example.com/signin",
+            title = "Account verification required",
+            reason = "Complete sign-in.",
+            status = "pending",
+        )
+        compose.setContent {
+            ReiTheme {
+                val baseDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalLayoutDirection provides LayoutDirection.Rtl,
+                    LocalDensity provides Density(baseDensity.density, fontScale = 2.0f),
+                    LocalShell provides ShellController(Destination.Chat, DrawerMode.Modal, {}, {}, {}),
+                ) {
+                    Column(Modifier.width(360.dp)) {
+                        ReiTopBar(title = "Weekly briefing", onBack = {})
+                        TakeoverCard(takeover = takeover, agentName = "Rei", onOpen = {})
+                        Composer(
+                            state = ComposerState(agentName = "Rei", modelLabel = "Claude Sonnet", effortLabel = "High"),
+                            onDraftChange = {},
+                            onSend = {},
+                            onStop = {},
+                            onAttach = {},
+                            onRemoveAttachment = {},
+                            onModel = {},
+                            onEffort = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithContentDescription(str(R.string.common_back)).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+        compose.onNodeWithText(str(R.string.chat_takeover_prompt, "Rei")).assertIsDisplayed()
+        compose.onNodeWithContentDescription(str(R.string.composer_send))
             .assert(SemanticsMatcher("non-empty bounds") { it.boundsInRoot.height > 0f && it.boundsInRoot.width > 0f })
             .assertIsDisplayed()
     }

@@ -6,14 +6,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
 import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.LocalNotices
@@ -64,6 +68,7 @@ private fun MemoryList(
     onHistory: (String) -> Unit,
     onOpenReviewSettings: (() -> Unit)?,
 ) {
+    val resources = LocalResources.current
     val notices = LocalNotices.current
     val writes = rememberWrites()
     val memory = rememberResource(api) { parseMemory(api.request("GET", listOf("api", "memory"))) }
@@ -75,56 +80,60 @@ private fun MemoryList(
     var removing by remember { mutableStateOf<MemoryEntry?>(null) }
     var adding by remember { mutableStateOf<MemoryDoc?>(null) }
 
-    SubScreen("Memory", onBack, busy = writes.busy || memory.loading, error = writes.error ?: memory.error, onRetry = memory::reload) {
+    SubScreen(stringResource(R.string.settings_page_memory), onBack, busy = writes.busy || memory.loading, error = writes.error ?: memory.error, onRetry = memory::reload) {
         SettingsGroup {
             SettingsRow(
-                "Memory review", icon = ReiIcons.Activity, summary = "See what Rei saved from your chats, and undo it.",
+                stringResource(R.string.activity_kind_memory_review), icon = ReiIcons.Activity, summary = stringResource(R.string.settings_memory_review_summary),
                 dividerBelow = onOpenReviewSettings != null,
                 onClick = onOpenActivity, trailing = { SettingsChevron() },
             )
             if (onOpenReviewSettings != null) {
                 SettingsRow(
-                    "Background review settings", icon = ReiIcons.Settings, summary = "Turn automatic memory reviews on or change reply cadence.",
+                    stringResource(R.string.settings_memory_bg_settings), icon = ReiIcons.Settings, summary = stringResource(R.string.settings_memory_bg_settings_summary),
                     onClick = onOpenReviewSettings, trailing = { SettingsChevron() },
                 )
             }
         }
         memory.value?.forEach { doc ->
-            val title = if (doc.agentId == null) "About you" else "${names.value?.get(doc.agentId) ?: "Agent"}’s notes"
+            val title = if (doc.agentId == null) {
+                stringResource(R.string.settings_memory_about_you)
+            } else {
+                stringResource(R.string.settings_memory_agent_notes, names.value?.get(doc.agentId) ?: stringResource(R.string.settings_memory_agent_fallback))
+            }
             SettingsGroup(title = title) {
                 if (doc.entries.isEmpty()) {
-                    SettingsRow(if (doc.agentId == null) "Nothing yet." else "No notes yet.", dividerBelow = true)
+                    SettingsRow(stringResource(if (doc.agentId == null) R.string.settings_memory_nothing_yet else R.string.settings_memory_no_notes), dividerBelow = true)
                 }
                 doc.entries.forEach { entry ->
                     SettingsRow(
                         entry.text,
-                        summary = dateTime(entry.confirmedAt)?.let { "Confirmed $it" },
+                        summary = dateTime(entry.confirmedAt)?.let { stringResource(R.string.settings_memory_confirmed_at, it) },
                         onClick = { sheet = entry },
                         dividerBelow = true,
                         tabularSummary = true,
                     )
                 }
                 SettingsRow(
-                    "Add entry", icon = ReiIcons.Plus,
+                    stringResource(R.string.settings_memory_add_entry), icon = ReiIcons.Plus,
                     onClick = { adding = doc },
-                    modifier = androidx.compose.ui.Modifier.androidAddLabel(title),
+                    modifier = androidx.compose.ui.Modifier.androidAddLabel(stringResource(R.string.settings_memory_add_to_group, title)),
                 )
             }
         }
         if (memory.value?.all { it.entries.isEmpty() } == true && memory.error == null) {
-            EmptyState(ReiIcons.Memory, "Nothing remembered yet", body = "Entries you add, and ones Rei saves from your chats, appear here.")
+            EmptyState(ReiIcons.Memory, stringResource(R.string.settings_memory_empty_title), body = stringResource(R.string.settings_memory_empty_body))
         }
     }
     sheet?.let { entry ->
         ReiSheet(onDismiss = { sheet = null }, title = entry.text.take(60)) {
-            SettingsRow("Edit", icon = ReiIcons.Edit, onClick = { sheet = null; editing = entry })
-            SettingsRow("History", icon = ReiIcons.History, onClick = { sheet = null; onHistory(entry.id) })
-            SettingsRow("Remove", icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; removing = entry })
+            SettingsRow(stringResource(R.string.knowledge_page_edit), icon = ReiIcons.Edit, onClick = { sheet = null; editing = entry })
+            SettingsRow(stringResource(R.string.viewer_history), icon = ReiIcons.History, onClick = { sheet = null; onHistory(entry.id) })
+            SettingsRow(stringResource(R.string.settings_passkeys_remove), icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; removing = entry })
         }
     }
     editing?.let { entry ->
         TextEditDialog(
-            title = "Edit memory entry", label = "Entry", initial = entry.text, limit = 500, singleLine = false,
+            title = stringResource(R.string.settings_memory_edit_title), label = stringResource(R.string.settings_memory_entry_label), initial = entry.text, limit = 500, singleLine = false,
             onDismiss = { editing = null },
             onSave = { text ->
                 editing = null
@@ -134,7 +143,7 @@ private fun MemoryList(
     }
     adding?.let { doc ->
         TextEditDialog(
-            title = "Add memory entry", label = "Entry", initial = "", limit = 500, singleLine = false, saveLabel = "Add",
+            title = stringResource(R.string.settings_memory_add_title), label = stringResource(R.string.settings_memory_entry_label), initial = "", limit = 500, singleLine = false, saveLabel = stringResource(R.string.knowledge_page_add),
             onDismiss = { adding = null },
             onSave = { text ->
                 adding = null
@@ -150,15 +159,15 @@ private fun MemoryList(
     }
     removing?.let { entry ->
         ConfirmDialog(
-            title = "Remove this entry?",
+            title = stringResource(R.string.settings_memory_remove_title),
             text = entry.text,
-            confirmLabel = "Remove",
+            confirmLabel = stringResource(R.string.settings_passkeys_remove),
             destructive = true,
             onConfirm = {
                 removing = null
                 writes.run(memory::reload) {
                     val change = api.request("DELETE", listOf("api", "memory", "lines", entry.id)).obj("change").string("id")
-                    notices?.show("Entry removed", "Undo") {
+                    notices?.show(resources.getString(R.string.settings_memory_entry_removed), resources.getString(R.string.activity_undo)) {
                         notices.launch {
                             suspendRunCatching { api.request("POST", listOf("api", "memory", "changes", change, "undo")) }
                             memory.reload()
@@ -171,8 +180,8 @@ private fun MemoryList(
     }
 }
 
-private fun androidx.compose.ui.Modifier.androidAddLabel(group: String) =
-    this.then(androidx.compose.ui.Modifier.semantics { contentDescription = "Add an entry to $group" })
+private fun androidx.compose.ui.Modifier.androidAddLabel(label: String) =
+    this.then(androidx.compose.ui.Modifier.semantics { contentDescription = label })
 
 @Composable
 fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
@@ -185,20 +194,21 @@ fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
             )
         }.asReversed()
     }
-    SubScreen("Entry history", onBack, busy = writes.busy || edits.loading, error = writes.error ?: edits.error, onRetry = edits::reload) {
+    SubScreen(stringResource(R.string.settings_memory_history_title), onBack, busy = writes.busy || edits.loading, error = writes.error ?: edits.error, onRetry = edits::reload) {
         val list = edits.value
         when {
             list == null -> Unit
-            list.isEmpty() -> EmptyState(ReiIcons.History, "No edits recorded", body = "Changes to this entry appear here.")
+            list.isEmpty() -> EmptyState(ReiIcons.History, stringResource(R.string.settings_memory_history_empty_title), body = stringResource(R.string.settings_memory_history_empty_body))
             else -> SettingsGroup {
                 list.forEachIndexed { index, edit ->
+                    val by = stringResource(if (edit.by == "agent") R.string.app_name else R.string.settings_memory_by_you)
                     SettingsRow(
-                        title = "${verb(edit.op)} · ${if (edit.by == "agent") "Rei" else "You"}",
+                        title = stringResource(R.string.settings_memory_history_row_title, verb(edit.op).asString(), by),
                         summary = listOfNotNull(
                             dateTime(edit.at),
-                            edit.before?.let { "Before: $it" },
-                            edit.after?.let { "After: $it" },
-                            if (edit.undone) "Undone" else null,
+                            edit.before?.let { stringResource(R.string.settings_memory_before, it) },
+                            edit.after?.let { stringResource(R.string.settings_memory_after, it) },
+                            if (edit.undone) stringResource(R.string.activity_undone) else null,
                         ).joinToString("\n"),
                         dividerBelow = index < list.lastIndex,
                         tabularSummary = true,
@@ -207,7 +217,7 @@ fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
                                 androidx.compose.material3.TextButton(
                                     onClick = { writes.run(edits::reload) { api.request("POST", listOf("api", "memory", "changes", edit.id, "undo")) } },
                                     enabled = !writes.busy,
-                                ) { androidx.compose.material3.Text("Undo") }
+                                ) { androidx.compose.material3.Text(stringResource(R.string.activity_undo)) }
                             }
                         } else null,
                     )
@@ -217,9 +227,9 @@ fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
     }
 }
 
-internal fun verb(op: String) = when (op) {
-    "add" -> "Added"
-    "replace" -> "Changed"
-    "remove" -> "Removed"
-    else -> "Confirmed"
+internal fun verb(op: String): UiText = when (op) {
+    "add" -> UiText.Resource(R.string.settings_memory_verb_add)
+    "replace" -> UiText.Resource(R.string.settings_memory_verb_replace)
+    "remove" -> UiText.Resource(R.string.settings_memory_verb_remove)
+    else -> UiText.Resource(R.string.settings_memory_verb_confirm)
 }

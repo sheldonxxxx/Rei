@@ -15,10 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
 import dev.rei.android.data.string
@@ -55,17 +57,17 @@ fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
     var removing by remember { mutableStateOf<SavedPasskey?>(null) }
 
     SubScreen(
-        "Passkeys", onBack,
+        stringResource(R.string.settings_page_passkeys), onBack,
         busy = writes.busy || keys.loading,
         error = writes.error ?: keys.error,
         onRetry = keys::reload,
-        actions = { ReiIconButton(ReiIcons.Plus, "Add a passkey", { adding = true }, enabled = !writes.busy && activity != null && https) },
+        actions = { ReiIconButton(ReiIcons.Plus, stringResource(R.string.settings_passkeys_add), { adding = true }, enabled = !writes.busy && activity != null && https) },
     ) {
-        if (!https) StatusBanner("Connect to your Rei HTTPS address to add a passkey.")
+        if (!https) StatusBanner(stringResource(R.string.settings_passkeys_https))
         val list = keys.value
         when {
             list == null -> Unit
-            list.isEmpty() -> EmptyState(ReiIcons.Key, "No passkeys", body = "Add a passkey to sign in with your device’s screen lock.")
+            list.isEmpty() -> EmptyState(ReiIcons.Key, stringResource(R.string.settings_passkeys_empty_title), body = stringResource(R.string.settings_passkeys_empty_body))
             else -> SettingsGroup {
                 list.forEachIndexed { index, key ->
                     SettingsRow(key.label, icon = ReiIcons.Key, onClick = { sheet = key }, dividerBelow = index < list.lastIndex, trailing = { SettingsChevron() })
@@ -75,8 +77,8 @@ fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
     }
     sheet?.let { key ->
         ReiSheet(onDismiss = { sheet = null }, title = key.label) {
-            SettingsRow("Rename", icon = ReiIcons.Edit, onClick = { sheet = null; renaming = key })
-            SettingsRow("Remove", icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; removing = key })
+            SettingsRow(stringResource(R.string.drawer_chat_rename), icon = ReiIcons.Edit, onClick = { sheet = null; renaming = key })
+            SettingsRow(stringResource(R.string.settings_passkeys_remove), icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; removing = key })
         }
     }
     if (adding && activity != null) {
@@ -87,14 +89,14 @@ fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
                     registerPasskey(activity, api, password, label)
                 } catch (failure: Exception) {
                     if (failure is kotlinx.coroutines.CancellationException) throw failure
-                    throw java.io.IOException(passkeyError(failure))
+                    throw java.io.IOException(passkeyError(activity, failure))
                 }
             }
         }
     }
     renaming?.let { key ->
         TextEditDialog(
-            title = "Rename passkey", label = "Passkey name", initial = key.label, limit = 60,
+            title = stringResource(R.string.settings_passkeys_rename_title), label = stringResource(R.string.settings_passkeys_name_label), initial = key.label, limit = 60,
             onDismiss = { renaming = null },
             onSave = { label ->
                 renaming = null
@@ -104,9 +106,9 @@ fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
     }
     removing?.let { key ->
         ConfirmDialog(
-            title = "Remove passkey?",
-            text = "${key.label} will no longer sign in to Rei.",
-            confirmLabel = "Remove passkey",
+            title = stringResource(R.string.settings_passkeys_remove_title),
+            text = stringResource(R.string.settings_passkeys_remove_body, key.label),
+            confirmLabel = stringResource(R.string.settings_passkeys_remove_action),
             destructive = true,
             onConfirm = { removing = null; writes.run(keys::reload) { api.request("DELETE", passkeyPath + key.id) } },
             onDismiss = { removing = null },
@@ -123,26 +125,26 @@ private fun NewPasskeyDialog(onDismiss: () -> Unit, onConfirm: (label: String, p
         onDismissRequest = onDismiss,
         shape = ReiShapes.Dialog,
         containerColor = ReiTheme.colors.card,
-        title = { Text("Add a passkey") },
+        title = { Text(stringResource(R.string.settings_passkeys_add)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ReiTextField(label, { label = it.take(60) }, "Passkey name (optional)")
+                ReiTextField(label, { label = it.take(60) }, stringResource(R.string.settings_passkeys_name_optional))
                 ReiTextField(
-                    password, { password = it }, "Rei password",
+                    password, { password = it }, stringResource(R.string.settings_passkeys_password),
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     contentType = ContentType.Password,
                     trailingContent = {
                         ReiIconButton(
                             if (showPassword) ReiIcons.EyeOff else ReiIcons.Eye,
-                            if (showPassword) "Hide password" else "Show password",
+                            stringResource(if (showPassword) R.string.connect_hide_password else R.string.connect_show_password),
                             { showPassword = !showPassword },
                         )
                     },
                 )
             }
         },
-        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
-        confirmButton = { TextButton(onClick = { onConfirm(label.trim(), password) }, enabled = password.isNotEmpty()) { Text("Continue") } },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = { onConfirm(label.trim(), password) }, enabled = password.isNotEmpty()) { Text(stringResource(R.string.common_continue)) } },
     )
 }

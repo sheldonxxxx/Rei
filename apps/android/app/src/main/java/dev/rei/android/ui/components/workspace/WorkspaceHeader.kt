@@ -22,11 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.ui.components.PillField
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiPreviewSurface
@@ -51,9 +53,10 @@ fun WorkspaceHeader(
     onFilter: () -> Unit,
     filters: List<ActiveFilter>,
     modifier: Modifier = Modifier,
-    filterLabel: String = "Filters",
+    filterLabel: String? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val resolvedFilterLabel = filterLabel ?: stringResource(R.string.common_filters)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -78,7 +81,7 @@ fun WorkspaceHeader(
             Box(contentAlignment = Alignment.TopEnd) {
                 ReiIconButton(
                     ReiIcons.Filter,
-                    if (filters.isNotEmpty()) "$filterLabel, ${filters.size} active" else filterLabel,
+                    if (filters.isNotEmpty()) stringResource(R.string.common_filters_active, resolvedFilterLabel, filters.size) else resolvedFilterLabel,
                     onFilter,
                 )
                 if (filters.isNotEmpty()) {
@@ -103,12 +106,13 @@ fun WorkspaceHeader(
 
 /** A filter or tag chip with a close icon. The whole chip removes it; TalkBack reads "Remove filter: Favorites". */
 @Composable
-fun RemovableChip(label: String, onRemove: () -> Unit, modifier: Modifier = Modifier, noun: String = "filter") {
+fun RemovableChip(label: String, onRemove: () -> Unit, modifier: Modifier = Modifier, removeContentDescription: String? = null) {
+    val desc = removeContentDescription ?: stringResource(R.string.common_remove_filter, label)
     InputChip(
         selected = true,
         onClick = onRemove,
         label = { Text(label) },
-        modifier = modifier.semantics { contentDescription = "Remove $noun: $label" },
+        modifier = modifier.semantics { contentDescription = desc },
         shape = ReiShapes.Pill,
         trailingIcon = { Icon(ReiIcons.Close, contentDescription = null, Modifier.size(InputChipDefaults.IconSize)) },
         colors = InputChipDefaults.inputChipColors(

@@ -45,6 +45,7 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -54,8 +55,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.rei.android.BuildConfig
+import dev.rei.android.R
 import dev.rei.android.ReiUiState
 import dev.rei.android.data.AuthState
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiPortrait
 import dev.rei.android.ui.components.ReiPreviewSurface
@@ -86,7 +89,8 @@ fun ConnectScreen(
     var password by remember(state.auth) { mutableStateOf("") }
     var code by remember(state.auth) { mutableStateOf("") }
     var showPassword by remember(state.auth) { mutableStateOf(false) }
-    var label by rememberSaveable { mutableStateOf(Build.MODEL.orEmpty().take(60).ifBlank { "Android" }) }
+    val defaultDeviceLabel = stringResource(R.string.connect_device_fallback)
+    var label by rememberSaveable { mutableStateOf(Build.MODEL.orEmpty().take(60).ifBlank { defaultDeviceLabel }) }
     val activity = LocalActivity.current
     val focus = LocalFocusManager.current
     val auth = state.auth
@@ -98,9 +102,9 @@ fun ConnectScreen(
 
     val cleartext = BuildConfig.DEBUG
     val normalizedUrl = ServerAddress.normalize(url)
-    val urlProblem = ServerAddress.validate(normalizedUrl, cleartext)
+    val urlProblem = ServerAddress.validate(normalizedUrl, cleartext)?.asString()
     // Errors from the server land under the field that explains them.
-    val serverError = state.error
+    val serverError = state.error?.asString()
     val code0 = state.errorCode
     val connectError = if (auth == null && !state.upgradeRequired) serverError else null
     val setupCodeError = if (setup && code0 == "bad_setup_code") serverError else null
@@ -111,7 +115,7 @@ fun ConnectScreen(
     }
     val authenticatorError = if (!setup && code0 == "bad_totp") serverError else null
     val banner = when {
-        state.upgradeRequired -> serverError ?: "Update Rei for Android to connect to this server."
+        state.upgradeRequired -> serverError ?: stringResource(R.string.connect_upgrade_banner)
         serverError == null -> null
         connectError != null || setupCodeError != null || passwordError != null || authenticatorError != null -> null
         else -> serverError
@@ -138,7 +142,7 @@ fun ConnectScreen(
         ) {
             Spacer(Modifier.weight(0.8f))
             ReiPortrait(size = 88.dp)
-            Text("Rei", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineLarge)
+            Text(stringResource(R.string.app_name), Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.heightIn(min = 24.dp).weight(0.5f))
             Surface(
                 modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
@@ -149,18 +153,20 @@ fun ConnectScreen(
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            when {
-                                state.upgradeRequired -> "Update Rei for Android"
-                                auth == null -> "Connect to your Rei server"
-                                setup -> "Set up Rei"
-                                else -> "Sign in to Rei"
-                            },
+                            stringResource(
+                                when {
+                                    state.upgradeRequired -> R.string.connect_title_upgrade
+                                    auth == null -> R.string.connect_title_server
+                                    setup -> R.string.connect_title_setup
+                                    else -> R.string.connect_title_signin
+                                },
+                            ),
                             Modifier.semantics { heading() },
                             style = MaterialTheme.typography.titleLarge,
                         )
                         if (!state.upgradeRequired) {
                             Text(
-                                if (auth == null) "Step 1 of 2 · Server" else "Step 2 of 2 · Account",
+                                stringResource(if (auth == null) R.string.connect_step_one else R.string.connect_step_two),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -174,11 +180,11 @@ fun ConnectScreen(
                         ReiTextField(
                             value = url,
                             onValueChange = { url = it; tried = false },
-                            label = "Rei server address",
-                            placeholder = "https://rei.example.com",
+                            label = stringResource(R.string.connect_server_label),
+                            placeholder = stringResource(R.string.connect_server_placeholder),
                             enabled = !working,
                             error = connectError ?: urlProblem?.takeIf { tried || url.trim().startsWith("http://") || url.contains(' ') },
-                            supportingText = ServerAddress.hint(normalizedUrl, cleartext) ?: "The address of the Rei you run.",
+                            supportingText = ServerAddress.hint(normalizedUrl, cleartext)?.asString() ?: stringResource(R.string.connect_server_hint),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                             keyboardActions = KeyboardActions(onGo = { connect() }),
                         )
@@ -187,17 +193,17 @@ fun ConnectScreen(
                             enabled = !working && url.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                             shape = ReiShapes.Pill,
-                        ) { Text("Connect") }
+                        ) { Text(stringResource(R.string.connect_action_connect)) }
                     } else {
                         Text(state.serverUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (setup) {
                             ReiTextField(
                                 value = code,
                                 onValueChange = { code = it },
-                                label = "Setup code",
+                                label = stringResource(R.string.connect_setup_code_label),
                                 enabled = !working,
                                 error = setupCodeError,
-                                supportingText = "Printed in the server log the first time it starts.",
+                                supportingText = stringResource(R.string.connect_setup_code_hint),
                                 visualTransformation = PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Next),
                             )
@@ -205,10 +211,10 @@ fun ConnectScreen(
                         ReiTextField(
                             value = password,
                             onValueChange = { password = it },
-                            label = if (setup) "New password" else "Password",
+                            label = stringResource(if (setup) R.string.connect_new_password_label else R.string.connect_password_label),
                             enabled = !working,
                             error = passwordError,
-                            supportingText = if (setup) "Use at least 12 characters." else null,
+                            supportingText = if (setup) stringResource(R.string.connect_password_hint) else null,
                             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
@@ -220,7 +226,7 @@ fun ConnectScreen(
                             trailingContent = {
                                 ReiIconButton(
                                     if (showPassword) ReiIcons.EyeOff else ReiIcons.Eye,
-                                    if (showPassword) "Hide password" else "Show password",
+                                    stringResource(if (showPassword) R.string.connect_hide_password else R.string.connect_show_password),
                                     { showPassword = !showPassword },
                                 )
                             },
@@ -229,10 +235,10 @@ fun ConnectScreen(
                             ReiTextField(
                                 value = code,
                                 onValueChange = { code = it.filter(Char::isDigit).take(6) },
-                                label = "Authenticator code",
+                                label = stringResource(R.string.connect_totp_label),
                                 enabled = !working,
                                 error = authenticatorError,
-                                supportingText = "The 6 digits from your authenticator app.",
+                                supportingText = stringResource(R.string.connect_totp_hint),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                                 keyboardActions = KeyboardActions(onDone = { signIn() }),
                                 contentType = ContentType.SmsOtpCode,
@@ -241,9 +247,9 @@ fun ConnectScreen(
                         ReiTextField(
                             value = label,
                             onValueChange = { label = it.take(60) },
-                            label = "Device name",
+                            label = stringResource(R.string.connect_device_label),
                             enabled = !working,
-                            supportingText = "Shown in Settings → Devices so you can sign it out later.",
+                            supportingText = stringResource(R.string.connect_device_hint),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { signIn() }),
                         )
@@ -252,7 +258,7 @@ fun ConnectScreen(
                             enabled = canSignIn,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                             shape = ReiShapes.Pill,
-                        ) { Text(if (setup) "Set up Rei" else "Sign in") }
+                        ) { Text(stringResource(if (setup) R.string.connect_title_setup else R.string.connect_action_signin)) }
                         if (activity != null && auth.passkeys && state.serverUrl.startsWith("https://")) {
                             OutlinedButton(
                                 onClick = { onPasskey(activity, label) },
@@ -261,19 +267,19 @@ fun ConnectScreen(
                                 shape = ReiShapes.Pill,
                             ) {
                                 androidx.compose.material3.Icon(ReiIcons.Key, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                                Text("Use a passkey")
+                                Text(stringResource(R.string.connect_action_passkey))
                             }
                         }
                     }
                 }
             }
             if (auth != null) {
-                TextButton(onClick = onChangeServer, enabled = !working, modifier = Modifier.padding(top = 4.dp)) { Text("Change server") }
+                TextButton(onClick = onChangeServer, enabled = !working, modifier = Modifier.padding(top = 4.dp)) { Text(stringResource(R.string.connect_change_server)) }
             }
             Spacer(Modifier.weight(1f))
             if (!state.upgradeRequired) {
                 Text(
-                    "Your Rei, on your own server.",
+                    stringResource(R.string.connect_footer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -295,7 +301,7 @@ private fun ConnectSignInPreview() = ReiPreviewSurface {
         ReiUiState(
             serverUrl = "https://rei.example.com",
             auth = AuthState(setupRequired = false, signedIn = false, totpEnabled = true, passkeys = true),
-            error = "The password or code is wrong.",
+            error = UiText.Resource(R.string.connect_err_bad_credentials),
             errorCode = "bad_credentials",
         ),
         {}, { _, _, _ -> }, {},

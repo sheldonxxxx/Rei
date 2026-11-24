@@ -13,6 +13,7 @@ import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.data.Session
 import dev.rei.android.data.SessionState
+import dev.rei.android.ui.UiText
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,7 +25,7 @@ data class ReiUiState(
     val auth: AuthState? = null,
     val signedIn: Boolean = false,
     val working: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** The server's error code for [error] (for example `bad_totp`), so a screen can show it under the right field. */
     val errorCode: String? = null,
     val upgradeRequired: Boolean = false,

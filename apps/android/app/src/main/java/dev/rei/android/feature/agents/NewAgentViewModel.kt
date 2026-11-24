@@ -8,11 +8,13 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.SessionRepository
 import dev.rei.android.data.chatAgent
 import dev.rei.android.data.obj
 import dev.rei.android.di.AppContainer
+import dev.rei.android.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +31,7 @@ data class NewAgentUiState(
     val bot: String? = null,
     val emoji: String = "",
     val busy: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 private const val KeyName = "new_agent_name"
@@ -86,7 +88,8 @@ class NewAgentViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                val message = failure.message?.takeIf { it.isNotBlank() } ?: "Couldn’t create the agent. Try again."
+                val message = failure.message?.takeIf { it.isNotBlank() }?.let(UiText::Literal)
+                    ?: UiText.Resource(R.string.agents_err_generic)
                 mutable.update { it.copy(busy = false, error = message) }
             }
         }

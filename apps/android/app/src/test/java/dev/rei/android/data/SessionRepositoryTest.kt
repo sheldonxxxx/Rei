@@ -2,6 +2,8 @@ package dev.rei.android.data
 
 import dev.rei.android.di.AppDispatchers
 import java.util.concurrent.Executors
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,7 +110,7 @@ class SessionRepositoryTest {
             assertNull(repo.currentApi)
             assertNull(creds.current)
             assertEquals(1, signedOutCalls)
-            assertTrue(signedOut.error?.contains("signed out") == true)
+            assertEquals(UiText.Resource(R.string.session_err_signed_out), signedOut.error)
             scope.cancel()
         }
     }

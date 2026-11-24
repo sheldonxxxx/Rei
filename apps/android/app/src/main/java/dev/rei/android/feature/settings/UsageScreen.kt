@@ -32,11 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
 import dev.rei.android.data.string
@@ -71,13 +74,13 @@ fun UsageScreen(api: ReiApi, onBack: () -> Unit) {
         if (problem != null) null
         else usageData(api.request("GET", listOf("api", "usage"), query = usageQuery(period, from, to)), agents.value.orEmpty())
     }
-    SubScreen("Usage", onBack, busy = usage.loading, error = usage.error, onRetry = usage::reload) {
+    SubScreen(stringResource(R.string.settings_page_usage), onBack, busy = usage.loading, error = usage.error, onRetry = usage::reload) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            UsagePeriods.forEach { (value, label) -> FilterChip(period == value, { period = value }, { Text(label) }) }
+            UsagePeriods.forEach { (value, labelRes) -> FilterChip(period == value, { period = value }, { Text(stringResource(labelRes)) }) }
         }
         if (period == "custom") {
             RangePicker(from, to, { from = it }, { to = it })
-            if (problem != null) StatusBanner(problem, kind = StatusKind.Attention)
+            if (problem != null) StatusBanner(problem.asString(), kind = StatusKind.Attention)
         }
         val data = usage.value
         when {
@@ -93,37 +96,44 @@ fun UsageScreen(api: ReiApi, onBack: () -> Unit) {
 @Composable
 private fun UsageContent(data: UsageData) {
     Text(
-        "${data.from} to ${data.to} · UTC" + if (data.trackingSince.isNotEmpty()) "\nSince ${data.trackingSince} (UTC)" else "",
+        stringResource(R.string.settings_usage_range_utc, data.from, data.to) +
+            if (data.trackingSince.isNotEmpty()) stringResource(R.string.settings_usage_tracking_since, data.trackingSince) else "",
         style = MaterialTheme.typography.bodyMedium.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     val totals = data.summary
     if (totals.calls == 0L) {
-        EmptyState(ReiIcons.Usage, emptyUsageMessage(data))
+        EmptyState(ReiIcons.Usage, emptyUsageMessage(data).asString())
     } else {
         Headline(totals)
         StatPairs(
             listOf(
-                "Total input" to totals.inputTotal.text, "Output" to totals.outputTotal.text,
-                "Cached input" to totals.inputCached.text, "Uncached input" to totals.inputUncached.text,
-                "Cache hit" to cacheHitText(totals.cacheHitPercent), "Model calls" to compactCount(totals.calls),
+                stringResource(R.string.settings_usage_total_input) to totals.inputTotal.text.asString(),
+                stringResource(R.string.settings_usage_output) to totals.outputTotal.text.asString(),
+                stringResource(R.string.settings_usage_cached_input) to totals.inputCached.text.asString(),
+                stringResource(R.string.settings_usage_uncached_input) to totals.inputUncached.text.asString(),
+                stringResource(R.string.settings_usage_cache_hit) to cacheHitText(totals.cacheHitPercent).asString(),
+                stringResource(R.string.settings_usage_model_calls) to compactCount(totals.calls),
             ),
         )
         if (totals.callsUnreported > 0) {
-            StatusBanner("${compactCount(totals.callsUnreported)} calls with missing or unreliable reports. Totals count only calls with reliable reports.")
+            StatusBanner(stringResource(R.string.settings_usage_unreported_calls, compactCount(totals.callsUnreported)))
         }
-        Breakdown("By purpose", data.byPurpose, cacheHit = false)
-        Breakdown("By model", data.byModel, cacheHit = true)
-        Breakdown("By agent", data.byAgent, cacheHit = false)
-        Breakdown("By day", data.daily, cacheHit = false)
+        Breakdown(stringResource(R.string.settings_usage_by_purpose), data.byPurpose, cacheHit = false)
+        Breakdown(stringResource(R.string.settings_usage_by_model), data.byModel, cacheHit = true)
+        Breakdown(stringResource(R.string.settings_usage_by_agent), data.byAgent, cacheHit = false)
+        Breakdown(stringResource(R.string.settings_usage_by_day), data.daily, cacheHit = false)
     }
     data.search?.takeIf { it.searches > 0 || it.providers.isNotEmpty() }?.let { SearchSection(it) }
     if (totals.calls > 0) {
         Text(
-            "Input includes cached input. Output includes reasoning tokens. “Unavailable” means no reliable report, and “≥” means some calls did not report that figure. Cache hit counts only calls that reported both input and cached tokens. Counters persist regardless of detailed log expiration.",
+            stringResource(R.string.settings_usage_footnote),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
+
+private fun callsQuantity(calls: Long): Int =
+    if (calls <= Int.MAX_VALUE) calls.toInt() else (calls % 1_000L + 1_000L).toInt()
 
 /** The headline: tokens processed, large, with calls and the cached share of input as a bar. */
 @Composable
@@ -131,10 +141,10 @@ private fun Headline(totals: UsageTotals) {
     val colors = MaterialTheme.colorScheme
     Surface(shape = ReiShapes.Card, color = ReiTheme.colors.card, border = BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Total processed", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
-            Text(totals.totalProcessed.text, style = MaterialTheme.typography.displayMedium.tabular(), color = colors.onSurface)
+            Text(stringResource(R.string.settings_usage_total_processed), style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+            Text(totals.totalProcessed.text.asString(), style = MaterialTheme.typography.displayMedium.tabular(), color = colors.onSurface)
             Text(
-                "${compactCount(totals.calls)} ${if (totals.calls == 1L) "call" else "calls"}",
+                pluralStringResource(R.plurals.settings_usage_calls, callsQuantity(totals.calls), compactCount(totals.calls)),
                 style = MaterialTheme.typography.bodyMedium.tabular(), color = colors.onSurfaceVariant,
             )
             val input = totals.inputTotal.value
@@ -142,7 +152,7 @@ private fun Headline(totals: UsageTotals) {
             if (input != null && cached != null && input > 0) {
                 Bar((cached.toFloat() / input).coerceIn(0f, 1f), Modifier.padding(top = 8.dp))
                 Text(
-                    "${totals.inputCached.text} of ${totals.inputTotal.text} input tokens came from the prompt cache",
+                    stringResource(R.string.settings_usage_cache_share, totals.inputCached.text.asString(), totals.inputTotal.text.asString()),
                     style = MaterialTheme.typography.bodySmall.tabular(), color = colors.onSurfaceVariant,
                 )
             }
@@ -193,15 +203,17 @@ private fun Breakdown(title: String, rows: List<UsageRow>, cacheHit: Boolean) {
             val totals = row.totals
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(row.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text(totals.totalProcessed.text, style = MaterialTheme.typography.titleMedium.tabular().copy(fontWeight = FontWeight.SemiBold))
+                    Text(row.label.asString(), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Text(totals.totalProcessed.text.asString(), style = MaterialTheme.typography.titleMedium.tabular().copy(fontWeight = FontWeight.SemiBold))
                 }
                 Bar(bars[index])
                 Text(
                     listOfNotNull(
-                        "Input ${totals.inputTotal.text}", "Cached ${totals.inputCached.text}",
-                        "Cache hit ${cacheHitText(totals.cacheHitPercent)}".takeIf { cacheHit },
-                        "Output ${totals.outputTotal.text}", "${compactCount(totals.calls)} ${if (totals.calls == 1L) "call" else "calls"}",
+                        stringResource(R.string.settings_usage_breakdown_input, totals.inputTotal.text.asString()),
+                        stringResource(R.string.settings_usage_breakdown_cached, totals.inputCached.text.asString()),
+                        if (cacheHit) stringResource(R.string.settings_usage_breakdown_cache_hit, cacheHitText(totals.cacheHitPercent).asString()) else null,
+                        stringResource(R.string.settings_usage_breakdown_output, totals.outputTotal.text.asString()),
+                        pluralStringResource(R.plurals.settings_usage_calls, callsQuantity(totals.calls), compactCount(totals.calls)),
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -213,19 +225,22 @@ private fun Breakdown(title: String, rows: List<UsageRow>, cacheHit: Boolean) {
 
 @Composable
 private fun SearchSection(search: SearchUsage) {
-    Text("Web search", Modifier.padding(start = 4.dp).semantics { contentDescription = "Web search usage" }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val searchCd = stringResource(R.string.settings_usage_web_search_cd)
+    Text(stringResource(R.string.settings_usage_web_search), Modifier.padding(start = 4.dp).semantics { contentDescription = searchCd }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (search.searches == 0L) {
-        EmptyState(ReiIcons.Globe, "No web searches in this period")
+        EmptyState(ReiIcons.Globe, stringResource(R.string.settings_usage_no_searches))
         return
     }
     StatPairs(
         listOf(
-            "Searches" to compactCount(search.searches), "Answered" to compactCount(search.answered),
-            "No results" to compactCount(search.empty), "Failed" to compactCount(search.failed),
-            "Used fallback" to compactCount(search.withFallback),
+            stringResource(R.string.settings_usage_searches) to compactCount(search.searches),
+            stringResource(R.string.settings_usage_answered) to compactCount(search.answered),
+            stringResource(R.string.settings_usage_no_results) to compactCount(search.empty),
+            stringResource(R.string.settings_triggers_status_failed) to compactCount(search.failed),
+            stringResource(R.string.settings_usage_used_fallback) to compactCount(search.withFallback),
         ),
     )
-    if (search.providers.isNotEmpty()) SettingsGroup(title = "By provider") {
+    if (search.providers.isNotEmpty()) SettingsGroup(title = stringResource(R.string.settings_usage_by_provider)) {
         search.providers.forEachIndexed { index, provider -> ProviderRow(provider, dividerBelow = index < search.providers.lastIndex) }
     }
 }
@@ -236,14 +251,24 @@ private fun ProviderRow(provider: SearchProvider, dividerBelow: Boolean) {
     var open by rememberSaveable(provider.name) { mutableStateOf(false) }
     SettingsRow(
         provider.name,
-        summary = "${compactCount(provider.searched)} searched · ${compactCount(provider.succeeded)} succeeded · ${compactCount(provider.failed)} failed\nAverage ${averageText(provider.averageMs)}",
+        summary = stringResource(
+            R.string.settings_usage_provider_summary,
+            compactCount(provider.searched),
+            compactCount(provider.succeeded),
+            compactCount(provider.failed),
+            averageText(provider.averageMs).asString(),
+        ),
         onClick = { open = !open }, tabularSummary = true, dividerBelow = dividerBelow || open,
         trailing = { SettingsChevron() },
     )
     if (open) {
         val stats = listOf(
-            "Succeeded" to provider.succeeded, "Empty result" to provider.empty, "Failed" to provider.failed,
-            "Skipped" to provider.skipped, "Asked as fallback" to provider.fallback, "Answered as fallback" to provider.answeredAfterFallback,
+            stringResource(R.string.settings_usage_outcome_succeeded) to provider.succeeded,
+            stringResource(R.string.settings_usage_outcome_empty) to provider.empty,
+            stringResource(R.string.settings_usage_outcome_failed) to provider.failed,
+            stringResource(R.string.settings_usage_outcome_skipped) to provider.skipped,
+            stringResource(R.string.settings_usage_asked_fallback) to provider.fallback,
+            stringResource(R.string.settings_usage_answered_fallback) to provider.answeredAfterFallback,
         )
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             stats.forEach { (label, value) ->
@@ -253,7 +278,7 @@ private fun ProviderRow(provider: SearchProvider, dividerBelow: Boolean) {
                 }
             }
             provider.problems.forEach { detail ->
-                Text("${searchDetailLabel(detail)}: ${compactCount(detail.calls)}", style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_usage_problem_row, searchDetailLabel(detail).asString(), compactCount(detail.calls)), style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (dividerBelow) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -265,9 +290,10 @@ private fun ProviderRow(provider: SearchProvider, dividerBelow: Boolean) {
 @Composable
 private fun RangePicker(from: String, to: String, onFrom: (String) -> Unit, onTo: (String) -> Unit) {
     var picking by remember { mutableStateOf<String?>(null) }
+    val chooseDate = stringResource(R.string.settings_usage_choose_date)
     SettingsGroup {
-        SettingsRow("From", summary = from.ifEmpty { "Choose a date" }, onClick = { picking = "from" }, tabularSummary = true, dividerBelow = true, trailing = { SettingsChevron() })
-        SettingsRow("To", summary = to.ifEmpty { "Choose a date" }, onClick = { picking = "to" }, tabularSummary = true, trailing = { SettingsChevron() })
+        SettingsRow(stringResource(R.string.settings_usage_from), summary = from.ifEmpty { chooseDate }, onClick = { picking = "from" }, tabularSummary = true, dividerBelow = true, trailing = { SettingsChevron() })
+        SettingsRow(stringResource(R.string.settings_usage_to), summary = to.ifEmpty { chooseDate }, onClick = { picking = "to" }, tabularSummary = true, trailing = { SettingsChevron() })
     }
     val which = picking ?: return
     val today = remember { utcDayMillis(utcDay(System.currentTimeMillis())) ?: Long.MAX_VALUE }
@@ -281,8 +307,8 @@ private fun RangePicker(from: String, to: String, onFrom: (String) -> Unit, onTo
             TextButton(onClick = {
                 state.selectedDateMillis?.let { millis -> if (which == "from") onFrom(utcDay(millis)) else onTo(utcDay(millis)) }
                 picking = null
-            }) { Text("Choose") }
+            }) { Text(stringResource(R.string.settings_usage_choose)) }
         },
-        dismissButton = { TextButton(onClick = { picking = null }) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = { picking = null }) { Text(stringResource(R.string.common_cancel)) } },
     ) { DatePicker(state) }
 }

@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -62,10 +63,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.ChatProfile
 import dev.rei.android.data.SkillOption
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviewSurface
+import dev.rei.android.ui.components.ReiPreviews
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.ReiTheme
@@ -109,7 +114,12 @@ data class ComposerState(
 ) {
     val hasContent: Boolean get() = draft.isNotBlank() || attachments.isNotEmpty()
     val canSend: Boolean get() = enabled && hasContent && !uploading && !sending && !waitingForAnswer
-    val placeholder: String get() = if (waitingForAnswer) "Waiting for your answer" else if (agentName.isBlank()) "Message" else "Message $agentName"
+
+    fun placeholder(): UiText = when {
+        waitingForAnswer -> UiText.Resource(R.string.composer_waiting_answer)
+        agentName.isBlank() -> UiText.Resource(R.string.composer_placeholder_generic)
+        else -> UiText.Resource(R.string.composer_placeholder_agent, agentName)
+    }
 }
 
 /** Context use at which the meter appears. */
@@ -192,7 +202,7 @@ fun Composer(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(ReiIcons.Shield, null, Modifier.size(18.dp))
-                    Text("Approval waiting — Jump", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.composer_approval_waiting_jump), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
                     Icon(ReiIcons.Forward, null, Modifier.size(18.dp))
                 }
             }
@@ -210,7 +220,7 @@ fun Composer(
                     if (showCompact) {
                         SlashPopupRow(
                             command = "/compact",
-                            summary = "Summarize earlier context into fresh room",
+                            summary = stringResource(R.string.composer_compact_summary),
                             onClick = {
                                 textState.setTextAndPlaceCursorAtEnd("/compact ")
                                 onDraftChange("/compact ")
@@ -238,13 +248,14 @@ fun Composer(
         if (state.attachments.isNotEmpty() || selectedSkills.isNotEmpty() || state.uploading) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.attachments.forEach { file ->
-                    RemovableChip(ReiIcons.File, file.name, "Remove ${file.name}", { onRemoveAttachment(file) })
+                    RemovableChip(ReiIcons.File, file.name, stringResource(R.string.composer_remove_target, file.name), { onRemoveAttachment(file) })
                 }
                 selectedSkills.forEach { skill ->
-                    RemovableChip(ReiIcons.Sparkle, "/${skill.name}", "Remove /${skill.name}", { onRemoveSkill?.invoke(skill) })
+                    val command = "/${skill.name}"
+                    RemovableChip(ReiIcons.Sparkle, command, stringResource(R.string.composer_remove_target, command), { onRemoveSkill?.invoke(skill) })
                 }
                 if (state.uploading) {
-                    Text("Uploading…", Modifier.padding(horizontal = 8.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                    Text(stringResource(R.string.composer_uploading), Modifier.padding(horizontal = 8.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
                 }
             }
         }
@@ -254,11 +265,11 @@ fun Composer(
             modifier = Modifier.fillMaxWidth().border(BorderStroke(1.dp, colors.outline), RoundedCornerShape(28.dp)),
         ) {
             Row(Modifier.padding(start = 4.dp, end = 4.dp), verticalAlignment = Alignment.Bottom) {
-                ReiIconButton(ReiIcons.Plus, "Attach", onAttach, enabled = state.enabled && !state.uploading)
+                ReiIconButton(ReiIcons.Plus, stringResource(R.string.composer_attach), onAttach, enabled = state.enabled && !state.uploading)
                 Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
                     if (textState.text.isEmpty()) {
                         Text(
-                            state.placeholder,
+                            state.placeholder().asString(),
                             Modifier.clearAndSetSemantics {},
                             style = MaterialTheme.typography.bodyLarge,
                             color = colors.onSurfaceVariant,
@@ -266,9 +277,10 @@ fun Composer(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    val messageDesc = stringResource(R.string.composer_placeholder_generic)
                     BasicTextField(
                         state = textState,
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Message" },
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = messageDesc },
                         enabled = state.enabled && !state.waitingForAnswer,
                         lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 6),
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
@@ -320,21 +332,25 @@ fun Composer(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    state.modelLabel?.let { QuietChip("Model: $it", it, onModel) }
-                    state.effortLabel?.let { QuietChip("Reasoning effort: $it", "$it effort", onEffort) }
+                    state.modelLabel?.let { QuietChip(stringResource(R.string.composer_model_desc, it), it, onModel) }
+                    state.effortLabel?.let {
+                        QuietChip(stringResource(R.string.composer_effort_desc, it), stringResource(R.string.composer_effort_chip, it), onEffort)
+                    }
                     state.profile?.let {
+                        val profileLabel = stringResource(it.labelRes)
                         // YOLO is the level that needs attention, so it takes the ochre text color, as on the web.
                         QuietChip(
-                            "Permissions: ${it.label}. Change", it.label, onPermissions,
-                            tooltip = "Permissions for this chat",
+                            stringResource(R.string.composer_permissions_desc, profileLabel), profileLabel, onPermissions,
+                            tooltip = stringResource(R.string.composer_permissions_tooltip),
                             tint = if (it == ChatProfile.Yolo) colors.onTertiaryContainer else colors.onSurfaceVariant,
                         )
                     }
                 }
                 state.contextPercent?.takeIf { it >= ContextMeterFrom }?.let { percent ->
+                    val contextDesc = stringResource(R.string.composer_context_desc, percent)
                     Text(
-                        "$percent% of context",
-                        Modifier.semantics { contentDescription = "Context used: $percent percent" },
+                        stringResource(R.string.composer_context_percent, percent),
+                        Modifier.semantics { contentDescription = contextDesc },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (percent >= 90) colors.error else colors.onSurfaceVariant,
                         maxLines = 1,
@@ -369,7 +385,7 @@ private fun SlashPopupRow(command: String, summary: String?, onClick: () -> Unit
 @Composable
 private fun SendButton(running: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val label = if (running) "Stop reply" else "Send message"
+    val label = stringResource(if (running) R.string.composer_stop else R.string.composer_send)
     Box(
         Modifier
             .size(48.dp)
@@ -420,11 +436,12 @@ private fun QuietChip(
     tooltip: String? = null,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
+    val changeLabel = stringResource(R.string.composer_change)
     val chip: @Composable () -> Unit = {
         Row(
             Modifier
                 .heightIn(min = 48.dp)
-                .clickable(onClickLabel = "Change", role = Role.Button, onClick = onClick)
+                .clickable(onClickLabel = changeLabel, role = Role.Button, onClick = onClick)
                 .semantics(mergeDescendants = true) { contentDescription = description }
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -445,4 +462,27 @@ private fun QuietChip(
             content = chip,
         )
     }
+}
+
+@ReiPreviews
+@Composable
+private fun ComposerPreview() = ReiPreviewSurface {
+    Composer(
+        state = ComposerState(
+            draft = "Summarize the Q3 notes",
+            attachments = listOf(AttachmentRef("f1", "v1", "q3-notes.pdf", 240_000L)),
+            agentName = "Rei",
+            modelLabel = "Claude Sonnet",
+            effortLabel = "Medium",
+            profile = ChatProfile.Standard,
+            contextPercent = 78,
+        ),
+        onDraftChange = {},
+        onSend = {},
+        onStop = {},
+        onAttach = {},
+        onRemoveAttachment = {},
+        onModel = {},
+        onEffort = {},
+    )
 }

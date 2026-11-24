@@ -1,10 +1,12 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
 import dev.rei.android.data.array
 import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -133,13 +135,13 @@ internal fun importBody(fileName: String, mimeType: String?, bytes: ByteArray): 
 }
 
 /** Which agents may use a skill, in a few words: null is every agent. */
-internal fun agentsLine(ids: List<String>?, agents: List<AgentOption>): String {
-    if (ids == null) return "All agents"
+internal fun agentsLine(ids: List<String>?, agents: List<AgentOption>): UiText {
+    if (ids == null) return UiText.Resource(R.string.settings_skills_all_agents)
     val names = agents.filter { it.id in ids }.map { it.name }
     return when {
-        names.isEmpty() -> "No agents"
-        agents.size > 1 && names.size == agents.size -> "All agents"
-        else -> names.joinToString(", ")
+        names.isEmpty() -> UiText.Resource(R.string.settings_skills_no_agents)
+        agents.size > 1 && names.size == agents.size -> UiText.Resource(R.string.settings_skills_all_agents)
+        else -> UiText.Literal(names.joinToString(", "))
     }
 }
 

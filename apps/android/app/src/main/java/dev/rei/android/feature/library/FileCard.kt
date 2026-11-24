@@ -28,11 +28,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.LibraryFile
 import dev.rei.android.data.ReiApi
 import dev.rei.android.feature.viewer.PreviewKind
@@ -97,7 +99,7 @@ fun FileCard(file: LibraryFile, api: ReiApi?, onOpen: () -> Unit, modifier: Modi
                 if (file.favorite) {
                     Icon(
                         ReiIcons.Star,
-                        contentDescription = "Favorite",
+                        contentDescription = stringResource(R.string.library_file_favorite),
                         Modifier
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
@@ -140,7 +142,7 @@ private fun FileThumbnail(file: LibraryFile, api: ReiApi?) {
     } else {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(fileIcon(file.name, file.current.mediaType), contentDescription = null, Modifier.size(36.dp), tint = colors.onSurfaceVariant)
-            Text(typeLabel(file.name), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            Text(typeLabel(file.name, stringResource(R.string.library_type_fallback)), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         }
     }
 }

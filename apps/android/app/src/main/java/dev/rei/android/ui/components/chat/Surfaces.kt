@@ -55,13 +55,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.markdown.MarkdownPicture
 import dev.rei.android.ui.components.markdown.ReiMarkdown
 import dev.rei.android.ui.components.markdown.isExternalMarkdownLink
@@ -173,9 +177,9 @@ fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject, deta
                 Column(Modifier.weight(1f)) {
                     if (title.isNotBlank()) Text(title, style = MaterialTheme.typography.titleMedium)
                     when (state) {
-                        "live" -> Text("Live", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        "removed" -> Text("Removed", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        "frozen" -> Text("Copy", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        "live" -> Text(stringResource(R.string.surface_state_live), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        "removed" -> Text(stringResource(R.string.surface_state_removed), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        "frozen" -> Text(stringResource(R.string.surface_state_frozen), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -189,7 +193,7 @@ fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject, deta
                     spec != null -> {
                         if (fallback.isNotBlank()) Text(fallback)
                         Text(
-                            "This surface couldn't be drawn here. Inspect it for details.",
+                            stringResource(R.string.surface_fallback_note),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -200,7 +204,7 @@ fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject, deta
             }
             if (detail) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    ReiIconButton(ReiIcons.Info, "Inspect surface", { inspect = true })
+                    ReiIconButton(ReiIcons.Info, stringResource(R.string.surface_inspect), { inspect = true })
                 }
             }
         }
@@ -224,8 +228,8 @@ internal sealed interface SurfaceSpec {
     data class Plain(val text: String, val small: Boolean = false) : SurfaceSpec
     data object Rule : SurfaceSpec
     data class Picture(val url: String, val description: String) : SurfaceSpec
-    data class Link(val url: String, val label: String) : SurfaceSpec
-    data class Action(val label: String, val source: JsonObject, val scope: String) : SurfaceSpec
+    data class Link(val url: String, val label: UiText) : SurfaceSpec
+    data class Action(val label: UiText, val source: JsonObject, val scope: String) : SurfaceSpec
     data class TextInput(
         val value: String, val label: String, val placeholder: String, val pointer: String?,
         val multiline: Boolean, val obscured: Boolean,
@@ -283,7 +287,7 @@ private class SurfaceResolver(val components: Map<String, JsonObject>, val data:
             "Button" -> {
                 val labelNode = components[text("child")]
                 val label = surfaceValue(labelNode?.get("text") ?: labelNode?.get("name"), data, scope).text()
-                SurfaceSpec.Action(label.ifBlank { "Send" }, component, scope)
+                SurfaceSpec.Action(if (label.isNotBlank()) UiText.Literal(label) else UiText.Resource(R.string.surface_send), component, scope)
             }
             "TextField", "DateTimeInput" -> SurfaceSpec.TextInput(
                 text("value"), text("label"), text("placeholder"), bindingPath(component["value"], scope),
@@ -321,7 +325,11 @@ private class SurfaceResolver(val components: Map<String, JsonObject>, val data:
                     component.objects("steps").map { step ->
                         surfaceValue(step["title"], data, scope).text() to node(step.optionalString("child").orEmpty(), scope, depth + 1)
                     },
-                    SurfaceSpec.Action(text("submitLabel").ifBlank { "Submit" }, component, scope),
+                    SurfaceSpec.Action(
+                        text("submitLabel").let { if (it.isNotBlank()) UiText.Literal(it) else UiText.Resource(R.string.surface_submit) },
+                        component,
+                        scope,
+                    ),
                 )
             }
             "Table" -> {
@@ -348,12 +356,12 @@ private class SurfaceResolver(val components: Map<String, JsonObject>, val data:
                 listOfNotNull(
                     image.optionalString("url")?.takeIf { it.startsWith("https://", ignoreCase = true) }?.let { SurfaceSpec.Picture(it, caption) },
                     caption.takeIf { it.isNotBlank() }?.let { SurfaceSpec.Plain(it) },
-                    image.optionalString("link")?.let { SurfaceSpec.Link(it, "Open image link") },
+                    image.optionalString("link")?.let { SurfaceSpec.Link(it, UiText.Resource(R.string.surface_open_image_link)) },
                 )
             })
             "Links" -> SurfaceSpec.Stack(resolved("links").records().flatMap { link ->
                 val url = link.optionalString("url").orEmpty()
-                listOfNotNull(SurfaceSpec.Link(url, link.optionalString("title") ?: url), link.optionalString("description")?.let { SurfaceSpec.Plain(it) })
+                listOfNotNull(SurfaceSpec.Link(url, UiText.Literal(link.optionalString("title") ?: url)), link.optionalString("description")?.let { SurfaceSpec.Plain(it) })
             })
             "Timeline" -> SurfaceSpec.Stack(resolved("items").records().flatMap { item ->
                 listOfNotNull(
@@ -367,7 +375,7 @@ private class SurfaceResolver(val components: Map<String, JsonObject>, val data:
                 val lat = place.optionalString("lat")
                 val lon = place.optionalString("lon")
                 listOfNotNull(
-                    if (lat != null && lon != null) SurfaceSpec.Link("https://www.openstreetmap.org/?mlat=$lat&mlon=$lon", name.ifBlank { "$lat,$lon" }) else null,
+                    if (lat != null && lon != null) SurfaceSpec.Link("https://www.openstreetmap.org/?mlat=$lat&mlon=$lon", UiText.Literal(name.ifBlank { "$lat,$lon" })) else null,
                     place.optionalString("note")?.let { SurfaceSpec.Plain(it) },
                 )
             })
@@ -415,7 +423,7 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
         is SurfaceSpec.Plain -> if (spec.small) Text(spec.text, style = MaterialTheme.typography.bodySmall) else Text(spec.text)
         SurfaceSpec.Rule -> HorizontalDivider()
         is SurfaceSpec.Picture -> MarkdownPicture(engine.api, spec.url, spec.description)
-        is SurfaceSpec.Link -> SurfaceLink(spec.url, spec.label)
+        is SurfaceSpec.Link -> SurfaceLink(spec.url, spec.label.asString())
         is SurfaceSpec.Action -> SurfaceButton(engine, spec)
         is SurfaceSpec.TextInput -> ReiTextField(
             value = spec.value,
@@ -498,10 +506,11 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
         }
         is SurfaceSpec.Range -> {
             Text(spec.label)
+            val sliderLabel = spec.label.ifBlank { stringResource(R.string.surface_slider) }
             androidx.compose.material3.Slider(
                 value = spec.value,
                 onValueChange = { if (spec.pointer != null) engine.input(spec.pointer, JsonPrimitive(it)) },
-                modifier = Modifier.semantics { contentDescription = spec.label.ifBlank { "Slider" } },
+                modifier = Modifier.semantics { contentDescription = sliderLabel },
                 enabled = engine.interactive && spec.pointer != null,
                 valueRange = spec.min..spec.max,
             )
@@ -538,9 +547,9 @@ private fun SurfaceForm(engine: SurfaceEngine, spec: SurfaceSpec.Form) {
     Text(title, style = MaterialTheme.typography.labelLarge)
     SurfaceView(engine, child)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (index > 0) TextButton(onClick = { index-- }) { Text("Back") }
+        if (index > 0) TextButton(onClick = { index-- }) { Text(stringResource(R.string.common_back)) }
         if (index < spec.steps.lastIndex) {
-            TextButton(onClick = { index++ }) { Text("Next") }
+            TextButton(onClick = { index++ }) { Text(stringResource(R.string.common_next)) }
         } else {
             SurfaceButton(engine, spec.submit)
         }
@@ -550,6 +559,7 @@ private fun SurfaceForm(engine: SurfaceEngine, spec: SurfaceSpec.Form) {
 @Composable
 private fun SurfaceButton(engine: SurfaceEngine, spec: SurfaceSpec.Action) {
     val scope = rememberCoroutineScope()
+    val resources = LocalResources.current
     val source = spec.source
     val submitted = engine.sent == source.optionalString("id")
     Button(
@@ -562,7 +572,7 @@ private fun SurfaceButton(engine: SurfaceEngine, spec: SurfaceSpec.Action) {
                 } catch (failure: CancellationException) {
                     throw failure
                 } catch (failure: Exception) {
-                    engine.failure = failure.message ?: "Could not send this action."
+                    engine.failure = failure.message ?: resources.getString(R.string.surface_action_failed)
                 } finally {
                     engine.sending = false
                 }
@@ -570,7 +580,7 @@ private fun SurfaceButton(engine: SurfaceEngine, spec: SurfaceSpec.Action) {
         },
         enabled = engine.interactive && !engine.sending && source["action"] != null &&
             !(submitted && source.optionalString("component") == "Steps"),
-    ) { Text(if (submitted) "Sent" else spec.label) }
+    ) { Text(if (submitted) stringResource(R.string.surface_sent) else spec.label.asString()) }
 }
 
 @Composable
@@ -581,7 +591,7 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
     var page by remember { mutableIntStateOf(0) }
     val colWidth = (120 * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)).dp
     if (spec.filterable) ReiTextField(
-        query, { query = it; page = 0 }, label = "Filter rows", singleLine = true,
+        query, { query = it; page = 0 }, label = stringResource(R.string.surface_filter_rows), singleLine = true,
     )
     val ordered = remember(spec.rows, query, sort, ascending) {
         val matches = if (query.isBlank()) spec.rows else spec.rows.filter { row -> row.values.any { it.contains(query, ignoreCase = true) } }
@@ -609,8 +619,8 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
         }
     }
     Row {
-        if (page > 0) TextButton(onClick = { page-- }) { Text("Previous") }
-        if (ordered.size > (page + 1) * spec.pageSize) TextButton(onClick = { page++ }) { Text("Next") }
+        if (page > 0) TextButton(onClick = { page-- }) { Text(stringResource(R.string.common_previous)) }
+        if (ordered.size > (page + 1) * spec.pageSize) TextButton(onClick = { page++ }) { Text(stringResource(R.string.common_next)) }
     }
     spec.caption?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
@@ -676,6 +686,7 @@ private fun SurfaceLink(url: String, label: String) {
 
 @Composable
 private fun SurfaceInspector(api: ReiApi, sessionId: String, id: String, title: String, dismiss: () -> Unit) {
+    val resources = LocalResources.current
     var answer by remember { mutableStateOf<JsonObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(api, sessionId, id) {
@@ -684,10 +695,11 @@ private fun SurfaceInspector(api: ReiApi, sessionId: String, id: String, title: 
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Exception) {
-            error = failure.message ?: "Could not load this surface."
+            error = failure.message ?: resources.getString(R.string.surface_load_failed)
         }
     }
-    ReiSheet(onDismiss = dismiss, title = "Inspect ${title.ifBlank { "surface" }}") {
+    val sheetTarget = title.ifBlank { stringResource(R.string.surface_noun) }
+    ReiSheet(onDismiss = dismiss, title = stringResource(R.string.surface_inspect_title, sheetTarget)) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -695,17 +707,22 @@ private fun SurfaceInspector(api: ReiApi, sessionId: String, id: String, title: 
             val data = answer
             if (data == null && error == null) CircularProgressIndicator(Modifier.padding(vertical = 8.dp))
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (data != null) for ((field, heading) in listOf("revisions" to "Revisions", "actions" to "Actions", "failures" to "Failures")) {
-                Text(heading, style = MaterialTheme.typography.titleSmall)
+            val sections = listOf(
+                "revisions" to R.string.surface_revisions,
+                "actions" to R.string.surface_actions,
+                "failures" to R.string.surface_failures,
+            )
+            if (data != null) for ((field, headingRes) in sections) {
+                Text(stringResource(headingRes), style = MaterialTheme.typography.titleSmall)
                 val entries = data.objects(field).asReversed()
-                if (entries.isEmpty()) Text("None", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (entries.isEmpty()) Text(stringResource(R.string.common_none), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 entries.forEach { entry ->
                     var expanded by remember(entry) { mutableStateOf(false) }
                     val description = listOfNotNull(
                         entry.optionalString("revision")?.let { "#$it" },
                         entry.optionalString("summary") ?: entry.optionalString("decision") ?: entry.optionalString("tool"),
                     ).joinToString(" ")
-                    TextButton(onClick = { expanded = !expanded }) { Text(description.ifBlank { "Details" }) }
+                    TextButton(onClick = { expanded = !expanded }) { Text(description.ifBlank { stringResource(R.string.common_details) }) }
                     if (expanded) SelectionContainer { Text(prettyJson.encodeToString(JsonObject.serializer(), entry)) }
                 }
             }

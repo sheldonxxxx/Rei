@@ -18,6 +18,7 @@ import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.di.AppContainer
 import dev.rei.android.di.AppDispatchers
+import dev.rei.android.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -60,7 +61,7 @@ internal class BrowserState {
     var ready by mutableStateOf(false)
     var takeover by mutableStateOf<LiveTakeover?>(null)
     var prompt by mutableStateOf<BrowserPrompt?>(null)
-    var status by mutableStateOf("Connecting…")
+    var status by mutableStateOf<UiText?>(UiText.Resource(R.string.browser_status_connecting))
     var socket: WebSocket? = null
 
     fun disconnected() {
@@ -102,7 +103,7 @@ internal class BrowserState {
                 (message["viewport"] as? JsonObject)?.let(::updateViewport)
                 control = message.optionalString("control") == "true"
                 ready = true
-                status = ""
+                status = null
             }
             "page" -> updatePage()
             "viewport" -> updateViewport(message)
@@ -147,7 +148,7 @@ internal class BrowserViewModel(
     val state = BrowserState()
     var busy by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<UiText?>(null)
         private set
     var ending by mutableStateOf(false)
 
@@ -222,11 +223,11 @@ internal class BrowserViewModel(
                 if (e.status in setOf(401, 426)) {
                     session.reportFailure(e)
                 } else {
-                    error = e.message
+                    error = UiText.Literal(e.message.orEmpty())
                     refresh(api)
                 }
             } catch (_: Exception) {
-                error = "The browser action failed."
+                error = UiText.Resource(R.string.browser_action_failed)
             } finally {
                 busy = false
             }
@@ -247,7 +248,7 @@ internal class BrowserViewModel(
         var retryMs = 500L
         while (true) {
             state.disconnected()
-            state.status = if (retryMs == 500L) "Connecting…" else "Reconnecting…"
+            state.status = UiText.Resource(if (retryMs == 500L) R.string.browser_status_connecting else R.string.browser_status_reconnecting)
             val events = Channel<SocketEvent>(32)
             val frames = Channel<ByteString>(Channel.CONFLATED)
             val connection = api.websocket(path + "live", object : WebSocketListener() {
@@ -296,7 +297,9 @@ internal class BrowserViewModel(
                                     val closed = runCatching { state.text(event.raw) }.getOrNull()
                                     if (closed != null) {
                                         retry = closed == "restarted" || closed == "crashed"
-                                        state.status = if (closed == "no_window") "This chat has no browser window." else "The browser window closed."
+                                        state.status = UiText.Resource(
+                                            if (closed == "no_window") R.string.browser_status_no_window else R.string.browser_status_closed,
+                                        )
                                         break
                                     }
                                     if (state.ready && (!wasReady || state.control != previousControl)) {
@@ -308,8 +311,9 @@ internal class BrowserViewModel(
                                 is SocketEvent.End -> {
                                     if (event.code in setOf(401, 403, 404, 426, 4401)) {
                                         retry = false
-                                        state.status = if (event.code == 426) "Update Rei to open the live browser."
-                                        else "Rei denied access to this browser window."
+                                        state.status = UiText.Resource(
+                                            if (event.code == 426) R.string.browser_status_outdated else R.string.browser_status_denied,
+                                        )
                                     }
                                     break
                                 }
@@ -328,7 +332,7 @@ internal class BrowserViewModel(
                 state.disconnected()
             }
             if (!retry) return
-            state.status = "Reconnecting…"
+            state.status = UiText.Resource(R.string.browser_status_reconnecting)
             delay(retryMs)
             retryMs = (retryMs * 2).coerceAtMost(8_000)
         }

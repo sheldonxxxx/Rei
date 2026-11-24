@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -39,6 +41,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.ChatProfile
 import dev.rei.android.data.ModelCatalog
@@ -63,19 +66,20 @@ fun AttachmentSheet(
     onSlashCommands: () -> Unit,
     attachmentsFull: Boolean = false,
 ) {
-    val fileLimitSummary = if (attachmentsFull) "At most ${AttachmentRef.MaxCount} attachments per message" else null
+    val fileLimitSummary = if (attachmentsFull) stringResource(R.string.composer_attach_limit, AttachmentRef.MaxCount) else null
     val rowAlpha = Modifier.alpha(if (attachmentsFull) 0.5f else 1f)
-    ReiSheet(onDismiss = onDismiss, title = "Add to your message") {
-        SettingsRow("Device files", modifier = rowAlpha, icon = ReiIcons.File, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onDeviceFiles)
-        SettingsRow("Photos", modifier = rowAlpha, icon = ReiIcons.Image, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onPhotos)
-        SettingsRow("Library", modifier = rowAlpha, icon = ReiIcons.Library, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onLibrary)
-        SettingsRow("Skills", icon = ReiIcons.Terminal, onClick = onSlashCommands, summary = "Run one of the agent’s skills")
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_attach_title)) {
+        SettingsRow(stringResource(R.string.composer_attach_files), modifier = rowAlpha, icon = ReiIcons.File, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onDeviceFiles)
+        SettingsRow(stringResource(R.string.composer_attach_photos), modifier = rowAlpha, icon = ReiIcons.Image, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onPhotos)
+        SettingsRow(stringResource(R.string.composer_attach_library), modifier = rowAlpha, icon = ReiIcons.Library, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onLibrary)
+        SettingsRow(stringResource(R.string.composer_attach_skills), icon = ReiIcons.Terminal, onClick = onSlashCommands, summary = stringResource(R.string.composer_attach_skills_summary))
     }
 }
 
 /** Files already in the Library, searchable, attached by reference (no upload). */
 @Composable
 fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (AttachmentRef) -> Unit) {
+    val resources = LocalResources.current
     var query by remember { mutableStateOf("") }
     var files by remember { mutableStateOf(emptyList<AttachmentRef>()) }
     var next by remember { mutableStateOf<String?>(null) }
@@ -99,15 +103,16 @@ fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (Attach
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Exception) {
-            error = (failure as? ReiApiException)?.message ?: "Couldn’t load the Library."
+            error = (failure as? ReiApiException)?.message ?: resources.getString(R.string.composer_library_load_failed)
         } finally {
             loading = false
         }
     }
 
-    ReiSheet(onDismiss = onDismiss, title = "Attach from the Library") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_library_title)) {
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillField(query, { query = it; paging = false }, "Search files", description = "Search files", leadingIcon = ReiIcons.Search)
+            val searchFiles = stringResource(R.string.composer_library_search)
+            PillField(query, { query = it; paging = false }, searchFiles, description = searchFiles, leadingIcon = ReiIcons.Search)
             LazyColumn(Modifier.heightIn(max = 360.dp)) {
                 items(files, key = { it.versionId }) { file ->
                     SettingsRow(file.name, icon = ReiIcons.File, onClick = { onSelect(file) })
@@ -117,10 +122,10 @@ fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (Attach
                         loading -> Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
                         error != null -> Column(Modifier.padding(8.dp)) {
                             Text(error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                            TextButton(onClick = { reload++ }) { Text("Try again") }
+                            TextButton(onClick = { reload++ }) { Text(stringResource(R.string.common_try_again)) }
                         }
-                        files.isEmpty() -> Text("No files found.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        next != null -> TextButton(onClick = { paging = true; reload++ }) { Text("Load more") }
+                        files.isEmpty() -> Text(stringResource(R.string.composer_library_empty), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        next != null -> TextButton(onClick = { paging = true; reload++ }) { Text(stringResource(R.string.common_load_more)) }
                     }
                 }
             }
@@ -131,11 +136,11 @@ fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (Attach
 /** What `/` offers: the skills this chat's agent can run. Choosing one adds a chip; the next message carries it. */
 @Composable
 fun SkillSheet(skills: List<SkillOption>, loaded: Boolean, onDismiss: () -> Unit, onSelect: (SkillOption) -> Unit) {
-    ReiSheet(onDismiss = onDismiss, title = "Skills") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_skills_title)) {
         if (!loaded) {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
         } else if (skills.isEmpty()) {
-            Text("This agent has no skills to run yet.", Modifier.padding(horizontal = 24.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.composer_skills_empty), Modifier.padding(horizontal = 24.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
                 items(skills, key = { it.id }) { skill ->
@@ -148,9 +153,9 @@ fun SkillSheet(skills: List<SkillOption>, loaded: Boolean, onDismiss: () -> Unit
 
 @Composable
 fun ModelSheet(catalog: ModelCatalog, current: String?, onDismiss: () -> Unit, onSelect: (String?) -> Unit) {
-    ReiSheet(onDismiss = onDismiss, title = "Model") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_model_title)) {
         Column(Modifier.heightIn(max = 480.dp).selectableGroup()) {
-            Choice("Default (${catalog.label(null)})", selected = current == null, onClick = { onSelect(null) })
+            Choice(stringResource(R.string.composer_model_default, catalog.label(null)), selected = current == null, onClick = { onSelect(null) })
             LazyColumn {
                 items(catalog.models, key = { it }) { model ->
                     Choice(catalog.label(model), selected = current == model, onClick = { onSelect(model) })
@@ -162,9 +167,9 @@ fun ModelSheet(catalog: ModelCatalog, current: String?, onDismiss: () -> Unit, o
 
 @Composable
 fun EffortSheet(levels: List<String>, current: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
-    ReiSheet(onDismiss = onDismiss, title = "Reasoning effort") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_effort_title)) {
         if (levels.isEmpty()) {
-            Text("This model has no reasoning effort to choose.", Modifier.padding(horizontal = 24.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.composer_effort_empty), Modifier.padding(horizontal = 24.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(Modifier.selectableGroup()) {
             levels.forEach { level -> Choice(effortLabel(level), selected = current == level, onClick = { onSelect(level) }) }
@@ -186,10 +191,10 @@ fun PermissionsSheet(
     onSelect: (ChatProfile) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    ReiSheet(onDismiss = onDismiss, title = "Permissions") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.composer_permissions_title)) {
         Column(Modifier.selectableGroup()) {
             Text(
-                "This chat only.",
+                stringResource(R.string.composer_permissions_this_chat),
                 Modifier.padding(horizontal = 24.dp).padding(bottom = 4.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -208,11 +213,11 @@ fun PermissionsSheet(
         }
         HorizontalDivider(Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
         SettingsRow(
-            "Settings → Permissions",
+            stringResource(R.string.composer_permissions_settings),
             // Rows carry 16dp of their own; 8dp more lines the text up with the levels above.
             modifier = Modifier.padding(horizontal = 8.dp),
             icon = ReiIcons.Shield,
-            summary = "Sets the level an agent’s new chats start with.",
+            summary = stringResource(R.string.composer_permissions_settings_summary),
             onClick = onOpenSettings,
             trailing = { SettingsChevron() },
         )
@@ -237,15 +242,16 @@ private fun PermissionChoice(level: ChatProfile, selected: Boolean, enabled: Boo
             colors = RadioButtonDefaults.colors(unselectedColor = MaterialTheme.colorScheme.outline),
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(level.label, style = MaterialTheme.typography.bodyLarge)
-            Text(level.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(level.labelRes), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(level.descriptionRes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 /** "off" reads "Off", "xhigh" reads "Extra high". */
+@Composable
 fun effortLabel(level: String): String = when (level) {
-    "xhigh" -> "Extra high"
+    "xhigh" -> stringResource(R.string.composer_effort_extra_high)
     else -> level.replaceFirstChar(Char::uppercase)
 }
 

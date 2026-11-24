@@ -8,6 +8,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.ChatCatalogState
@@ -17,6 +18,7 @@ import dev.rei.android.data.SessionState
 import dev.rei.android.data.searchHistory
 import dev.rei.android.di.AppContainer
 import dev.rei.android.feature.activity.ActivityStore
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.theme.ThemePreference
 import dev.rei.android.ui.theme.ThemePreferenceStore
 import kotlinx.coroutines.CancellationException
@@ -53,7 +55,7 @@ data class DrawerUiState(
 data class SearchUiState(
     val query: String = "",
     val hits: List<HistoryHit> = emptyList(),
-    val status: String? = null,
+    val status: UiText? = null,
 )
 
 private const val SearchQueryKey = "history_search_query"
@@ -118,15 +120,26 @@ class ShellViewModel(
         val api = session.currentApi ?: return
         val selectedAgentId = catalog.state.value.selectedAgentId
         searchJob = viewModelScope.launch {
-            searchState.update { it.copy(status = "Searching…") }
+            searchState.update { it.copy(status = UiText.Resource(R.string.drawer_searching)) }
             delay(250)
             try {
                 val hits = api.searchHistory(query.trim(), selectedAgentId)
-                searchState.update { it.copy(hits = hits, status = if (hits.isEmpty()) "No matching messages" else null) }
+                searchState.update {
+                    it.copy(
+                        hits = hits,
+                        status = if (hits.isEmpty()) UiText.Resource(R.string.drawer_search_no_matches) else null,
+                    )
+                }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                searchState.update { it.copy(hits = emptyList(), status = failure.localizedMessage ?: "Search failed") }
+                searchState.update {
+                    it.copy(
+                        hits = emptyList(),
+                        status = failure.localizedMessage?.let(UiText::Literal)
+                            ?: UiText.Resource(R.string.drawer_search_failed),
+                    )
+                }
             }
         }
     }

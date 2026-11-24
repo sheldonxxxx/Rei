@@ -1,8 +1,11 @@
 package dev.rei.android.feature.settings
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -64,26 +67,29 @@ internal fun nameFromUrl(value: String): String {
     return if (label.isEmpty()) host else label.replaceFirstChar { it.uppercase() }
 }
 
-internal fun statusWord(status: String) = when (status) {
-    "connected" -> "Connected"
-    "needs_auth" -> "Needs sign-in"
-    else -> "Error"
-}
+internal fun statusWord(status: String): UiText = UiText.Resource(
+    when (status) {
+        "connected" -> R.string.settings_providers_connected
+        "needs_auth" -> R.string.settings_conn_status_needs_auth
+        else -> R.string.settings_conn_status_error
+    },
+)
 
-internal fun statusText(c: Connector): String = if (c.status == "error" && c.error != null) "Error: ${c.error}" else statusWord(c.status)
+internal fun statusText(c: Connector): UiText =
+    if (c.status == "error" && c.error != null) UiText.Resource(R.string.settings_conn_status_error_msg, c.error)
+    else statusWord(c.status)
 
-internal fun toolCountText(count: Long?): String = when (count) {
-    null -> "Tools not listed yet"
-    1L -> "1 tool"
-    else -> "$count tools"
+internal fun toolCountText(count: Long?): UiText = when (count) {
+    null -> UiText.Resource(R.string.settings_conn_tools_unlisted)
+    else -> UiText.Plural(R.plurals.settings_conn_tools_count, count.toInt(), count)
 }
 
 /** A catalogued first-party connector the user can set up with one tap. */
-internal data class CatalogConnector(val id: String, val name: String, val publisher: String, val description: String, val url: String, val docsUrl: String, val preview: Boolean)
+internal data class CatalogConnector(val id: String, val name: String, val publisher: String, @StringRes val descriptionRes: Int, val url: String, val docsUrl: String, val preview: Boolean)
 
 internal val ConnectorCatalog = listOf(
-    CatalogConnector("notion", "Notion", "Notion", "Search and update pages in your workspace.", "https://mcp.notion.com/mcp", "https://developers.notion.com/guides/mcp/get-started-with-mcp", false),
-    CatalogConnector("gmail", "Gmail", "Google", "Search email threads and create drafts.", "https://gmailmcp.googleapis.com/mcp/v1", "https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server", true),
+    CatalogConnector("notion", "Notion", "Notion", R.string.settings_conn_catalog_notion_desc, "https://mcp.notion.com/mcp", "https://developers.notion.com/guides/mcp/get-started-with-mcp", false),
+    CatalogConnector("gmail", "Gmail", "Google", R.string.settings_conn_catalog_gmail_desc, "https://gmailmcp.googleapis.com/mcp/v1", "https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server", true),
 )
 
 /** The create request for a catalogued connector: its address and name, no token. */
@@ -102,11 +108,11 @@ internal fun matchesCatalogUrl(url: String, entry: CatalogConnector): Boolean = 
     false
 }
 
-internal enum class ToolClass(val wire: String, val label: String) {
-    Read("read_external", "Read"),
-    Write("write_external", "Write"),
-    Send("send", "Send"),
-    Irreversible("irreversible", "Irreversible");
+internal enum class ToolClass(val wire: String, @StringRes val labelRes: Int) {
+    Read("read_external", R.string.chat_trace_class_read_internal),
+    Write("write_external", R.string.chat_trace_class_write_internal),
+    Send("send", R.string.chat_trace_class_send),
+    Irreversible("irreversible", R.string.chat_trace_class_irreversible);
 
     companion object {
         fun fromWire(value: String?) = entries.firstOrNull { it.wire == value }
@@ -148,10 +154,10 @@ internal fun toolClassBody(tool: ConnectorTool, value: ToolClass?): JsonObject =
 }
 
 internal val McpProfiles = listOf(
-    Choice("always_ask", "Always Ask", "Asks before every call."),
-    Choice("read_only", "Read-only", "Runs claimed read-only tools automatically; asks for everything else."),
-    Choice("read_write", "Read and write", "Runs reads and reversible writes automatically; asks for sends and deletes."),
-    Choice("yolo", "YOLO", "Runs every tool without asking, including permanent deletes."),
+    Choice("always_ask", UiText.Resource(R.string.settings_conn_profile_always_ask), UiText.Resource(R.string.settings_conn_profile_always_ask_desc)),
+    Choice("read_only", UiText.Resource(R.string.settings_conn_profile_read_only), UiText.Resource(R.string.settings_conn_profile_read_only_desc)),
+    Choice("read_write", UiText.Resource(R.string.settings_conn_profile_read_write), UiText.Resource(R.string.settings_conn_profile_read_write_desc)),
+    Choice("yolo", UiText.Resource(R.string.chat_profile_yolo), UiText.Resource(R.string.settings_conn_profile_yolo_desc)),
 )
 
 internal fun profileBody(profile: String, connector: Connector, confirmed: Boolean): JsonObject = buildJsonObject {
@@ -165,14 +171,14 @@ internal fun profileBody(profile: String, connector: Connector, confirmed: Boole
 internal fun Connector.canSetProfile() = !providerIdentity.isNullOrEmpty() && !mcpProfileRevision.isNullOrEmpty()
 
 internal sealed interface ConnectorCreate {
-    data class Invalid(val message: String) : ConnectorCreate
+    data class Invalid(val message: UiText) : ConnectorCreate
     data class Ready(val body: JsonObject) : ConnectorCreate
 }
 
 internal fun connectorCreate(url: String, name: String, token: String, tokenHeader: String): ConnectorCreate {
     val address = url.trim()
-    if (address.isEmpty()) return ConnectorCreate.Invalid("Enter the connector's address.")
-    if (address.length > 2000) return ConnectorCreate.Invalid("The address can be at most 2,000 characters.")
+    if (address.isEmpty()) return ConnectorCreate.Invalid(UiText.Resource(R.string.settings_conn_err_address))
+    if (address.length > 2000) return ConnectorCreate.Invalid(UiText.Resource(R.string.settings_conn_err_address_len))
     val label = name.trim().ifEmpty { addressHost(address) }.take(80)
     return ConnectorCreate.Ready(buildJsonObject {
         put("url", address)

@@ -21,11 +21,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviewSurface
+import dev.rei.android.ui.components.ReiPreviews
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.update.UpdateBanner
 
@@ -84,11 +88,12 @@ fun ReiTopBar(
                 },
                 navigationIcon = {
                     when {
-                        onBack != null -> ReiIconButton(ReiIcons.Back, "Back", onBack)
+                        onBack != null -> ReiIconButton(ReiIcons.Back, stringResource(R.string.common_back), onBack)
                         shell.showsMenuButton -> Box(contentAlignment = Alignment.TopEnd) {
                             ReiIconButton(
                                 ReiIcons.Menu,
-                                if (shell.attentionCount > 0) "Open navigation, ${shell.attentionCount} need attention" else "Open navigation",
+                                if (shell.attentionCount > 0) stringResource(R.string.drawer_open_nav_attention, shell.attentionCount)
+                                else stringResource(R.string.drawer_open_nav),
                                 shell::openDrawer,
                             )
                             if (shell.attentionCount > 0) {
@@ -112,4 +117,15 @@ fun ReiTopBar(
         }
         UpdateBanner(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
     }
+}
+
+@ReiPreviews
+@Composable
+private fun ReiTopBarPreview() = ReiPreviewSurface {
+    ReiTopBar(
+        title = "Weekly briefing",
+        subtitle = "Rei · Working",
+        scrolled = true,
+        onBack = {},
+    )
 }

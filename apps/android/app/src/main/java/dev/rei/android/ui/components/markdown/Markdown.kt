@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -83,6 +84,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.optionalString
 import dev.rei.android.ui.components.ReiIconButton
@@ -212,7 +214,7 @@ internal fun parseReference(url: String): Reference? {
  * Text is not selectable here: a long press belongs to the message sheet, whose "Select text" opens the whole message.
  */
 @Composable
-fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret: Boolean = false) {
+fun ReiMarkdown(text: String, api: ReiApi?, modifier: Modifier = Modifier, caret: Boolean = false) {
     val context = LocalContext.current
     val opener = LocalWorkspaceOpener.current
     val document = remember(text) { markdownWithCitations(text) }
@@ -234,7 +236,8 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
         if (unused.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 unused.forEach { label ->
-                    ReferenceChip(ReiIcons.Book, "Source ${citationNumbers[label]}", onClick = { note = label })
+                    val number = citationNumbers[label] ?: 0
+                    ReferenceChip(ReiIcons.Book, stringResource(R.string.markdown_source_label, number), onClick = { note = label })
                 }
             }
         }
@@ -242,7 +245,8 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
     note?.let { label ->
         val noteBody = document.citations[label].orEmpty()
         val noteRoot = remember(noteBody) { parseMarkdown(noteBody) }
-        ReiSheet(onDismiss = { note = null }, title = "Source ${citationNumbers[label]}") {
+        val number = citationNumbers[label] ?: 0
+        ReiSheet(onDismiss = { note = null }, title = stringResource(R.string.markdown_source_label, number)) {
             Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
                 MarkdownBlocks(noteRoot, MarkdownEnv(api, emptyMap(), ::open, {}, null))
             }
@@ -251,7 +255,7 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
 }
 
 private data class MarkdownEnv(
-    val api: ReiApi,
+    val api: ReiApi?,
     val citations: Map<String, Int>,
     val open: (String) -> Unit,
     val cite: (String) -> Unit,
@@ -283,7 +287,7 @@ internal fun openExternalLink(context: android.content.Context, address: String)
     try {
         androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, address.toUri())
     } catch (_: android.content.ActivityNotFoundException) {
-        android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, R.string.common_no_link_app, android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -304,7 +308,7 @@ private fun MarkdownBlocks(parent: Node, env: MarkdownEnv, skip: Node? = null) {
                     InlineMarkdown(node, env)
                 }
                 children(node).filterIsInstance<MarkdownImage>().filter { fileLink.matches(it.destination) }.forEach { image ->
-                    MarkdownPicture(env.api, image.destination, inlinePlain(image))
+                    env.api?.let { MarkdownPicture(it, image.destination, inlinePlain(image)) }
                 }
             }
             is Heading -> InlineMarkdown(node, env, heading = node.level)
@@ -341,11 +345,12 @@ private fun TaskItem(item: Node, task: TaskListItemMarker, env: MarkdownEnv) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // A 24dp box, the height of the first line of body text.
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            val taskDesc = if (label.isEmpty()) stringResource(R.string.markdown_task) else stringResource(R.string.markdown_task_label, label)
             Checkbox(
                 checked = task.isChecked,
                 onCheckedChange = null,
                 modifier = Modifier.semantics {
-                    contentDescription = if (label.isEmpty()) "Task" else "Task: $label"
+                    contentDescription = taskDesc
                     toggleableState = ToggleableState(task.isChecked)
                     role = Role.Checkbox
                 },
@@ -386,11 +391,13 @@ private fun CalloutBlock(callout: Callout, env: MarkdownEnv) {
             .border(BorderStroke(1.dp, tint.copy(alpha = 0.45f).compositeOver(colors.outlineVariant)), ReiShapes.Inset)
             .background(tint.copy(alpha = 0.07f).compositeOver(colors.surfaceContainerLowest)),
     ) {
+        val clickLabel = stringResource(if (open) R.string.common_collapse else R.string.common_expand)
+        val toggleState = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
         val header = if (foldable) {
             Modifier
-                .clickable(onClickLabel = if (open) "Collapse" else "Expand", role = Role.Button) { open = !open }
+                .clickable(onClickLabel = clickLabel, role = Role.Button) { open = !open }
                 .semantics {
-                    stateDescription = if (open) "Expanded" else "Collapsed"
+                    stateDescription = toggleState
                     if (open) collapse { open = false; true } else expand { open = true; true }
                 }
                 .heightIn(min = 48.dp)
@@ -403,7 +410,7 @@ private fun CalloutBlock(callout: Callout, env: MarkdownEnv) {
             Icon(icon, contentDescription = null, Modifier.size(16.dp), tint = tint)
             Box(Modifier.weight(1f)) {
                 if (callout.title.firstChild != null) InlineMarkdown(callout.title, env, bold = true, compact = true)
-                else Text(callout.kind.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                else Text(stringResource(callout.kind.labelRes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
             if (foldable) Icon(
                 ReiIcons.Chevron,
@@ -516,8 +523,9 @@ internal fun CodeBlock(language: String, code: String, note: String? = null) {
             }
         }
     }
-    CodeFrame(lang.ifBlank { "Code" }, actions = {
-        ReiIconButton(ReiIcons.Copy, "Copy code", { copyToClipboard(context, "Rei code", code.trimEnd()) })
+    val codeClipboardLabel = stringResource(R.string.markdown_clipboard_code_label)
+    CodeFrame(lang.ifBlank { stringResource(R.string.markdown_code) }, actions = {
+        ReiIconButton(ReiIcons.Copy, stringResource(R.string.markdown_copy_code), { copyToClipboard(context, codeClipboardLabel, code.trimEnd()) })
     }) {
         if (note != null) Text(
             note,
@@ -601,7 +609,8 @@ private fun InlineMarkdown(
             caretOn = !caretOn
         }
     }
-    val baseRendered: AnnotatedString = remember(parent, env.chips, env.citations, env.struck, colors, today) {
+    val imagePlaceholder = stringResource(R.string.common_image)
+    val baseRendered: AnnotatedString = remember(parent, env.chips, env.citations, env.struck, colors, today, imagePlaceholder) {
         buildAnnotatedString {
             fun text(value: String, inLink: Boolean) {
                 if (!env.chips || inLink) return append(value)
@@ -644,7 +653,7 @@ private fun InlineMarkdown(
                     is HardLineBreak -> append("\n")
                     is SoftLineBreak -> append("\n")
                     is HtmlInline -> append(node.literal)
-                    is MarkdownImage -> append(inlinePlain(node).ifBlank { "Image" })
+                    is MarkdownImage -> append(inlinePlain(node).ifBlank { imagePlaceholder })
                     else -> nested()
                 }
             }
@@ -685,11 +694,11 @@ fun MarkdownPicture(api: ReiApi, destination: String, caption: String) {
     when {
         image != null -> Image(
             image,
-            caption.ifBlank { "Image" },
+            caption.ifBlank { stringResource(R.string.common_image) },
             Modifier
                 .fillMaxWidth()
                 .heightIn(max = 360.dp)
-                .then(if (open != null) Modifier.clickable(onClickLabel = "Open image") { open(PictureSource(destination, caption)) } else Modifier),
+                .then(if (open != null) Modifier.clickable(onClickLabel = stringResource(R.string.common_open_image)) { open(PictureSource(destination, caption)) } else Modifier),
         )
         !done -> Surface(
             Modifier.fillMaxWidth().height(160.dp),
@@ -711,7 +720,7 @@ fun MarkdownPicture(api: ReiApi, destination: String, caption: String) {
             ) {
                 Icon(ReiIcons.Image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    caption.ifBlank { "Image couldn’t be loaded." },
+                    caption.ifBlank { stringResource(R.string.common_image_load_failed) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

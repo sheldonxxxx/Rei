@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import dev.rei.android.R
 import dev.rei.android.data.ChatProfile
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
@@ -14,6 +16,7 @@ import dev.rei.android.data.obj
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
 import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
@@ -52,27 +55,29 @@ internal fun JsonObject.grant() = GrantItem(
 )
 
 /** How long a grant lasts, in the web's words. [sessionTitle] and [agentName] are null when the chat or agent is not known. */
-internal fun describeGrant(grant: GrantItem, sessionTitle: String?, agentName: String?): String = when (grant.length) {
-    "always" -> "Always"
-    "web_session" -> if (sessionTitle != null) "All web in “$sessionTitle”" else "All web in one chat"
-    "session" -> if (sessionTitle != null) "For the chat “$sessionTitle”" else "For one chat"
-    "agent" -> if (agentName != null) "For the agent $agentName" else "For one agent"
-    "hours" -> dateTime(grant.expiresAt)?.let { "Until $it" } ?: "For a set time"
-    else -> "For a set time"
+internal fun describeGrant(grant: GrantItem, sessionTitle: String?, agentName: String?): UiText = when (grant.length) {
+    "always" -> UiText.Resource(R.string.settings_perm_always)
+    "web_session" -> if (sessionTitle != null) UiText.Resource(R.string.settings_perm_web_session_named, sessionTitle) else UiText.Resource(R.string.settings_perm_web_session_anon)
+    "session" -> if (sessionTitle != null) UiText.Resource(R.string.settings_perm_session_named, sessionTitle) else UiText.Resource(R.string.settings_perm_session_anon)
+    "agent" -> if (agentName != null) UiText.Resource(R.string.settings_perm_agent_named, agentName) else UiText.Resource(R.string.settings_perm_agent_anon)
+    "hours" -> dateTime(grant.expiresAt)?.let { UiText.Resource(R.string.settings_perm_hours_until, it) } ?: UiText.Resource(R.string.settings_perm_set_time)
+    else -> UiText.Resource(R.string.settings_perm_set_time)
 }
 
 /** A connector tool's grant destination is `<connectorId>.<tool>`: the app's name (when known) and the tool, or null. */
-internal fun mcpTarget(destination: String?, names: Map<String, String>): Pair<String, String>? {
+internal fun mcpTarget(destination: String?, names: Map<String, String>): Pair<UiText, String>? {
     if (destination == null) return null
     val dot = destination.indexOf('.')
     if (dot <= 0) return null
-    return (names[destination.substring(0, dot)] ?: "A connected app") to destination.substring(dot + 1)
+    val appName = names[destination.substring(0, dot)]?.let(UiText::Literal) ?: UiText.Resource(R.string.settings_perm_connected_app)
+    return appName to destination.substring(dot + 1)
 }
 
 /** The grant's name: the app and tool for a connector tool, else `connector · operation`. */
-internal fun grantName(grant: GrantItem, names: Map<String, String>): String {
+internal fun grantName(grant: GrantItem, names: Map<String, String>): UiText {
     val target = if (grant.connector == "mcp") mcpTarget(grant.destination, names) else null
-    return if (target != null) "${target.first} · ${target.second}" else "${grant.connector} · ${grant.operation}"
+    return if (target != null) UiText.Resource(R.string.settings_perm_pair, target.first, target.second)
+    else UiText.Resource(R.string.settings_perm_pair, grant.connector, grant.operation)
 }
 
 /** Everything the Permissions screen reads: agents (default level), grants and the names that label a grant. */
@@ -126,17 +131,23 @@ private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Un
     val writes = rememberWrites()
     val data = rememberResource(api) { loadPermissions(api) }
     var revoking by remember { mutableStateOf<GrantItem?>(null) }
-    SubScreen("Permissions", onBack, busy = writes.busy || data.loading, error = writes.error ?: data.error, onRetry = data::reload) {
+    SubScreen(stringResource(R.string.settings_page_permissions), onBack, busy = writes.busy || data.loading, error = writes.error ?: data.error, onRetry = data::reload) {
         val loaded = data.value
         if (loaded != null) {
             val named = loaded.agents.size > 1
-            SettingsGroup(title = "New chats") {
+            SettingsGroup(title = stringResource(R.string.settings_perm_new_chats)) {
                 loaded.agents.forEachIndexed { index, agent ->
                     ChoiceRow(
-                        title = if (named) "${agent.name}: start new chats at" else "Start new chats at",
+                        title = if (named) stringResource(R.string.settings_perm_start_named, agent.name) else stringResource(R.string.settings_perm_start_default),
                         selected = agent.profile.wire,
-                        choices = ChatProfile.entries.map { Choice(it.wire, it.label, it.description) },
-                        summary = "Chats already open keep their own level.",
+                        choices = ChatProfile.entries.map {
+                            Choice(
+                                it.wire,
+                                UiText.Resource(it.labelRes),
+                                UiText.Resource(it.descriptionRes),
+                            )
+                        },
+                        summary = stringResource(R.string.settings_perm_existing_note),
                         enabled = !writes.busy,
                         dividerBelow = index < loaded.agents.lastIndex,
                         onSelect = { wire ->
@@ -146,24 +157,24 @@ private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Un
                 }
             }
             if (loaded.agents.any { it.profile == ChatProfile.Yolo }) {
-                StatusBanner("YOLO skips most approvals. Content the agent reads on the web could talk it into things you wouldn’t choose.", kind = StatusKind.Attention)
+                StatusBanner(stringResource(R.string.settings_perm_yolo_banner), kind = StatusKind.Attention)
             }
-            SettingsGroup(title = "Sandbox network") {
+            SettingsGroup(title = stringResource(R.string.settings_perm_sandbox_group)) {
                 SettingsRow(
-                    "Allowed sites", icon = ReiIcons.Globe, summary = "Sites agents reach without asking.",
+                    stringResource(R.string.settings_perm_allowed_sites), icon = ReiIcons.Globe, summary = stringResource(R.string.settings_perm_allowed_sites_summary),
                     onClick = onSandbox, trailing = { SettingsChevron() },
                 )
             }
-            SettingsGroup(title = "Allowed in advance") {
-                if (loaded.grants.isEmpty()) SettingsRow("Nothing allowed in advance.")
+            SettingsGroup(title = stringResource(R.string.settings_perm_preapproved_group)) {
+                if (loaded.grants.isEmpty()) SettingsRow(stringResource(R.string.settings_perm_preapproved_empty))
                 loaded.grants.forEachIndexed { index, grant ->
                     val meta = listOfNotNull(
-                        if (mcpTarget(grant.destination, loaded.connectorNames) == null || grant.connector != "mcp") grant.destination ?: "Any destination" else null,
-                        describeGrant(grant, grant.sessionId?.let(loaded.sessionTitles::get), grant.agentId?.let(loaded.agentNames::get)),
-                        dateTime(grant.createdAt)?.let { "Allowed $it" },
+                        if (mcpTarget(grant.destination, loaded.connectorNames) == null || grant.connector != "mcp") grant.destination ?: stringResource(R.string.settings_perm_any_destination) else null,
+                        describeGrant(grant, grant.sessionId?.let(loaded.sessionTitles::get), grant.agentId?.let(loaded.agentNames::get)).asString(),
+                        dateTime(grant.createdAt)?.let { stringResource(R.string.settings_perm_allowed_at, it) },
                     ).joinToString("\n")
                     SettingsRow(
-                        grantName(grant, loaded.connectorNames), summary = meta, tabularSummary = true,
+                        grantName(grant, loaded.connectorNames).asString(), summary = meta, tabularSummary = true,
                         onClick = { revoking = grant }, dividerBelow = index < loaded.grants.lastIndex,
                         trailing = { SettingsChevron() },
                     )
@@ -173,9 +184,9 @@ private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Un
     }
     revoking?.let { grant ->
         ConfirmDialog(
-            title = "Revoke ${grantName(grant, data.value?.connectorNames.orEmpty())}?",
-            text = "Agents will ask again the next time they need it.",
-            confirmLabel = "Revoke",
+            title = stringResource(R.string.settings_perm_revoke_title, grantName(grant, data.value?.connectorNames.orEmpty()).asString()),
+            text = stringResource(R.string.settings_perm_revoke_body),
+            confirmLabel = stringResource(R.string.settings_devices_revoke),
             destructive = true,
             onConfirm = {
                 revoking = null
@@ -202,25 +213,21 @@ fun SandboxNetworkScreen(api: ReiApi, onBack: () -> Unit) {
     }
     var entries by remember(settings.value) { mutableStateOf(settings.value?.first) }
     var draft by remember { mutableStateOf("") }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<UiText?>(null) }
     var saved by remember { mutableStateOf(false) }
     val current = entries
     val dirty = current != null && current != settings.value?.first
-    SubScreen("Sandbox network", onBack, busy = writes.busy || settings.loading, error = writes.error ?: settings.error, onRetry = settings::reload) {
+    SubScreen(stringResource(R.string.settings_perm_sandbox_group), onBack, busy = writes.busy || settings.loading, error = writes.error ?: settings.error, onRetry = settings::reload) {
         if (current != null) {
             SettingsGroup {
-                SettingsRow(
-                    "Whitelist agents reach these sites on ports 80 and 443 without asking. Use a host name (pypi.org), a wildcard for subdomains (*.github.com), an IP address, or a network (10.0.0.0/8).",
-                )
+                SettingsRow(stringResource(R.string.settings_perm_sandbox_whitelist_note))
             }
             SettingsGroup {
-                SettingsRow(
-                    "Local network: an address on your local network is reachable only when both its host name and the address are on this list. For example, add wiki.lan and 10.0.0.0/8 together. An agent set to Any reaches your local network without this list.",
-                )
+                SettingsRow(stringResource(R.string.settings_perm_sandbox_local_note))
             }
             FormGroup {
-                ReiTextField(draft, { draft = it; problem = null }, "Add a site or network", placeholder = "example.com", error = problem, enabled = !writes.busy)
-                FormButton("Add", enabled = draft.isNotBlank() && !writes.busy, primary = false, onClick = {
+                ReiTextField(draft, { draft = it; problem = null }, stringResource(R.string.settings_perm_sandbox_add_label), placeholder = stringResource(R.string.settings_perm_sandbox_placeholder), error = problem?.asString(), enabled = !writes.busy)
+                FormButton(stringResource(R.string.knowledge_page_add), enabled = draft.isNotBlank() && !writes.busy, primary = false, onClick = {
                     when (val result = addWhitelistEntry(current, draft)) {
                         is AddEntry.Added -> { entries = result.entries; draft = ""; problem = null; saved = false }
                         is AddEntry.Refused -> problem = result.reason
@@ -228,24 +235,24 @@ fun SandboxNetworkScreen(api: ReiApi, onBack: () -> Unit) {
                     }
                 })
             }
-            SettingsGroup(title = "${current.size} of $MaxWhitelistEntries entries") {
-                if (current.isEmpty()) SettingsRow("The list is empty. Whitelist agents ask before reaching any site.")
+            SettingsGroup(title = stringResource(R.string.settings_perm_sandbox_count, current.size, MaxWhitelistEntries)) {
+                if (current.isEmpty()) SettingsRow(stringResource(R.string.settings_perm_sandbox_empty))
                 current.forEachIndexed { index, entry ->
                     SettingsRow(
                         entry, icon = ReiIcons.Globe, dividerBelow = index < current.lastIndex,
                         trailing = {
-                            dev.rei.android.ui.components.ReiIconButton(ReiIcons.Close, "Remove $entry", { entries = current - entry; saved = false })
+                            dev.rei.android.ui.components.ReiIconButton(ReiIcons.Close, stringResource(R.string.settings_providers_remove_cd, entry), { entries = current - entry; saved = false })
                         },
                     )
                 }
             }
-            FormGroup(note = if (saved) "Saved. Applies to the next request." else "Changes apply to the next request each agent makes.") {
-                FormButton("Save whitelist", enabled = dirty && !writes.busy, onClick = {
+            FormGroup(note = stringResource(if (saved) R.string.settings_perm_sandbox_saved else R.string.settings_perm_sandbox_hint)) {
+                FormButton(stringResource(R.string.settings_perm_sandbox_save), enabled = dirty && !writes.busy, onClick = {
                     writes.run({ saved = true; settings.reload() }) {
                         api.request("PUT", listOf("api", "settings", "sandbox-network"), buildJsonObject { put("whitelist", buildJsonArray { current.forEach { add(it) } }) })
                     }
                 })
-                FormButton("Restore defaults", primary = false, enabled = !writes.busy && current != settings.value?.second, onClick = {
+                FormButton(stringResource(R.string.settings_perm_sandbox_restore), primary = false, enabled = !writes.busy && current != settings.value?.second, onClick = {
                     writes.run({ saved = true; settings.reload() }) {
                         api.request("PUT", listOf("api", "settings", "sandbox-network"), buildJsonObject { put("reset", true) })
                     }

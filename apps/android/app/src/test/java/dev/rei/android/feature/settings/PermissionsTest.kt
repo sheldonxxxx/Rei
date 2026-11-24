@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -11,26 +13,26 @@ class PermissionsTest {
         GrantItem("g", connector, operation, destination, length, "s1", "a1", null, null)
 
     @Test fun grantLengthsReadInWords() {
-        assertEquals("Always", describeGrant(grant("always"), null, null))
-        assertEquals("For the chat “Trip”", describeGrant(grant("session"), "Trip", null))
-        assertEquals("For one chat", describeGrant(grant("session"), null, null))
-        assertEquals("All web in “Trip”", describeGrant(grant("web_session"), "Trip", null))
-        assertEquals("For the agent Dot", describeGrant(grant("agent"), null, "Dot"))
-        assertEquals("For one agent", describeGrant(grant("agent"), null, null))
-        assertEquals("For a set time", describeGrant(grant("hours"), null, null))
+        assertEquals(UiText.Resource(R.string.settings_perm_always), describeGrant(grant("always"), null, null))
+        assertEquals(UiText.Resource(R.string.settings_perm_session_named, "Trip"), describeGrant(grant("session"), "Trip", null))
+        assertEquals(UiText.Resource(R.string.settings_perm_session_anon), describeGrant(grant("session"), null, null))
+        assertEquals(UiText.Resource(R.string.settings_perm_web_session_named, "Trip"), describeGrant(grant("web_session"), "Trip", null))
+        assertEquals(UiText.Resource(R.string.settings_perm_agent_named, "Dot"), describeGrant(grant("agent"), null, "Dot"))
+        assertEquals(UiText.Resource(R.string.settings_perm_agent_anon), describeGrant(grant("agent"), null, null))
+        assertEquals(UiText.Resource(R.string.settings_perm_set_time), describeGrant(grant("hours"), null, null))
     }
 
     @Test fun connectorToolDestinationsNameTheApp() {
-        assertEquals("Mail" to "send", mcpTarget("c1.send", mapOf("c1" to "Mail")))
-        assertEquals("A connected app" to "send", mcpTarget("zz.send", mapOf("c1" to "Mail")))
+        assertEquals(UiText.Literal("Mail") to "send", mcpTarget("c1.send", mapOf("c1" to "Mail")))
+        assertEquals(UiText.Resource(R.string.settings_perm_connected_app) to "send", mcpTarget("zz.send", mapOf("c1" to "Mail")))
         assertNull(mcpTarget(null, emptyMap()))
         assertNull(mcpTarget("nodot", emptyMap()))
         assertNull(mcpTarget(".lead", emptyMap()))
     }
 
     @Test fun grantNamesPreferTheConnectorTool() {
-        assertEquals("Mail · send", grantName(grant("always", "c1.send", connector = "mcp"), mapOf("c1" to "Mail")))
-        assertEquals("web · fetch", grantName(grant("always", "example.com"), emptyMap()))
+        assertEquals(UiText.Resource(R.string.settings_perm_pair, UiText.Literal("Mail"), "send"), grantName(grant("always", "c1.send", connector = "mcp"), mapOf("c1" to "Mail")))
+        assertEquals(UiText.Resource(R.string.settings_perm_pair, "web", "fetch"), grantName(grant("always", "example.com"), emptyMap()))
     }
 
     @Test fun parsesAGrantFromTheServer() {

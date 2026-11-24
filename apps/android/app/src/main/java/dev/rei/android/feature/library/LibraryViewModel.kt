@@ -10,6 +10,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.LibraryFile
 import dev.rei.android.data.LibraryQuery
 import dev.rei.android.data.LibrarySort
@@ -21,6 +22,8 @@ import dev.rei.android.data.listLibrary
 import dev.rei.android.data.uploadBody
 import dev.rei.android.di.AppContainer
 import dev.rei.android.di.AppDispatchers
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -50,9 +53,9 @@ data class LibraryUiState(
     val loadingMore: Boolean = false,
     val nextCursor: String? = null,
     val loadFailed: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val upload: UploadProgress? = null,
-    val uploadError: String? = null,
+    val uploadError: List<UiText> = emptyList(),
 )
 
 private const val KeyText = "library_text"
@@ -152,7 +155,12 @@ class LibraryViewModel(
             throw failure
         } catch (failure: Exception) {
             mutable.update {
-                it.copy(loaded = true, refreshing = false, loadFailed = it.files.isEmpty(), error = failure.localizedMessage ?: "Could not load files.")
+                it.copy(
+                    loaded = true,
+                    refreshing = false,
+                    loadFailed = it.files.isEmpty(),
+                    error = failure.asUiText(UiText.Resource(R.string.library_err_load)),
+                )
             }
         }
     }
@@ -176,37 +184,41 @@ class LibraryViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                mutable.update { it.copy(loadingMore = false, error = failure.localizedMessage ?: "Could not load more files.") }
+                mutable.update { it.copy(loadingMore = false, error = failure.asUiText(UiText.Resource(R.string.library_err_load_more))) }
             }
         }
     }
 
-    fun dismissError() = mutable.update { it.copy(error = null, uploadError = null) }
+    fun dismissError() = mutable.update { it.copy(error = null, uploadError = emptyList()) }
 
     /** Uploads the picked documents one after another; each failure is reported and the rest still go. */
-    fun upload(resolver: ContentResolver, uris: List<Uri>) {
+    fun upload(resolver: ContentResolver, uris: List<Uri>, defaultFilename: String = "attachment") {
         val api = api ?: return
         if (uris.isEmpty()) return
         viewModelScope.launch {
-            val problems = mutableListOf<String>()
+            val problems = mutableListOf<UiText>()
             uris.forEachIndexed { index, uri ->
                 try {
-                    val (name, body) = withContext(dispatchers.io) { resolver.uploadBody(uri) }
-                    mutable.update { it.copy(upload = UploadProgress(index + 1, uris.size, name), uploadError = null) }
+                    val (name, body) = withContext(dispatchers.io) { resolver.uploadBody(uri, defaultFilename) }
+                    mutable.update { it.copy(upload = UploadProgress(index + 1, uris.size, name), uploadError = emptyList()) }
                     try {
                         api.uploadFile(listOf("api", "files"), name, body)
                     } catch (failure: CancellationException) {
                         throw failure
                     } catch (failure: Exception) {
-                        problems += "$name: ${failure.localizedMessage ?: "could not be uploaded"}"
+                        problems += UiText.Resource(
+                            R.string.library_err_upload_item,
+                            name,
+                            failure.asUiText(UiText.Resource(R.string.library_err_upload_failed)),
+                        )
                     }
                 } catch (failure: CancellationException) {
                     throw failure
                 } catch (failure: Exception) {
-                    problems += failure.localizedMessage ?: "A file could not be read."
+                    problems += failure.asUiText(UiText.Resource(R.string.library_err_read_file))
                 }
             }
-            mutable.update { it.copy(upload = null, uploadError = problems.takeIf { p -> p.isNotEmpty() }?.joinToString("\n")) }
+            mutable.update { it.copy(upload = null, uploadError = problems) }
             refresh(quiet = true)
         }
     }

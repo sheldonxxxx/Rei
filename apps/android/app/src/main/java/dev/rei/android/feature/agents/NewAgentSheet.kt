@@ -17,9 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.di.AppContainer
 import dev.rei.android.ui.components.AgentAvatar
@@ -27,13 +29,13 @@ import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.theme.ReiShapes
 
-private val AgentBotChoices = mapOf(
-    "bot:sprout" to "Bonsai",
-    "bot:round" to "River Stone",
-    "bot:antenna" to "Lantern",
-    "bot:cat" to "Lucky Cat",
-    "bot:ghost" to "Paper Crane",
-    "bot:astro" to "Moon Rabbit",
+private val AgentBotChoices = listOf(
+    "bot:sprout" to R.string.agents_bot_sprout,
+    "bot:round" to R.string.agents_bot_round,
+    "bot:antenna" to R.string.agents_bot_antenna,
+    "bot:cat" to R.string.agents_bot_cat,
+    "bot:ghost" to R.string.agents_bot_ghost,
+    "bot:astro" to R.string.agents_bot_astro,
 )
 
 /** Creates an agent with the chosen name and look in [NewAgentViewModel]. The caller opens its Home chat. */
@@ -56,20 +58,20 @@ fun NewAgentSheet(container: AppContainer, onDismiss: () -> Unit, onCreated: (Ch
         }
     }
 
-    ReiSheet(onDismiss = ::dismiss, title = "New agent") {
+    ReiSheet(onDismiss = ::dismiss, title = stringResource(R.string.agents_new_title)) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ReiTextField(state.name, vm::setName, "Name", enabled = !state.busy)
+            ReiTextField(state.name, vm::setName, stringResource(R.string.agents_name_label), enabled = !state.busy)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Pick a bot", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.agents_pick_bot), style = MaterialTheme.typography.labelMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AgentBotChoices.forEach { (value, label) ->
+                    AgentBotChoices.forEach { (value, labelRes) ->
                         FilterChip(
                             selected = state.bot == value,
                             onClick = { vm.selectBot(value) },
-                            label = { Text(label) },
+                            label = { Text(stringResource(labelRes)) },
                             enabled = !state.busy,
                             leadingIcon = { AgentAvatar(value, size = 24.dp) },
                         )
@@ -79,21 +81,21 @@ fun NewAgentSheet(container: AppContainer, onDismiss: () -> Unit, onCreated: (Ch
             ReiTextField(
                 state.emoji,
                 vm::setEmoji,
-                "Or an emoji or a few letters",
-                placeholder = "🙂",
+                stringResource(R.string.agents_emoji_label),
+                placeholder = stringResource(R.string.agents_emoji_placeholder),
                 enabled = !state.busy,
             )
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
             Button(
                 vm::create,
                 Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 enabled = !state.busy && request != null,
                 shape = ReiShapes.Pill,
             ) {
-                Text(if (state.busy) "Creating…" else "Create")
+                Text(stringResource(if (state.busy) R.string.agents_creating else R.string.agents_create))
             }
             OutlinedButton(::dismiss, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !state.busy, shape = ReiShapes.Pill) {
-                Text("Cancel")
+                Text(stringResource(R.string.common_cancel))
             }
         }
     }

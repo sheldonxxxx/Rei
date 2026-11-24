@@ -1,8 +1,10 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonObject
 import java.text.NumberFormat
 import java.time.Instant
@@ -17,14 +19,23 @@ import java.util.Locale
  */
 
 internal val UsagePeriods = listOf(
-    "today" to "Today", "7d" to "Last 7 days", "30d" to "Last 30 days",
-    "month" to "This month", "year" to "This year", "all" to "All time", "custom" to "Custom range",
+    "today" to R.string.settings_usage_period_today,
+    "7d" to R.string.settings_usage_period_7d,
+    "30d" to R.string.settings_usage_period_30d,
+    "month" to R.string.settings_usage_period_month,
+    "year" to R.string.settings_usage_period_year,
+    "all" to R.string.settings_usage_period_all,
+    "custom" to R.string.settings_usage_period_custom,
 )
 
 /** One token total: null when no call reported it, a lower bound when some calls did not. */
 internal data class Metric(val value: Long?, val lowerBound: Boolean = false) {
     /** The abbreviated figure, "≥" in front of a lower bound, "Unavailable" when nothing was reported. */
-    val text: String get() = if (value == null) "Unavailable" else (if (lowerBound) "≥" else "") + compactCount(value)
+    val text: UiText get() = if (value == null) {
+        UiText.Resource(R.string.settings_usage_unavailable)
+    } else {
+        UiText.Literal((if (lowerBound) "≥" else "") + compactCount(value))
+    }
 }
 
 internal data class UsageTotals(
@@ -56,10 +67,11 @@ internal fun JsonObject.usageTotals(): UsageTotals {
 }
 
 /** `60.0%`, or "Unavailable" when no call reported both input and cached tokens. */
-internal fun cacheHitText(percent: Double?): String = if (percent == null) "Unavailable" else String.format(Locale.US, "%.1f%%", percent)
+internal fun cacheHitText(percent: Double?): UiText =
+    if (percent == null) UiText.Resource(R.string.settings_usage_unavailable) else UiText.Literal(String.format(Locale.getDefault(), "%.1f%%", percent))
 
 /** A row of a breakdown: what it is and what it used. */
-internal data class UsageRow(val label: String, val totals: UsageTotals) {
+internal data class UsageRow(val label: UiText, val totals: UsageTotals) {
     /** The bar's weight: tokens processed, or input plus output when that total is missing. */
     val weight: Long get() = totals.totalProcessed.value ?: ((totals.inputTotal.value ?: 0) + (totals.outputTotal.value ?: 0))
 }
@@ -71,13 +83,13 @@ internal fun shares(rows: List<UsageRow>): List<Float> {
     return rows.map { if (it.weight <= 0) 0f else (it.weight.toFloat() / max).coerceIn(0.02f, 1f) }
 }
 
-internal fun purposeLabel(purpose: String) = when (purpose) {
-    "chat" -> "Chat"
-    "memory" -> "Memory maintenance"
-    "title" -> "Titles"
-    "agent_task" -> "Agent tasks"
-    "other" -> "Other"
-    else -> purpose.replace('_', ' ').replaceFirstChar { it.uppercase() }
+internal fun purposeLabel(purpose: String): UiText = when (purpose) {
+    "chat" -> UiText.Resource(R.string.settings_usage_purpose_chat)
+    "memory" -> UiText.Resource(R.string.settings_usage_purpose_memory)
+    "title" -> UiText.Resource(R.string.settings_usage_purpose_title)
+    "agent_task" -> UiText.Resource(R.string.settings_usage_purpose_agent_task)
+    "other" -> UiText.Resource(R.string.settings_usage_purpose_other)
+    else -> UiText.Literal(purpose.replace('_', ' ').replaceFirstChar { it.uppercase() })
 }
 
 internal data class UsageData(
@@ -102,19 +114,21 @@ internal fun usageData(body: JsonObject, agentNames: Map<String, String>): Usage
     summary = body.section("summary").usageTotals(),
     byPurpose = body.objects("byPurpose").map { UsageRow(purposeLabel(it.string("purpose")), it.section("usage").usageTotals()) },
     byModel = body.objects("byModel").map {
-        UsageRow(listOfNotNull(it.optionalString("providerName"), it.optionalString("model")).joinToString(" / "), it.section("usage").usageTotals())
+        UsageRow(UiText.Literal(listOfNotNull(it.optionalString("providerName"), it.optionalString("model")).joinToString(" / ")), it.section("usage").usageTotals())
     },
     byAgent = body.objects("byAgent").map {
         val id = it.optionalString("agentId")
-        UsageRow(if (id == null) "Unassigned" else agentNames[id] ?: id, it.section("usage").usageTotals())
+        val label = if (id == null) UiText.Resource(R.string.settings_usage_unassigned) else UiText.Literal(agentNames[id] ?: id)
+        UsageRow(label, it.section("usage").usageTotals())
     },
-    daily = body.objects("daily").map { UsageRow(it.string("day"), it.section("usage").usageTotals()) },
+    daily = body.objects("daily").map { UsageRow(UiText.Literal(it.string("day")), it.section("usage").usageTotals()) },
     search = (body["search"] as? JsonObject)?.searchUsage(),
 )
 
 /** The web's wording for an empty answer: all-time, or the whole of tracking, versus a quiet period. */
-internal fun emptyUsageMessage(data: UsageData): String =
-    if (data.period == "all" || data.from == data.trackingSince) "No usage recorded since tracking began" else "No usage recorded in this period"
+internal fun emptyUsageMessage(data: UsageData): UiText = UiText.Resource(
+    if (data.period == "all" || data.from == data.trackingSince) R.string.settings_usage_empty_all else R.string.settings_usage_empty_period,
+)
 
 // ---- web search ----
 
@@ -160,23 +174,38 @@ internal fun JsonObject.searchUsage(): SearchUsage {
     )
 }
 
-private val SearchOutcomes = mapOf("succeeded" to "Succeeded", "empty" to "Empty result", "failed" to "Failed", "skipped" to "Skipped")
-private val SearchReasons = mapOf(
-    "not_configured" to "not configured", "rate_limited" to "rate limited", "search_rate_limited" to "rate limited",
-    "timeout" to "timed out", "search_timeout" to "timed out", "search_failed" to "search failed", "fetch_failed" to "could not be reached",
+private val SearchOutcomeRes = mapOf(
+    "succeeded" to R.string.settings_usage_outcome_succeeded,
+    "empty" to R.string.settings_usage_outcome_empty,
+    "failed" to R.string.settings_usage_outcome_failed,
+    "skipped" to R.string.settings_usage_outcome_skipped,
+)
+private val SearchReasonRes = mapOf(
+    "not_configured" to R.string.settings_usage_reason_not_configured,
+    "rate_limited" to R.string.settings_usage_reason_rate_limited,
+    "search_rate_limited" to R.string.settings_usage_reason_rate_limited,
+    "timeout" to R.string.settings_usage_reason_timeout,
+    "search_timeout" to R.string.settings_usage_reason_timeout,
+    "search_failed" to R.string.settings_usage_reason_search_failed,
+    "fetch_failed" to R.string.settings_usage_reason_fetch_failed,
 )
 
-internal fun searchReason(reason: String) = SearchReasons[reason] ?: reason.replace('_', ' ')
+internal fun searchReason(reason: String): UiText =
+    SearchReasonRes[reason]?.let { UiText.Resource(it) } ?: UiText.Literal(reason.replace('_', ' '))
 
 /** `Failed · timed out (as fallback)`, with the number of calls it covers. */
-internal fun searchDetailLabel(detail: SearchDetail): String {
-    val reason = detail.reason?.takeIf { it.isNotEmpty() }?.let { " · ${searchReason(it)}" }.orEmpty()
-    return (SearchOutcomes[detail.outcome] ?: detail.outcome) + reason + if (detail.fallback) " (as fallback)" else ""
+internal fun searchDetailLabel(detail: SearchDetail): UiText {
+    val base = SearchOutcomeRes[detail.outcome]?.let { UiText.Resource(it) } ?: UiText.Literal(detail.outcome)
+    val withReason = detail.reason?.takeIf { it.isNotEmpty() }?.let {
+        UiText.Resource(R.string.settings_usage_detail_with_reason, base, searchReason(it))
+    } ?: base
+    return if (detail.fallback) UiText.Resource(R.string.settings_usage_detail_fallback, withReason) else withReason
 }
 
 /** The mean time a provider took: whole milliseconds with grouping, or a dash when none reached it. */
-internal fun averageText(ms: Double?): String =
-    if (ms == null) "—" else NumberFormat.getNumberInstance(Locale.US).apply { maximumFractionDigits = 3 }.format(ms) + " ms"
+internal fun averageText(ms: Double?): UiText =
+    if (ms == null) UiText.Literal("—")
+    else UiText.Resource(R.string.settings_usage_avg_ms, NumberFormat.getNumberInstance(Locale.getDefault()).apply { maximumFractionDigits = 3 }.format(ms))
 
 // ---- the custom range ----
 
@@ -191,9 +220,9 @@ internal fun utcDayMillis(day: String): Long? =
 internal fun defaultRange(nowMillis: Long): Pair<String, String> = utcDay(nowMillis - 29 * 86_400_000L) to utcDay(nowMillis)
 
 /** What is wrong with a custom range, in the web's words; null when it can be sent. */
-internal fun rangeProblem(from: String, to: String): String? = when {
-    from.isEmpty() || to.isEmpty() -> "Choose both dates to see usage."
-    from > to -> "The To date must be on or after the From date."
+internal fun rangeProblem(from: String, to: String): UiText? = when {
+    from.isEmpty() || to.isEmpty() -> UiText.Resource(R.string.settings_usage_range_both)
+    from > to -> UiText.Resource(R.string.settings_usage_range_order)
     else -> null
 }
 

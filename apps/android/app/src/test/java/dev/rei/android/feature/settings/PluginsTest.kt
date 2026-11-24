@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -23,9 +25,9 @@ class PluginsTest {
 
     @Test fun `a plugin says what it brings`() {
         fun row(skills: Long, connections: Long) = PluginRow("p", "n", "", 1, true, null, false, skills, connections)
-        assertEquals("Skills + Connectors", row(1, 1).kind)
-        assertEquals("Skills", row(2, 0).kind)
-        assertEquals("Connectors", row(0, 1).kind)
+        assertEquals(UiText.Resource(R.string.settings_plugins_kind_both), row(1, 1).kind)
+        assertEquals(UiText.Resource(R.string.settings_page_skills), row(2, 0).kind)
+        assertEquals(UiText.Resource(R.string.settings_page_connectors), row(0, 1).kind)
     }
 
     @Test fun `a package round trips through json`() {
@@ -67,10 +69,10 @@ class PluginsTest {
 
     @Test fun `a package is checked before it is sent`() {
         assertNull(packageProblem(pkg()))
-        assertEquals("Give the plugin a name.", packageProblem(pkg().copy(name = " ")))
-        assertEquals("Describe what the plugin does.", packageProblem(pkg().copy(description = "")))
-        assertEquals("Add at least one skill or connection.", packageProblem(emptyPackage().copy(name = "n", description = "d")))
-        assertEquals("Every connection needs a server address.", packageProblem(pkg().updateConnection(0) { it.copy(url = "") }))
+        assertEquals(UiText.Resource(R.string.settings_plugins_err_name), packageProblem(pkg().copy(name = " ")))
+        assertEquals(UiText.Resource(R.string.settings_plugins_err_desc), packageProblem(pkg().copy(description = "")))
+        assertEquals(UiText.Resource(R.string.settings_plugins_err_empty), packageProblem(emptyPackage().copy(name = "n", description = "d")))
+        assertEquals(UiText.Resource(R.string.settings_plugins_err_conn_url), packageProblem(pkg().updateConnection(0) { it.copy(url = "") }))
     }
 
     @Test fun `saving sends the revision only for an update`() {
@@ -106,8 +108,8 @@ class PluginsTest {
         assertEquals(listOf("a"), detail.row.agents)
         assertEquals(2, detail.selectedRevision)
         assertEquals("c1", detail.connections[0].connectorId)
-        assertEquals("Needs sign-in", connectionStatusWord(detail.connections[0].status))
-        assertEquals("Pending", connectionStatusWord(null))
+        assertEquals(UiText.Resource(R.string.settings_conn_status_needs_auth), connectionStatusWord(detail.connections[0].status))
+        assertEquals(UiText.Resource(R.string.settings_plugins_status_pending), connectionStatusWord(null))
         assertTrue(prettyPackage(detail.pkg).contains("\"formatVersion\": 1"))
     }
 }

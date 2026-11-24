@@ -4,16 +4,18 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.core.content.edit
+import dev.rei.android.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** Settings → Appearance. `System` follows the device and is the default. */
-enum class ThemePreference(val label: String) {
-    System("System"),
-    Light("Light"),
-    Dark("Dark");
+enum class ThemePreference(@StringRes val labelRes: Int) {
+    System(R.string.theme_system),
+    Light(R.string.theme_light),
+    Dark(R.string.theme_dark);
 
     companion object {
         fun parse(value: String?): ThemePreference = entries.firstOrNull { it.name == value } ?: System

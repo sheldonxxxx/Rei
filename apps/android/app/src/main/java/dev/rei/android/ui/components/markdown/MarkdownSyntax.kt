@@ -1,5 +1,7 @@
 package dev.rei.android.ui.components.markdown
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TablesExtension
@@ -33,7 +35,13 @@ internal val markdownParser: Parser = Parser.builder()
 
 internal fun parseMarkdown(text: String): Node = markdownParser.parse(text)
 
-internal enum class CalloutKind(val label: String) { Note("Note"), Tip("Tip"), Important("Important"), Warning("Warning"), Caution("Caution") }
+internal enum class CalloutKind(@StringRes val labelRes: Int) {
+    Note(R.string.markdown_callout_note),
+    Tip(R.string.markdown_callout_tip),
+    Important(R.string.markdown_callout_important),
+    Warning(R.string.markdown_callout_warning),
+    Caution(R.string.markdown_callout_caution),
+}
 
 /** A foldable callout's starting state: `-` starts closed, `+` starts open. */
 internal enum class CalloutFold { Open, Closed }

@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -20,9 +22,9 @@ class SettingsLogicTest {
     }
 
     @Test fun rangeMessagesMatchTheWeb() {
-        assertEquals("“Retries” must be a whole number from 0 to 10.", rangeMessage("Retries", 0, 10))
-        assertEquals("“Room” must be a whole number, 1 or more.", rangeMessage("Room", 1, null))
-        assertEquals("“T” must be a whole number from 1 to 7,200.", rangeMessage("T", 1, 7200))
+        assertEquals(UiText.Resource(R.string.settings_range_between, UiText.Literal("Retries"), "0", "10"), rangeMessage(UiText.Literal("Retries"), 0, 10))
+        assertEquals(UiText.Resource(R.string.settings_range_min, UiText.Literal("Room"), "1"), rangeMessage(UiText.Literal("Room"), 1, null))
+        assertEquals(UiText.Resource(R.string.settings_range_between, UiText.Literal("T"), "1", "7,200"), rangeMessage(UiText.Literal("T"), 1, 7200))
     }
 
     @Test fun limitInputsClearSetOrRefuse() {
@@ -33,10 +35,10 @@ class SettingsLogicTest {
     }
 
     @Test fun limitSourcesReadInWords() {
-        assertEquals("Set by you", limitSource("custom"))
-        assertEquals("Reported by the provider", limitSource("detected"))
-        assertEquals("Built-in default", limitSource("built_in"))
-        assertEquals("Not reported. Enter a value if you know it.", limitSource("unknown"))
+        assertEquals(UiText.Resource(R.string.settings_limit_source_custom), limitSource("custom"))
+        assertEquals(UiText.Resource(R.string.settings_limit_source_detected), limitSource("detected"))
+        assertEquals(UiText.Resource(R.string.settings_limit_source_built_in), limitSource("built_in"))
+        assertEquals(UiText.Resource(R.string.settings_limit_source_unknown), limitSource("unknown"))
     }
 
     @Test fun onlyPrefixedModelsHaveAConnection() {
@@ -48,9 +50,9 @@ class SettingsLogicTest {
     @Test fun whitelistEntriesAreTrimmedDedupedAndCapped() {
         assertEquals(AddEntry.Nothing, addWhitelistEntry(listOf("a.com"), "   "))
         assertEquals(AddEntry.Added(listOf("a.com", "pypi.org")), addWhitelistEntry(listOf("a.com"), " pypi.org "))
-        assertEquals(AddEntry.Refused("“A.com” is already on the list."), addWhitelistEntry(listOf("a.com"), "A.com"))
+        assertEquals(AddEntry.Refused(UiText.Resource(R.string.settings_whitelist_duplicate, "A.com")), addWhitelistEntry(listOf("a.com"), "A.com"))
         val full = List(MaxWhitelistEntries) { "h$it.example" }
-        assertEquals(AddEntry.Refused("The list holds at most 200 entries."), addWhitelistEntry(full, "extra.example"))
+        assertEquals(AddEntry.Refused(UiText.Resource(R.string.settings_whitelist_cap, MaxWhitelistEntries)), addWhitelistEntry(full, "extra.example"))
     }
 
     @Test fun searchModelIdsFollowTheServersRule() {

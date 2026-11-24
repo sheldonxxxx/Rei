@@ -13,7 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ModelCatalog
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.models
@@ -22,6 +25,7 @@ import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
 import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.PillField
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.SettingsChevron
@@ -112,58 +116,69 @@ fun GeneralScreen(api: ReiApi, onBack: () -> Unit) {
 
 @Composable
 private fun GeneralMain(api: ReiApi, onBack: () -> Unit) {
+    val resources = LocalResources.current
     val writes = rememberWrites()
     val data = rememberResource(api) { loadGeneral(api) }
     var zones by remember { mutableStateOf(false) }
     var cadence by remember(data.value?.reviewEvery) { mutableStateOf(data.value?.reviewEvery?.toString().orEmpty()) }
     var cadenceError by remember { mutableStateOf<String?>(null) }
-    SubScreen("General", onBack, busy = writes.busy || data.loading, error = writes.error ?: data.error, onRetry = data::reload) {
+    SubScreen(stringResource(R.string.settings_page_general), onBack, busy = writes.busy || data.loading, error = writes.error ?: data.error, onRetry = data::reload) {
         val loaded = data.value
         if (loaded != null) {
-            SettingsGroup(title = "Date and time") {
+            SettingsGroup(title = stringResource(R.string.settings_general_date_time)) {
                 SettingsRow(
-                    "Time zone", icon = ReiIcons.Clock, summary = (loaded.timeZone ?: "Not set") + "\nSets today’s date and clock times for the agent.",
+                    stringResource(R.string.settings_general_time_zone), icon = ReiIcons.Clock,
+                    summary = (loaded.timeZone ?: stringResource(R.string.settings_not_set)) + "\n" + stringResource(R.string.settings_general_time_zone_desc),
                     onClick = { zones = true }, trailing = { SettingsChevron() },
                 )
             }
             val models = loaded.catalog?.models.orEmpty()
             val titleChoices = buildList {
-                add(Choice(TitlesOff, "Off: use the first message"))
+                add(Choice(TitlesOff, UiText.Resource(R.string.settings_general_titles_off)))
                 val defaultReady = loaded.titleDefault in models
-                add(Choice(TitlesDefault, if (defaultReady) "Default (${loaded.catalog?.label(loaded.titleDefault)})" else "Default unavailable", enabled = defaultReady))
-                if (loaded.titleModel != null && loaded.titleModel !in models) add(Choice(loaded.titleModel, "Current model unavailable", enabled = false))
+                add(
+                    Choice(
+                        TitlesDefault,
+                        if (defaultReady) UiText.Resource(R.string.settings_general_titles_default, loaded.catalog?.label(loaded.titleDefault).orEmpty())
+                        else UiText.Resource(R.string.settings_general_titles_default_unavail),
+                        enabled = defaultReady,
+                    ),
+                )
+                if (loaded.titleModel != null && loaded.titleModel !in models) {
+                    add(Choice(loaded.titleModel, UiText.Resource(R.string.settings_general_titles_model_unavail), enabled = false))
+                }
                 models.forEach { add(Choice(it, loaded.catalog?.label(it) ?: it)) }
             }
-            SettingsGroup(title = "Chats") {
+            SettingsGroup(title = stringResource(R.string.settings_general_chats)) {
                 ChoiceRow(
-                    "Chat titles", titleSelection(loaded.titlesEnabled, loaded.titleModel), titleChoices, icon = ReiIcons.Edit,
+                    stringResource(R.string.settings_general_chat_titles), titleSelection(loaded.titlesEnabled, loaded.titleModel), titleChoices, icon = ReiIcons.Edit,
                     enabled = !writes.busy, dividerBelow = true,
                     onSelect = { choice -> writes.run(data::reload) { api.request("PUT", listOf("api", "settings", "titles"), titleUpdate(choice)) } },
                 )
                 ChoiceRow(
-                    "Companion", loaded.companionAgent, loaded.agents.map { Choice(it.first, it.second) }, icon = ReiIcons.Chat,
-                    summary = "The agent that widgets and quick messages from other devices go to.",
+                    stringResource(R.string.settings_general_companion), loaded.companionAgent, loaded.agents.map { Choice(it.first, it.second) }, icon = ReiIcons.Chat,
+                    summary = stringResource(R.string.settings_general_companion_summary),
                     enabled = !writes.busy && loaded.agents.isNotEmpty(),
                     onSelect = { id -> writes.run(data::reload) { api.request("PUT", listOf("api", "settings", "companion"), buildJsonObject { put("agentId", id) }) } },
                 )
             }
-            SettingsGroup(title = "Memory") {
+            SettingsGroup(title = stringResource(R.string.settings_page_memory)) {
                 SettingsSwitchRow(
-                    "Background memory review", loaded.reviewEnabled,
+                    stringResource(R.string.settings_general_review), loaded.reviewEnabled,
                     { on -> writes.run(data::reload) { api.request("PUT", listOf("api", "settings", "memory-extraction"), buildJsonObject { put("enabled", on) }) } },
                     icon = ReiIcons.Memory, enabled = !writes.busy,
-                    summary = "Off by default. Rei privately reviews each chat after the chosen number of completed replies and saves only durable information supported by your new messages. A review can finish with no changes, or add, update or remove unprotected memory. Counting starts when enabled; earlier messages are not backfilled. Each review uses the source reply’s model and adds token cost.",
+                    summary = stringResource(R.string.settings_general_review_summary),
                 )
             }
             FormGroup {
                 NumberField(
-                    cadence, { cadence = it; cadenceError = null }, "Replies between reviews",
-                    supportingText = "Global setting for all agents. Each chat keeps its own count. Default 5; choose 2–100.",
+                    cadence, { cadence = it; cadenceError = null }, stringResource(R.string.settings_general_cadence_label),
+                    supportingText = stringResource(R.string.settings_general_cadence_hint),
                     error = cadenceError, enabled = !writes.busy,
                 )
-                FormButton("Save review interval", enabled = !writes.busy && cadence != loaded.reviewEvery.toString(), onClick = {
+                FormButton(stringResource(R.string.settings_general_cadence_save), enabled = !writes.busy && cadence != loaded.reviewEvery.toString(), onClick = {
                     val n = parseWholeNumber(cadence, 2, 100)
-                    if (n == null) cadenceError = "Choose a whole number from 2 to 100."
+                    if (n == null) cadenceError = resources.getString(R.string.settings_general_cadence_error)
                     else writes.run(data::reload) { api.request("PUT", listOf("api", "settings", "memory-extraction"), buildJsonObject { put("everyNTurns", n) }) }
                 })
             }
@@ -188,14 +203,14 @@ private fun GeneralMain(api: ReiApi, onBack: () -> Unit) {
 private fun TimeZoneSheet(options: List<String>, selected: String?, device: String, onDismiss: () -> Unit, onPick: (String) -> Unit) {
     var query by remember { mutableStateOf("") }
     val shown = filterZones(options, query)
-    ReiSheet(onDismiss = onDismiss, title = "Time zone") {
+    ReiSheet(onDismiss = onDismiss, title = stringResource(R.string.settings_general_time_zone)) {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            PillField(query, { query = it }, "Search time zones", leadingIcon = ReiIcons.Search)
+            PillField(query, { query = it }, stringResource(R.string.settings_general_tz_search), leadingIcon = ReiIcons.Search)
         }
-        SettingsRow("Use this device’s zone", summary = device, onClick = { onPick(device) })
+        SettingsRow(stringResource(R.string.settings_general_tz_device), summary = device, onClick = { onPick(device) })
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
             items(shown, key = { it }) { zone ->
-                SettingsRow(zone, onClick = { onPick(zone) }, trailing = if (zone == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = "Selected", tint = androidx.compose.material3.MaterialTheme.colorScheme.primary) }) else null)
+                SettingsRow(zone, onClick = { onPick(zone) }, trailing = if (zone == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = stringResource(R.string.settings_selected), tint = androidx.compose.material3.MaterialTheme.colorScheme.primary) }) else null)
             }
         }
     }

@@ -57,8 +57,11 @@ class RuntimeTest {
     fun ceilingsAndDefaultsComeFromTheServer() {
         val calls = sections.flatMap { it.fields }.first { it.key == "runLimits.maxModelCalls" }
         assertEquals(500L, calls.max)
-        assertEquals("200", calls.defaultText)
-        assertEquals("none", sections.flatMap { it.fields }.first { it.key == "generation.maxOutputTokens" }.defaultText)
+        assertEquals(dev.rei.android.ui.UiText.Literal("200"), calls.defaultText)
+        assertEquals(
+            dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_runtime_none),
+            sections.flatMap { it.fields }.first { it.key == "generation.maxOutputTokens" }.defaultText,
+        )
     }
 
     @Test
@@ -87,10 +90,25 @@ class RuntimeTest {
         val edited = draft.copy(texts = draft.texts + ("runLimits.maxModelCalls" to "501"))
         val invalid = runtimeSave(sections, edited, standard) as RuntimeSave.Invalid
         assertEquals(RuntimeTab.Runs, invalid.tab)
-        assertEquals("“Model calls per run” must be a whole number from 1 to 500.", invalid.message)
+        assertEquals(
+            dev.rei.android.ui.UiText.Resource(
+                dev.rei.android.R.string.settings_range_between,
+                dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_runtime_f_calls_label),
+                "1",
+                "500",
+            ),
+            invalid.message,
+        )
         val blank = runtimeSave(sections, draft.copy(texts = draft.texts + ("home.maxTokens" to "")), standard) as RuntimeSave.Invalid
         assertEquals(RuntimeTab.Context, blank.tab)
-        assertTrue(blank.message.startsWith("“Context budget (tokens)” must be a whole number"))
+        assertEquals(
+            dev.rei.android.ui.UiText.Resource(
+                dev.rei.android.R.string.settings_range_min,
+                dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_runtime_f_budget_label),
+                "1",
+            ),
+            blank.message,
+        )
     }
 
     @Test

@@ -18,9 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ZoomableImage
@@ -46,14 +48,14 @@ fun ImageViewer(caption: String, onDismiss: () -> Unit, key: Any, load: suspend 
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
             val bitmap = image
             if (bitmap != null) {
-                ZoomableImage(bitmap, caption.ifBlank { "Image" })
+                ZoomableImage(bitmap, caption.ifBlank { stringResource(R.string.common_image) })
             } else if (failed) {
-                Text("This image can’t be shown.", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.common_image_failed), color = Color.White, style = MaterialTheme.typography.bodyLarge)
             } else {
                 CircularProgressIndicator(color = Color.White)
             }
             Column(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) {
-                ReiIconButton(ReiIcons.Close, "Close image", onDismiss, tint = Color.White)
+                ReiIconButton(ReiIcons.Close, stringResource(R.string.common_close_image), onDismiss, tint = Color.White)
             }
             if (caption.isNotBlank()) {
                 Text(

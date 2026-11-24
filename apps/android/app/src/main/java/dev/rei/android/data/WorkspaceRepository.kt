@@ -1,5 +1,7 @@
 package dev.rei.android.data
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -15,8 +17,8 @@ sealed interface UndoAction {
 
 /** An app-level snackbar notice emitted by workspace operations. */
 data class WorkspaceNotice(
-    val message: String,
-    val actionLabel: String? = null,
+    val message: UiText,
+    val actionLabel: UiText? = null,
     val undo: UndoAction? = null,
 )
 
@@ -45,8 +47,17 @@ class WorkspaceRepository(
         pagesFlow.tryEmit(Unit)
     }
 
-    fun showNotice(message: String, undo: UndoAction? = null) {
-        noticesFlow.tryEmit(WorkspaceNotice(message, actionLabel = if (undo != null) "Undo" else null, undo = undo))
+    fun showNotice(message: String, undo: UndoAction? = null) =
+        showNotice(UiText.Literal(message), undo)
+
+    fun showNotice(message: UiText, undo: UndoAction? = null) {
+        noticesFlow.tryEmit(
+            WorkspaceNotice(
+                message = message,
+                actionLabel = if (undo != null) UiText.Resource(R.string.drawer_undo) else null,
+                undo = undo,
+            ),
+        )
     }
 
     fun performUndo(action: UndoAction) {
@@ -70,10 +81,10 @@ class WorkspaceRepository(
                     onAuthFailure(failure)
                 } else {
                     val fallback = when (action) {
-                        is UndoAction.RestoreFile -> "Could not restore the file."
-                        is UndoAction.RestorePage -> "Could not restore the page."
+                        is UndoAction.RestoreFile -> UiText.Resource(R.string.drawer_restore_file_failed)
+                        is UndoAction.RestorePage -> UiText.Resource(R.string.drawer_restore_page_failed)
                     }
-                    noticesFlow.tryEmit(WorkspaceNotice(failure.localizedMessage ?: fallback))
+                    noticesFlow.tryEmit(WorkspaceNotice(failure.localizedMessage?.let(UiText::Literal) ?: fallback))
                 }
             }
         }

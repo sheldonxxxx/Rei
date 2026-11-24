@@ -1,6 +1,8 @@
 package dev.rei.android.ui.components.chat
 
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
+import dev.rei.android.ui.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -28,9 +30,9 @@ class ComposerStateTest {
 
     @Test
     fun placeholderNamesTheAgentOrTheWait() {
-        assertEquals("Message", ComposerState().placeholder)
-        assertEquals("Message Rei", ComposerState(agentName = "Rei").placeholder)
-        assertEquals("Waiting for your answer", ComposerState(agentName = "Rei", waitingForAnswer = true).placeholder)
+        assertEquals(UiText.Resource(R.string.composer_placeholder_generic), ComposerState().placeholder())
+        assertEquals(UiText.Resource(R.string.composer_placeholder_agent, "Rei"), ComposerState(agentName = "Rei").placeholder())
+        assertEquals(UiText.Resource(R.string.composer_waiting_answer), ComposerState(agentName = "Rei", waitingForAnswer = true).placeholder())
     }
 
     @Test

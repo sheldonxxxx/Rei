@@ -4,8 +4,11 @@ import android.app.Activity
 import android.content.Intent
 import dev.rei.android.MessageTarget
 import dev.rei.android.NotificationTarget
+import dev.rei.android.R
 import dev.rei.android.authenticateWithPasskey
 import dev.rei.android.di.AppDispatchers
+import dev.rei.android.ui.HasUiText
+import dev.rei.android.ui.UiText
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +31,7 @@ data class SessionState(
     val auth: AuthState? = null,
     val signedIn: Boolean = false,
     val working: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val errorCode: String? = null,
     val upgradeRequired: Boolean = false,
     val restoring: Boolean = true,
@@ -158,7 +161,7 @@ class SessionRepository(
         val revoked = revoke(active)
         reset(
             active.serverUrl,
-            if (!revoked) "Signed out here. Revoke this device in Rei when the server is reachable." else null,
+            if (!revoked) UiText.Resource(R.string.session_err_sign_out_unrevoked) else null,
         )
         if (revoked) probe(apiFactory(active.serverUrl, null))
     }
@@ -166,7 +169,7 @@ class SessionRepository(
     fun disconnect() = runAuthOperation {
         val active = currentApi
         val revoked = active == null || revoke(active)
-        reset(error = if (!revoked) "Disconnected here. Revoke this device in Rei when the server is reachable." else null)
+        reset(error = if (!revoked) UiText.Resource(R.string.session_err_disconnect_unrevoked) else null)
     }
 
     private suspend fun revoke(active: ReiApi): Boolean = try {
@@ -176,7 +179,7 @@ class SessionRepository(
         failure is ReiApiException && failure.status == 401
     }
 
-    private suspend fun reset(serverUrl: String = "", error: String? = null, upgrade: Boolean = false) {
+    private suspend fun reset(serverUrl: String = "", error: UiText? = null, upgrade: Boolean = false) {
         val caller = currentCoroutineContext()[Job]
         listOf(globalJob).filter { it != caller }.forEach { it?.cancel() }
         globalJob = null
@@ -235,7 +238,7 @@ class SessionRepository(
         length: String = "once",
         hours: Int? = null,
     ): ReiApproval {
-        val active = currentApi ?: throw IOException("Not connected")
+        val active = currentApi ?: throw IOException("not_connected")
         return scope.async {
             try {
                 active.decideApproval(approvalId, approve, length, hours)
@@ -288,16 +291,17 @@ class SessionRepository(
 
     private suspend fun handleFailure(failure: Exception) {
         if (failure is CancellationException) throw failure
-        val message = when (failure) {
-            is ReiApiException -> failure.message.orEmpty().ifBlank { "Rei could not complete the request." }
-            is IllegalArgumentException, is IllegalStateException -> failure.message ?: "Check the server address."
-            is IOException -> "Couldn’t reach Rei. Check your connection and try again."
-            else -> "Rei returned a response this app couldn’t read."
+        val message: UiText = when (failure) {
+            is ReiApiException -> if (failure.message.isNullOrBlank()) UiText.Resource(R.string.chat_err_request) else failure.uiText
+            is HasUiText -> failure.uiText
+            is IllegalArgumentException, is IllegalStateException -> failure.message?.let(UiText::Literal) ?: UiText.Resource(R.string.session_err_check_address)
+            is IOException -> UiText.Resource(R.string.chat_err_network)
+            else -> UiText.Resource(R.string.chat_err_unreadable)
         }
         val status = (failure as? ReiApiException)?.status
         if (status == 426) onOutdated()
         if (status == 401 && currentApi != null) {
-            reset(current.serverUrl, "This device is signed out. Connect and sign in again.")
+            reset(current.serverUrl, UiText.Resource(R.string.session_err_signed_out))
         } else if (status == 426 && currentApi != null) {
             reset(current.serverUrl, message, upgrade = true)
         } else {

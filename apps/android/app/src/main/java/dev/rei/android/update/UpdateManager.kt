@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import dev.rei.android.BuildConfig
+import dev.rei.android.R
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -98,7 +99,7 @@ class UpdateManager private constructor(
 
     private fun check(manual: Boolean) {
         if (!enabled) {
-            if (manual) mutableMessages.tryEmit("Update checks are off in this build.")
+            if (manual) mutableMessages.tryEmit(app.getString(R.string.update_msg_off))
             return
         }
         if (job?.isActive == true) return
@@ -114,7 +115,7 @@ class UpdateManager private constructor(
                     UpdateCheck.Disabled -> mutableState.value = UpdateState.Idle
                     UpdateCheck.UpToDate -> {
                         mutableState.value = UpdateState.UpToDate
-                        if (manual) mutableMessages.tryEmit("You’re on the latest version.")
+                        if (manual) mutableMessages.tryEmit(app.getString(R.string.update_msg_latest))
                     }
                     is UpdateCheck.Available -> mutableState.value = UpdateState.Available(result.feed)
                 }
@@ -122,7 +123,10 @@ class UpdateManager private constructor(
                 throw failure
             } catch (failure: Exception) {
                 mutableState.value = UpdateState.Idle
-                if (manual) mutableMessages.tryEmit(failure.message ?: "Couldn’t check for updates.")
+                val text = (failure as? UpdateException)?.uiText?.asString(app)
+                    ?: failure.message
+                    ?: app.getString(R.string.update_err_check)
+                if (manual) mutableMessages.tryEmit(text)
             }
         }
     }
@@ -146,7 +150,7 @@ class UpdateManager private constructor(
         try {
             app.startActivity(intent)
         } catch (_: Exception) {
-            mutableState.value = UpdateState.Failed("Open Android Settings → Apps → Special app access → Install unknown apps, and allow Rei.", feed)
+            mutableState.value = UpdateState.Failed(app.getString(R.string.update_err_open_settings), feed)
         }
     }
 
@@ -159,7 +163,7 @@ class UpdateManager private constructor(
         }
         val feed = (mutableState.value as? UpdateState.AwaitingPermission)?.feed ?: return
         if (canInstall()) download(feed)
-        else mutableState.value = UpdateState.Failed("Rei is still not allowed to install apps, so the update was not installed.", feed)
+        else mutableState.value = UpdateState.Failed(app.getString(R.string.update_err_not_allowed), feed)
     }
 
     fun onBackground() = confirmations.onBackground()
@@ -174,7 +178,7 @@ class UpdateManager private constructor(
         val installer = app.packageManager.packageInstaller
         installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
         scope.launch(Dispatchers.IO) { apkDirectory.deleteRecursively() }
-        mutableState.value = UpdateState.Failed(installFailureMessage(PackageInstaller.STATUS_FAILURE_ABORTED, null), feed)
+        mutableState.value = UpdateState.Failed(installFailureMessage(PackageInstaller.STATUS_FAILURE_ABORTED, null).asString(app), feed)
     }
 
     /** "Later" or "Close": leaves the flow without changing anything. */
@@ -209,7 +213,10 @@ class UpdateManager private constructor(
                 throw failure
             } catch (failure: Exception) {
                 file.delete()
-                mutableState.value = UpdateState.Failed(failure.message ?: "The update failed.", feed)
+                val text = (failure as? UpdateException)?.uiText?.asString(app)
+                    ?: failure.message
+                    ?: app.getString(R.string.update_err_failed)
+                mutableState.value = UpdateState.Failed(text, feed)
             }
         }
     }
@@ -240,7 +247,7 @@ class UpdateManager private constructor(
             // Normally the process is replaced before this runs.
             mutableState.value = UpdateState.Idle
         } else if (feed != null) {
-            mutableState.value = UpdateState.Failed(installFailureMessage(status, detail), feed)
+            mutableState.value = UpdateState.Failed(installFailureMessage(status, detail).asString(app), feed)
         } else {
             mutableState.value = UpdateState.Idle
         }

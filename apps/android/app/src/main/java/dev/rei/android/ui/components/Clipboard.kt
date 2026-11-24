@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
+import dev.rei.android.R
 
 /**
  * Puts [text] on the clipboard. Android 13 and later confirm a copy themselves; before that this shows the same short
@@ -20,5 +21,5 @@ fun copyToClipboard(context: Context, label: String, text: String, sensitive: Bo
         clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
     }
     clipboard.setPrimaryClip(clip)
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) Toast.makeText(context, R.string.common_copied, Toast.LENGTH_SHORT).show()
 }

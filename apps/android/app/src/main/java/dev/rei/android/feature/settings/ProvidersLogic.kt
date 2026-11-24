@@ -1,8 +1,10 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -43,8 +45,14 @@ internal fun JsonObject.provider() = ProviderRow(
 
 internal fun providerRows(body: JsonObject): List<ProviderRow> = body.objects("connections").map { it.provider() }
 
-internal fun providerSubtitle(row: ProviderRow): String =
-    if (row.kind == KindCustom) row.baseUrl.orEmpty() else "OpenAI · ${if (row.auth == AuthOAuth) "ChatGPT" else "API key"}"
+internal fun providerSubtitle(row: ProviderRow): UiText = if (row.kind == KindCustom) {
+    UiText.Literal(row.baseUrl.orEmpty())
+} else {
+    UiText.Resource(
+        R.string.settings_providers_subtitle_openai,
+        UiText.Resource(if (row.auth == AuthOAuth) R.string.settings_providers_auth_chatgpt else R.string.settings_providers_auth_api_key),
+    )
+}
 
 /** What the provider form holds. [apiKey] is typed text and is cleared after a save. */
 internal data class ProviderForm(
@@ -61,9 +69,9 @@ internal data class ProviderForm(
     val modelInfo: JsonObject? = null,
 )
 
-internal fun newProviderForm(kind: String) = ProviderForm(
+internal fun newProviderForm(kind: String, customName: String = "") = ProviderForm(
     kind = kind,
-    name = if (kind == KindOpenAi) "OpenAI" else "My endpoint",
+    name = if (kind == KindOpenAi) "OpenAI" else customName,
     auth = if (kind == KindOpenAi) AuthOAuth else AuthApiKey,
 )
 
@@ -76,7 +84,7 @@ internal fun editProviderForm(row: ProviderRow) = ProviderForm(
 internal fun ProviderForm.usesOAuth() = kind == KindOpenAi && auth == AuthOAuth
 
 internal sealed interface ProviderSave {
-    data class Invalid(val message: String) : ProviderSave
+    data class Invalid(val message: UiText) : ProviderSave
     data class Ready(val body: JsonObject) : ProviderSave
 }
 
@@ -85,14 +93,14 @@ internal const val MaxProviderName = 80
 /** The body of `POST /api/providers`, or the sentence for the first thing missing. A blank key is left out: the gateway keeps the saved one. */
 internal fun providerSave(form: ProviderForm): ProviderSave {
     val name = form.name.trim()
-    if (name.isEmpty()) return ProviderSave.Invalid("Enter a name for this connection.")
-    if (name.length > MaxProviderName) return ProviderSave.Invalid("The name can be at most $MaxProviderName characters.")
+    if (name.isEmpty()) return ProviderSave.Invalid(UiText.Resource(R.string.settings_providers_err_name))
+    if (name.length > MaxProviderName) return ProviderSave.Invalid(UiText.Resource(R.string.settings_providers_err_name_len, MaxProviderName))
     val key = form.apiKey.trim()
     if (form.kind == KindOpenAi && form.auth == AuthApiKey && key.isEmpty() && !(form.editingId != null && form.originalAuth == AuthApiKey)) {
-        return ProviderSave.Invalid("Enter your OpenAI API key.")
+        return ProviderSave.Invalid(UiText.Resource(R.string.settings_providers_err_openai_key))
     }
     val baseUrl = form.baseUrl.trim()
-    if (form.kind == KindCustom && baseUrl.isEmpty()) return ProviderSave.Invalid("Enter the endpoint's base URL.")
+    if (form.kind == KindCustom && baseUrl.isEmpty()) return ProviderSave.Invalid(UiText.Resource(R.string.settings_providers_err_base_url))
     return ProviderSave.Ready(buildJsonObject {
         form.editingId?.let { put("id", it) }
         put("name", name)
@@ -121,17 +129,17 @@ internal fun scanBody(form: ProviderForm): JsonObject = buildJsonObject {
     form.apiKey.trim().takeIf { it.isNotEmpty() }?.let { put("apiKey", it) }
 }
 
-internal fun scanSummary(models: List<String>): String =
-    if (models.isEmpty()) "No models found." else "Found ${models.size} model${if (models.size == 1) "" else "s"}. Review the IDs before saving."
+internal fun scanSummary(models: List<String>): UiText =
+    if (models.isEmpty()) UiText.Resource(R.string.settings_providers_scan_none)
+    else UiText.Plural(R.plurals.settings_providers_scan_found, models.size, models.size)
 
 /** The sentence for models a save removed from the list, or null. */
-internal fun replacedNotice(saved: JsonObject): String? {
+internal fun replacedNotice(saved: JsonObject): UiText? {
     val replaced = (saved["replacedModels"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
     if (replaced.isEmpty()) return null
     val from = replaced.joinToString(", ") { it.string("from") }
     val to = replaced.first().string("to")
-    val plural = replaced.size != 1
-    return "$from ${if (plural) "were" else "was"} removed from the list, so agents and defaults that used ${if (plural) "them" else "it"} now use $to."
+    return UiText.Plural(R.plurals.settings_providers_replaced, replaced.size, from, to)
 }
 
 // ---- ChatGPT sign-in ------------------------------------------------------------------------------------------------
@@ -235,14 +243,16 @@ internal val SearchProviderIds = listOf("codex-subscription", "exa", "exa-api", 
 internal const val DefaultSearchModel = "gpt-6-luna"
 internal const val ExaApiRow = "exa-api"
 
-internal fun searchName(option: String): String = when (option) {
-    "codex-subscription" -> "ChatGPT / Codex"
-    "exa" -> "Exa (keyless)"
-    ExaApiRow -> "Exa (API key)"
-    "brave" -> "Brave"
-    "tavily" -> "Tavily"
-    else -> "SearXNG"
-}
+internal fun searchName(option: String): UiText = UiText.Resource(
+    when (option) {
+        "codex-subscription" -> R.string.settings_search_codex
+        "exa" -> R.string.settings_search_exa_keyless
+        ExaApiRow -> R.string.settings_search_exa_api
+        "brave" -> R.string.settings_search_brave
+        "tavily" -> R.string.settings_search_tavily
+        else -> R.string.settings_search_searxng
+    },
+)
 
 /** The saved order with every known provider present once; unknown ids are kept out. */
 internal fun searchOrder(saved: List<String>): List<String> = (saved + SearchProviderIds).filter { it in SearchProviderIds }.distinct()
@@ -262,12 +272,14 @@ internal fun searchStatuses(settings: JsonObject): List<SearchStatus> =
         SearchStatus(it.string("id"), it.optionalString("configured") == "true", it.optionalString("limitedUntil")?.toLongOrNull(), it.optionalString("lastError"))
     }
 
-internal fun searchState(configured: Boolean, status: SearchStatus?, now: Long): String = when {
-    !configured -> "Needs setup"
-    status?.limitedUntil != null && status.limitedUntil > now -> "Rate limited"
-    status?.lastError != null -> "Last attempt failed"
-    else -> "Configured"
-}
+internal fun searchState(configured: Boolean, status: SearchStatus?, now: Long): UiText = UiText.Resource(
+    when {
+        !configured -> R.string.settings_providers_needs_setup
+        status?.limitedUntil != null && status.limitedUntil > now -> R.string.settings_search_rate_limited
+        status?.lastError != null -> R.string.settings_search_last_failed
+        else -> R.string.settings_search_configured
+    },
+)
 
 internal data class SearchForm(
     val providers: List<String>,
@@ -289,13 +301,13 @@ internal fun SearchForm.toggled(id: String, on: Boolean): SearchForm =
     copy(providers = if (on) (providers + id).distinct() else providers - id)
 
 internal sealed interface SearchSave {
-    data class Invalid(val message: String) : SearchSave
+    data class Invalid(val message: UiText) : SearchSave
     data class Ready(val body: JsonObject) : SearchSave
 }
 
 internal fun searchSave(form: SearchForm): SearchSave {
     val model = form.codexModel.trim()
-    if (!isSearchModelId(model)) return SearchSave.Invalid("The search model can use letters, digits, dots, dashes and underscores, up to 100 characters.")
+    if (!isSearchModelId(model)) return SearchSave.Invalid(UiText.Resource(R.string.settings_search_model_invalid))
     val typed = form.keys.mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }
     return SearchSave.Ready(buildJsonObject {
         put("providers", buildJsonArray { form.order.filter { it in form.providers }.forEach { add(JsonPrimitive(it)) } })

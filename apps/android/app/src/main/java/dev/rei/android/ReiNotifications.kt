@@ -27,9 +27,9 @@ data class NotificationTarget(val sessionId: String, val messageId: String?)
 internal data class NotificationContent(val id: Int, val title: String, val body: String) {
     companion object {
         /** One notification per session, message and event, so a repeat of the same push replaces rather than stacks. */
-        fun from(data: Map<String, String>) = NotificationContent(
+        fun from(data: Map<String, String>, fallbackTitle: String = "Rei") = NotificationContent(
             id = (data["sessionId"].orEmpty() + (data["messageId"] ?: "") + data["event"]).hashCode(),
-            title = data["title"].orEmpty().ifBlank { "Rei" },
+            title = data["title"].orEmpty().ifBlank { fallbackTitle },
             body = data["body"].orEmpty(),
         )
     }
@@ -55,7 +55,9 @@ internal object ReiNotifications {
     /** Creates the notification channel if it is missing. Android 13+ lists it in the app's notification settings only once it exists. */
     fun ensureChannel(context: Context) {
         context.getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(NotificationChannel(Channel, "Rei activity", NotificationManager.IMPORTANCE_DEFAULT))
+            .createNotificationChannel(
+                NotificationChannel(Channel, context.getString(R.string.notification_channel_activity), NotificationManager.IMPORTANCE_DEFAULT),
+            )
     }
 
     fun setEnabled(context: Context, enabled: Boolean) {
@@ -120,7 +122,7 @@ internal object ReiNotifications {
         ensureChannel(context)
         val session = data["sessionId"].orEmpty()
         val message = data["messageId"]
-        val content = NotificationContent.from(data)
+        val content = NotificationContent.from(data, context.getString(R.string.app_name))
         val id = content.id
         val destination = Intent(context, MainActivity::class.java).apply {
             action = Open

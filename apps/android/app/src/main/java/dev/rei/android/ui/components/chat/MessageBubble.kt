@@ -31,17 +31,21 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.Message
 import dev.rei.android.data.MessagePart
 import dev.rei.android.data.ReiApi
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviewSurface
+import dev.rei.android.ui.components.ReiPreviews
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.components.markdown.ReiMarkdown
@@ -65,6 +69,7 @@ fun UserBubble(
     val haptics = LocalHapticFeedback.current
     val flash = rememberFlash(highlighted)
     val colors = MaterialTheme.colorScheme
+    val optionsLabel = stringResource(R.string.chat_msg_options)
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         BubbleBox(Alignment.End, 0.85f) {
             Surface(
@@ -73,7 +78,7 @@ fun UserBubble(
                 contentColor = colors.onSurface,
                 modifier = Modifier
                     .semantics {
-                        customActions = listOf(CustomAccessibilityAction("Message options") { onLongPress(); true })
+                        customActions = listOf(CustomAccessibilityAction(optionsLabel) { onLongPress(); true })
                     }
                     .pointerInput(onLongPress) {
                         detectTapGestures(onLongPress = {
@@ -93,13 +98,13 @@ fun UserBubble(
         }
         message.versions?.let { versions ->
             TextButton(onClick = onShowVersions, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Version ${versions.index} of ${versions.count}", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                Text(stringResource(R.string.chat_msg_version_of, versions.index, versions.count), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
             }
         }
         if (message.status == "aborted") {
-            Text("Cancelled before running", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
+            Text(stringResource(R.string.chat_msg_cancelled), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
         } else if (message.status == "pending") {
-            Text("Queued", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
+            Text(stringResource(R.string.chat_msg_queued), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
         }
     }
 }
@@ -127,17 +132,17 @@ fun PendingBubble(
         }
         if (failed) {
             Text(
-                error ?: "Not sent.",
+                error ?: stringResource(R.string.chat_msg_not_sent),
                 Modifier.padding(end = 4.dp).semantics { liveRegion = LiveRegionMode.Assertive },
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.error,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onDiscard, modifier = Modifier.heightIn(min = 48.dp)) { Text("Discard") }
-                TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) { Text("Retry") }
+                TextButton(onClick = onDiscard, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_discard)) }
+                TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.common_retry)) }
             }
         } else {
-            Text("Sending…", Modifier.padding(end = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(stringResource(R.string.chat_msg_sending), Modifier.padding(end = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
     }
 }
@@ -157,7 +162,7 @@ data class ReplyActions(
 fun AssistantBubble(
     message: Message?,
     text: String,
-    api: ReiApi,
+    api: ReiApi?,
     sessionId: String,
     agentName: String,
     onLongPress: () -> Unit,
@@ -174,6 +179,9 @@ fun AssistantBubble(
     val failed = message?.status == "failed"
     val parts = message?.parts.orEmpty()
     val hasContent = text.isNotBlank() || parts.isNotEmpty()
+    val optionsLabel = stringResource(R.string.chat_msg_options)
+    val copyLabel = stringResource(R.string.common_copy)
+    val inspectLabel = stringResource(R.string.chat_msg_inspect)
     Column(modifier.fillMaxWidth().arrive(ReiEnter.Rise), horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (hasContent) BubbleBox(Alignment.Start, 0.92f) {
             Surface(
@@ -183,11 +191,11 @@ fun AssistantBubble(
                 modifier = Modifier
                     .semantics {
                         customActions = buildList {
-                            add(CustomAccessibilityAction("Message options") { onLongPress(); true })
+                            add(CustomAccessibilityAction(optionsLabel) { onLongPress(); true })
                             if (!streaming && actions != null) {
-                                add(CustomAccessibilityAction("Copy") { actions.onCopy(); true })
+                                add(CustomAccessibilityAction(copyLabel) { actions.onCopy(); true })
                                 actions.onInspect?.let { inspect ->
-                                    add(CustomAccessibilityAction("Inspect") { inspect(); true })
+                                    add(CustomAccessibilityAction(inspectLabel) { inspect(); true })
                                 }
                             }
                         }
@@ -206,7 +214,7 @@ fun AssistantBubble(
                         parts.forEachIndexed { index, part ->
                             when (part) {
                                 is MessagePart.Text -> if (part.text.isNotBlank()) ReiMarkdown(part.text, api, caret = streaming && index == parts.lastIndex)
-                                is MessagePart.Surface -> InlineSurface(api, sessionId, part.value, detail = showDetails)
+                                is MessagePart.Surface -> if (api != null) InlineSurface(api, sessionId, part.value, detail = showDetails)
                             }
                         }
                     }
@@ -215,14 +223,14 @@ fun AssistantBubble(
         }
         if (failed) {
             StatusBanner(
-                message?.error ?: "Rei couldn’t finish this reply.",
+                message?.error ?: stringResource(R.string.chat_msg_reply_failed),
                 Modifier.padding(top = 4.dp).widthIn(max = 640.dp),
                 kind = StatusKind.Error,
-                actionLabel = if (onContinue != null) "Continue" else null,
+                actionLabel = if (onContinue != null) stringResource(R.string.chat_msg_continue) else null,
                 onAction = onContinue,
             )
         } else if (message?.status == "cancelled") {
-            Text("Stopped", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(stringResource(R.string.chat_msg_stopped), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         if (actions != null && hasContent && !streaming) ReplyActionRow(actions)
     }
@@ -241,7 +249,7 @@ private fun ReplyActionRow(actions: ReplyActions) {
     Row(Modifier.padding(start = 0.dp), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
         ReiIconButton(
             icon = if (copied) ReiIcons.Check else ReiIcons.Copy,
-            contentDescription = if (copied) "Copied" else "Copy",
+            contentDescription = stringResource(if (copied) R.string.common_copied else R.string.common_copy),
             onClick = {
                 actions.onCopy()
                 copied = true
@@ -249,7 +257,7 @@ private fun ReplyActionRow(actions: ReplyActions) {
             tint = if (copied) MaterialTheme.colorScheme.primary else quiet,
             iconSize = 16.dp,
         )
-        actions.onInspect?.let { ReiIconButton(ReiIcons.Eye, "Inspect", it, tint = quiet, iconSize = 16.dp) }
+        actions.onInspect?.let { ReiIconButton(ReiIcons.Eye, stringResource(R.string.chat_msg_inspect), it, tint = quiet, iconSize = 16.dp) }
     }
 }
 
@@ -269,7 +277,7 @@ fun NoticeLine(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun ThinkingLine(agentName: String, modifier: Modifier = Modifier) {
     Text(
-        "$agentName is thinking…",
+        stringResource(R.string.chat_msg_thinking, agentName),
         modifier.padding(horizontal = 4.dp, vertical = 8.dp).arrive(ReiEnter.Fade).semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -312,4 +320,24 @@ private fun rememberFlash(highlighted: Boolean): Float {
         label = "flash",
     )
     return flash
+}
+
+@ReiPreviews
+@Composable
+private fun MessageBubblePreview() = ReiPreviewSurface {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        UserBubble(
+            message = Message(id = "u1", role = "user", text = "Summarize the Q3 release notes.", status = "complete"),
+            onLongPress = {},
+        )
+        AssistantBubble(
+            message = Message(id = "a1", role = "assistant", text = "Here are the **three main changes** shipped in Q3.", status = "complete"),
+            text = "Here are the **three main changes** shipped in Q3.",
+            api = null,
+            sessionId = "s1",
+            agentName = "Rei",
+            onLongPress = {},
+            actions = ReplyActions(onCopy = {}, onInspect = {}),
+        )
+    }
 }

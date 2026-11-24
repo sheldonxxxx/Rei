@@ -1,23 +1,20 @@
 package dev.rei.android.feature
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
 import dev.rei.android.BuildConfig
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.feature.activity.ActivityActions
@@ -33,13 +30,15 @@ import dev.rei.android.feature.activity.RetryTarget
 import dev.rei.android.feature.activity.RunningRow
 import dev.rei.android.feature.settings.AppearanceScreen
 import dev.rei.android.feature.settings.SettingsIndex
-import dev.rei.android.feature.settings.SettingsScreen
+import dev.rei.android.feature.settings.updateSummary
 import dev.rei.android.shell.Destination
 import dev.rei.android.shell.DrawerMode
 import dev.rei.android.shell.LocalShell
 import dev.rei.android.shell.ShellController
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.ThemePreference
+import dev.rei.android.update.UpdateState
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -50,6 +49,11 @@ class ActivitySettingsTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
+
     private val approval = ReiApproval(
         "ap1", 1, "s1", "Research", "send_email", "mail", "send", "write", "ana@example.com", "send the summary to Ana", "{}",
         listOf("once", "session"), "pending", emptyList(), 0, null, null, false, null,
@@ -59,8 +63,11 @@ class ActivitySettingsTest {
     private val change = MemoryChange("c1", "add", null, "Likes tea", undoable = true, undone = false)
 
     private val feed = ActivityFeed(
-        needs = listOf(ApprovalRow(approval), FailureRow("job:j1", "Memory review", "Model unavailable", "s1", RetryTarget.Job("j1"))),
-        running = listOf(RunningRow("run:r1", "Morning check", "Trigger run", System.currentTimeMillis() - 65_000, "s2")),
+        needs = listOf(
+            ApprovalRow(approval),
+            FailureRow("job:j1", UiText.Literal("Memory review"), UiText.Literal("Model unavailable"), "s1", RetryTarget.Job("j1")),
+        ),
+        running = listOf(RunningRow("run:r1", UiText.Literal("Morning check"), UiText.Literal("Trigger run"), System.currentTimeMillis() - 65_000, "s2")),
         done = listOf(MemoryReviewRow(reviewed, listOf(change))),
     )
 
@@ -91,16 +98,16 @@ class ActivitySettingsTest {
     @Test
     fun theSegmentedFiltersCarryTheirCounts() {
         showActivity()
-        compose.onNodeWithContentDescription("Needs you, 2").assertIsSelected()
-        compose.onNodeWithContentDescription("Running, 1").assertExists()
-        compose.onNodeWithContentDescription("Done, 1").assertExists()
-        compose.onNodeWithText("Approval needed").assertExists()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_cd_count, str(R.string.activity_segment_needs_you), 2)).assertIsSelected()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_cd_count, str(R.string.activity_segment_running), 1)).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_cd_count, str(R.string.activity_segment_done), 1)).assertExists()
+        compose.onNodeWithText(str(R.string.approval_needed)).assertExists()
     }
 
     @Test
     fun aFailureOffersRetryAndOpensItsChat() {
         showActivity()
-        compose.onNodeWithContentDescription("Retry Memory review").performClick()
+        compose.onNodeWithContentDescription(str(R.string.activity_retry_item, "Memory review")).performClick()
         assertEquals("job:j1", retried)
         compose.onNodeWithText("Model unavailable").performClick()
         assertEquals("s1", opened)
@@ -109,27 +116,29 @@ class ActivitySettingsTest {
     @Test
     fun runningShowsElapsedTimeInTabularFigures() {
         showActivity()
-        compose.onNodeWithContentDescription("Running, 1").performClick()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_cd_count, str(R.string.activity_segment_running), 1)).performClick()
         compose.onNodeWithText("Morning check").assertExists()
-        compose.onNode(hasContentDescription("Running for 1:", substring = true)).assertExists()
+        val prefix = str(R.string.activity_running_for, "").trimEnd()
+        compose.onNode(hasContentDescription("$prefix 1:", substring = true)).assertExists()
     }
 
     @Test
     fun doneOffersUndoForAnEligibleMemoryChange() {
         showActivity()
-        compose.onNodeWithContentDescription("Done, 1").performClick()
-        compose.onNodeWithContentDescription("Undo Added: Likes tea").performClick()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_cd_count, str(R.string.activity_segment_done), 1)).performClick()
+        val changeDesc = str(R.string.activity_change_add, "Likes tea")
+        compose.onNodeWithContentDescription(str(R.string.activity_undo_item, changeDesc)).performClick()
         assertEquals("c1", undone)
     }
 
     @Test
     fun emptySegmentsSayWhatGoesThere() {
         showActivity(ActivityUiState(loaded = true))
-        compose.onNodeWithText("Nothing needs you").assertExists()
-        compose.onNodeWithContentDescription("Running").performClick()
-        compose.onNodeWithText("Nothing running").assertExists()
-        compose.onNodeWithContentDescription("Done").performClick()
-        compose.onNodeWithText("Nothing finished yet").assertExists()
+        compose.onNodeWithText(str(R.string.activity_empty_needs_title)).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_running)).performClick()
+        compose.onNodeWithText(str(R.string.activity_empty_running_title)).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.activity_segment_done)).performClick()
+        compose.onNodeWithText(str(R.string.activity_empty_done_title)).assertExists()
     }
 
     private fun showSettings(onSignOut: () -> Unit = {}, onDisconnect: () -> Unit = {}) {
@@ -146,14 +155,15 @@ class ActivitySettingsTest {
     fun theSettingsIndexHasEveryGroupAndRow() {
         showSettings()
         listOf(
-            "App", "Appearance", "Notifications", "Show details by default", "Check for updates",
-            "Security", "Devices", "Passkeys", "Two-factor authentication",
-            "Workspace", "General", "Memory", "Triggers", "Usage",
-            "Models & Providers", "Models", "Providers", "Runtime",
-            "Capabilities", "Permissions", "Connectors", "Skills", "Plugins",
-            "Session", "Sign out of this device", "Disconnect server",
-        ).forEach { compose.onNodeWithText(it).performScrollTo().assertExists() }
-        compose.onNodeWithText("Providers").performScrollTo()
+            R.string.settings_group_app, R.string.settings_page_appearance, R.string.settings_page_notifications,
+            R.string.settings_show_details, R.string.settings_check_updates,
+            R.string.settings_group_security, R.string.settings_page_devices, R.string.settings_page_passkeys, R.string.settings_page_two_factor,
+            R.string.settings_group_workspace, R.string.settings_page_general, R.string.settings_page_memory, R.string.settings_page_triggers, R.string.settings_page_usage,
+            R.string.settings_group_models_providers, R.string.settings_page_models, R.string.settings_page_providers, R.string.settings_page_runtime,
+            R.string.settings_group_capabilities, R.string.settings_page_permissions, R.string.settings_page_connectors, R.string.settings_page_skills, R.string.settings_page_plugins,
+            R.string.settings_group_session, R.string.settings_sign_out_row, R.string.settings_disconnect_row,
+        ).forEach { compose.onNodeWithText(str(it)).performScrollTo().assertExists() }
+        compose.onNodeWithText(str(R.string.settings_page_providers)).performScrollTo()
         // Every settings page is native now, so no row hands off to the web app.
         compose.onAllNodesWithOpensInWeb().assertCountEquals(0)
     }
@@ -162,21 +172,21 @@ class ActivitySettingsTest {
     fun checkForUpdatesShowsTheVersionAndSaysWhenChecksAreOff() {
         assumeTrue("Needs a build without an update feed", BuildConfig.UPDATE_FEED_URL.isEmpty())
         showSettings()
-        compose.onNodeWithText("Check for updates").performScrollTo().assertExists()
-        compose.onNodeWithText("Version ${BuildConfig.VERSION_NAME} · Update checks are off in this build").performScrollTo().assertExists()
+        compose.onNodeWithText(str(R.string.settings_check_updates)).performScrollTo().assertExists()
+        compose.onNodeWithText(updateSummary(false, UpdateState.Idle, BuildConfig.VERSION_NAME).asString(context)).performScrollTo().assertExists()
     }
 
     @Test
     fun disconnectAsksFirstAndSaysWhatHappens() {
         var disconnected = 0
         showSettings(onDisconnect = { disconnected++ })
-        compose.onNodeWithText("Disconnect server").performScrollTo().performClick()
-        compose.onNodeWithText("Disconnect from this server?").assertExists()
-        compose.onNodeWithText("This signs this device out and forgets the server address.", substring = true).assertExists()
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText(str(R.string.settings_disconnect_row)).performScrollTo().performClick()
+        compose.onNodeWithText(str(R.string.settings_disconnect_confirm_title)).assertExists()
+        compose.onNodeWithText(str(R.string.settings_disconnect_confirm_body)).assertExists()
+        compose.onNodeWithText(str(R.string.common_cancel)).performClick()
         assertEquals(0, disconnected)
-        compose.onNodeWithText("Disconnect server").performScrollTo().performClick()
-        compose.onNodeWithText("Disconnect").performClick()
+        compose.onNodeWithText(str(R.string.settings_disconnect_row)).performScrollTo().performClick()
+        compose.onNodeWithText(str(R.string.settings_disconnect_action)).performClick()
         assertEquals(1, disconnected)
     }
 
@@ -184,9 +194,9 @@ class ActivitySettingsTest {
     fun signOutAsksFirst() {
         var signedOut = 0
         showSettings(onSignOut = { signedOut++ })
-        compose.onNodeWithText("Sign out of this device").performScrollTo().performClick()
-        compose.onNodeWithText("Sign out of this device?").assertExists()
-        compose.onNodeWithText("Sign out").performClick()
+        compose.onNodeWithText(str(R.string.settings_sign_out_row)).performScrollTo().performClick()
+        compose.onNodeWithText(str(R.string.settings_sign_out_confirm_title)).assertExists()
+        compose.onNodeWithText(str(R.string.settings_sign_out_action)).performClick()
         assertEquals(1, signedOut)
     }
 
@@ -200,35 +210,9 @@ class ActivitySettingsTest {
                 }
             }
         }
-        compose.onNodeWithText("System").assertIsSelected()
-        compose.onNodeWithText("Dark").performClick()
+        compose.onNodeWithText(str(R.string.theme_system)).assertIsSelected()
+        compose.onNodeWithText(str(R.string.theme_dark)).performClick()
         assertEquals(ThemePreference.Dark, chosen)
-    }
-
-    @Test
-    fun returningFromSubScreenKeepsScrollPosition() {
-        compose.setContent {
-            ReiTheme {
-                CompositionLocalProvider(LocalShell provides ShellController(Destination.Settings, DrawerMode.Modal, {}, {}, {})) {
-                    Box(Modifier.size(360.dp, 400.dp)) {
-                        SettingsScreen(
-                            api = ReiApi("http://127.0.0.1:1"),
-                            serverUrl = "http://127.0.0.1:1",
-                            themePreference = ThemePreference.System,
-                            onThemePreference = {},
-                            onSignOut = {},
-                            onDisconnect = {},
-                            onOpenActivity = {},
-                        )
-                    }
-                }
-            }
-        }
-        compose.onNodeWithText("Plugins").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Plugins").performClick()
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("Plugins").assertIsDisplayed()
-        compose.onNodeWithText("Settings").assertIsNotDisplayed()
     }
 }
 

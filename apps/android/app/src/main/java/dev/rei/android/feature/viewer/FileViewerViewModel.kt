@@ -13,6 +13,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.rei.android.R
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryVersion
 import dev.rei.android.data.ReiApi
@@ -25,6 +26,9 @@ import dev.rei.android.data.setFileFavorite
 import dev.rei.android.data.setFileTrashed
 import dev.rei.android.di.AppContainer
 import dev.rei.android.di.AppDispatchers
+import dev.rei.android.ui.ReiStateException
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -45,7 +49,9 @@ sealed interface ViewerContent {
     class Document(val bytes: ByteArray, val name: String, val mediaType: String) : ViewerContent
 
     /** No preview for this kind (or it failed): [message] says why; Download is still offered. */
-    class Unavailable(val message: String, val retry: Boolean = false) : ViewerContent
+    class Unavailable(val message: UiText, val retry: Boolean = false) : ViewerContent {
+        constructor(message: String, retry: Boolean = false) : this(UiText.Literal(message), retry)
+    }
 }
 
 @Immutable
@@ -57,7 +63,7 @@ data class ViewerUiState(
     val content: ViewerContent = ViewerContent.Loading,
     val compatibility: Boolean = false,
     /** The detail call failed, so there is nothing to show. */
-    val error: String? = null,
+    val error: UiText? = null,
     val working: Boolean = false,
 ) {
     val file get() = detail?.file
@@ -123,7 +129,7 @@ class FileViewerViewModel(
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                mutable.update { it.copy(error = failure.localizedMessage ?: "Could not open this file.") }
+                mutable.update { it.copy(error = failure.asUiText(UiText.Resource(R.string.viewer_err_open))) }
             }
         }
     }
@@ -164,7 +170,7 @@ class FileViewerViewModel(
         val content = try {
             when (kind) {
                 PreviewKind.Audio, PreviewKind.Video, PreviewKind.Unsupported ->
-                    ViewerContent.Unavailable("This file has no preview here. Download it to open it in another app.")
+                    ViewerContent.Unavailable(UiText.Resource(R.string.viewer_err_no_preview))
                 PreviewKind.Text, PreviewKind.Markdown, PreviewKind.Html, PreviewKind.Csv -> {
                     val (bytes, cut) = fetch(api, version, MaxTextBytes, truncate = true, compat = false)
                     ViewerContent.Words(bytes.decodeToString(), truncated = cut, markdown = kind == PreviewKind.Markdown)
@@ -172,7 +178,7 @@ class FileViewerViewModel(
                 PreviewKind.Image -> {
                     val (bytes, _) = fetch(api, version, MaxBytes, truncate = false, compat = false)
                     val bitmap = withContext(dispatchers.default) { decodeImage(bytes) }
-                    if (bitmap != null) ViewerContent.Picture(bitmap) else ViewerContent.Unavailable("This image can’t be previewed. Download it to open it in another app.")
+                    if (bitmap != null) ViewerContent.Picture(bitmap) else ViewerContent.Unavailable(UiText.Resource(R.string.viewer_err_image_decode))
                 }
                 PreviewKind.Pdf, PreviewKind.Office -> {
                     val (bytes, _) = fetch(api, version, MaxBytes, truncate = false, compat = compat)
@@ -183,7 +189,7 @@ class FileViewerViewModel(
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Exception) {
-            ViewerContent.Unavailable(failure.localizedMessage ?: "Could not open the preview.", retry = true)
+            ViewerContent.Unavailable(failure.asUiText(UiText.Resource(R.string.viewer_err_preview_generic)), retry = true)
         }
         // A newer choice may have replaced this version while the bytes were arriving.
         mutable.update { if (it.shown?.versionId == version.versionId && it.compatibility == compat) it.copy(content = content) else it }
@@ -195,15 +201,19 @@ class FileViewerViewModel(
         else api.fileRequest(version.fileId, version.versionId)
         return with(ReiApi.Companion) {
             api.client.executeStreaming(request, dispatchers.io) { response ->
-                check(response.isSuccessful) { "Preview failed (HTTP ${response.code})." }
-                val body = checkNotNull(response.body) { "Preview failed." }
+                if (!response.isSuccessful) {
+                    throw ReiStateException(UiText.Resource(R.string.viewer_err_preview_http, response.code))
+                }
+                val body = response.body ?: throw ReiStateException(UiText.Resource(R.string.viewer_err_preview_failed))
                 val stream = body.source()
                 if (truncate) {
                     val over = stream.request(limit + 1)
                     val bytes = stream.buffer.readByteArray(minOf(limit, stream.buffer.size))
                     bytes to over
                 } else {
-                    check(body.contentLength() <= limit && !stream.request(limit + 1)) { "This file is too large to preview." }
+                    if (!(body.contentLength() <= limit && !stream.request(limit + 1))) {
+                        throw ReiStateException(UiText.Resource(R.string.viewer_err_too_large))
+                    }
                     stream.readByteArray() to false
                 }
             }
@@ -236,16 +246,16 @@ class FileViewerViewModel(
                 mutable.update { it.copy(detail = it.detail?.copy(file = updated)) }
                 workspace.notifyFilesChanged()
                 if (trashed) {
-                    workspace.showNotice("Moved “${file.name}” to Trash", UndoAction.RestoreFile(file.id))
+                    workspace.showNotice(UiText.Resource(R.string.knowledge_page_notice_trashed, file.name), UndoAction.RestoreFile(file.id))
                     eventsFlow.tryEmit(ViewerEvent.Close)
                 } else {
-                    workspace.showNotice("Restored ${file.name}")
+                    workspace.showNotice(UiText.Resource(R.string.viewer_notice_restored, file.name))
                 }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                val fallback = if (trashed) "Could not move to Trash." else "Could not restore the file."
-                workspace.showNotice(failure.localizedMessage ?: fallback)
+                val fallback = UiText.Resource(if (trashed) R.string.viewer_err_trash else R.string.viewer_err_restore)
+                workspace.showNotice(failure.asUiText(fallback))
             }
         }
     }
@@ -276,14 +286,19 @@ class FileViewerViewModel(
                         detail.versions.firstOrNull { it.versionId == versionId } ?: detail.file.current
                     }
                 withContext(dispatchers.io) {
-                    val output = checkNotNull(openOutput()) { "Could not write to that location." }
+                    val output = openOutput() ?: throw ReiStateException(UiText.Resource(R.string.viewer_err_write))
                     output.use { api.downloadVersionTo(version.fileId, version.versionId, it, dispatchers.io) }
                 }
-                workspace.showNotice("Saved ${version.name}")
+                workspace.showNotice(UiText.Resource(R.string.viewer_notice_saved, version.name))
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                workspace.showNotice("Download failed: ${failure.localizedMessage ?: "Download failed."}")
+                workspace.showNotice(
+                    UiText.Resource(
+                        R.string.viewer_err_download,
+                        failure.asUiText(UiText.Resource(R.string.viewer_err_download_generic)),
+                    ),
+                )
             } finally {
                 mutable.update { it.copy(working = false) }
             }

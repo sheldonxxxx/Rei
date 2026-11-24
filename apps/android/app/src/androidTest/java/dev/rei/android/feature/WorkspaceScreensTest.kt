@@ -1,5 +1,6 @@
 package dev.rei.android.feature
 
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsEnabled
@@ -10,20 +11,22 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ApplicationProvider
+import dev.rei.android.R
+import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryFile
 import dev.rei.android.data.LibraryVersion
 import dev.rei.android.feature.knowledge.KnowledgeContent
+import dev.rei.android.feature.knowledge.KnowledgePageContent
 import dev.rei.android.feature.knowledge.KnowledgeUiState
 import dev.rei.android.feature.knowledge.PageDraft
 import dev.rei.android.feature.knowledge.PageUiState
-import dev.rei.android.feature.knowledge.KnowledgePageContent
 import dev.rei.android.feature.library.LibraryContent
 import dev.rei.android.feature.library.LibraryUiState
 import dev.rei.android.feature.viewer.FileViewerContent
 import dev.rei.android.feature.viewer.ViewerContent
 import dev.rei.android.feature.viewer.ViewerUiState
-import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.shell.Destination
 import dev.rei.android.shell.DrawerMode
 import dev.rei.android.shell.LocalShell
@@ -37,6 +40,11 @@ import org.junit.Test
 class WorkspaceScreensTest {
     @get:Rule
     val compose = createComposeRule()
+
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
 
     private val version = LibraryVersion("f1", "v2", 2, "report.pdf", "application/pdf", 2048, 1_700_000_000_000, "Rei")
     private val file = LibraryFile("f1", "report.pdf", "upload", "Me", 1_700_000_000_000, 1_700_000_000_000, false, null, version)
@@ -63,10 +71,10 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Search library").performTextInput("inv")
+        compose.onNodeWithContentDescription(str(R.string.library_search)).performTextInput("inv")
         assertEquals("inv", typed)
-        compose.onNodeWithContentDescription("Filters").assertIsEnabled()
-        compose.onNodeWithContentDescription("Upload").performClick()
+        compose.onNodeWithContentDescription(str(R.string.common_filters)).assertIsEnabled()
+        compose.onNodeWithContentDescription(str(R.string.library_upload_btn)).performClick()
         assertEquals(1, uploads)
         compose.onNodeWithText("report.pdf").assertExists()
     }
@@ -80,7 +88,7 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("No files here yet").assertExists()
+        compose.onNodeWithText(str(R.string.library_empty_default_title)).assertExists()
     }
 
     @Test
@@ -101,17 +109,20 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Info").assertIsEnabled().performClick()
-        compose.onNodeWithContentDescription("Download").assertIsEnabled().performClick()
-        val hasOverflow = compose.onAllNodesWithContentDescription("File options").fetchSemanticsNodes().isNotEmpty()
+        compose.onNodeWithContentDescription(str(R.string.viewer_info)).assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription(str(R.string.viewer_download)).assertIsEnabled().performClick()
+        val optionsDesc = str(R.string.viewer_options)
+        val historyText = str(R.string.viewer_history)
+        val trashText = str(R.string.knowledge_page_move_to_trash)
+        val hasOverflow = compose.onAllNodesWithContentDescription(optionsDesc).fetchSemanticsNodes().isNotEmpty()
         if (hasOverflow) {
-            compose.onNodeWithContentDescription("File options").performClick()
-            compose.onNodeWithText("History").performClick()
-            compose.onNodeWithContentDescription("File options").performClick()
-            compose.onNodeWithText("Move to Trash").performClick()
+            compose.onNodeWithContentDescription(optionsDesc).performClick()
+            compose.onNodeWithText(historyText).performClick()
+            compose.onNodeWithContentDescription(optionsDesc).performClick()
+            compose.onNodeWithText(trashText).performClick()
         } else {
-            compose.onNodeWithContentDescription("History").assertIsEnabled().performClick()
-            compose.onNodeWithContentDescription("Move to Trash").assertIsEnabled().performClick()
+            compose.onNodeWithContentDescription(historyText).assertIsEnabled().performClick()
+            compose.onNodeWithContentDescription(trashText).assertIsEnabled().performClick()
         }
         assertEquals(listOf("info", "download", "history", "trash"), calls)
     }
@@ -128,8 +139,8 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Move to Trash").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Restore").performClick()
+        compose.onNodeWithContentDescription(str(R.string.knowledge_page_move_to_trash)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(str(R.string.knowledge_restore)).performClick()
         assertEquals(1, restored)
     }
 
@@ -140,8 +151,8 @@ class WorkspaceScreensTest {
                 FileViewerContent(ViewerUiState(fileId = "f1"), null, {}, {}, {}, {}, {}, {}, {}, {}, {})
             }
         }
-        compose.onNodeWithContentDescription("Info").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Download").assertIsNotEnabled()
+        compose.onNodeWithContentDescription(str(R.string.viewer_info)).assertIsNotEnabled()
+        compose.onNodeWithContentDescription(str(R.string.viewer_download)).assertIsNotEnabled()
     }
 
     @Test
@@ -156,10 +167,10 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Search knowledge").assertExists()
-        compose.onNodeWithContentDescription("New page").performClick()
+        compose.onNodeWithContentDescription(str(R.string.knowledge_search)).assertExists()
+        compose.onNodeWithContentDescription(str(R.string.knowledge_new_page)).performClick()
         assertEquals(1, created)
-        compose.onNodeWithText("No pages yet").assertExists()
+        compose.onNodeWithText(str(R.string.knowledge_empty_default_title)).assertExists()
     }
 
     private val page = KnowledgePageData(
@@ -182,15 +193,15 @@ class WorkspaceScreensTest {
         var edits = 0
         pageContent(PageUiState(pageId = "p1", page = page, loading = false), onEdit = { edits++ })
         compose.onNodeWithText("Trip plan").assertExists()
-        compose.onNodeWithContentDescription("Edit").performClick()
+        compose.onNodeWithContentDescription(str(R.string.common_edit)).performClick()
         assertEquals(1, edits)
-        compose.onNodeWithContentDescription("More options").assertExists()
+        compose.onNodeWithContentDescription(str(R.string.knowledge_page_more_options)).assertExists()
     }
 
     @Test
     fun theEditorHasOnePrimarySaveButtonThatNeedsAChange() {
         pageContent(PageUiState(pageId = "p1", page = page, loading = false, editing = true, draft = PageDraft("Trip plan", "Where to go", "Pack light.", listOf("travel"))))
-        compose.onNodeWithText("Save").assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.common_save)).assertIsNotEnabled()
     }
 
     @Test
@@ -200,7 +211,7 @@ class WorkspaceScreensTest {
             PageUiState(pageId = "p1", page = page, loading = false, editing = true, draft = PageDraft("Trip plan 2", "Where to go", "Pack light.", listOf("travel"))),
             onSave = { saved++ },
         )
-        compose.onNodeWithText("Save").assertIsEnabled().performClick()
+        compose.onNodeWithText(str(R.string.common_save)).assertIsEnabled().performClick()
         assertEquals(1, saved)
     }
 }

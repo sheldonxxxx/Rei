@@ -56,6 +56,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.Message
 import dev.rei.android.data.ReiApi
@@ -80,6 +82,8 @@ import dev.rei.android.ui.components.LocalNotices
 import dev.rei.android.ui.components.LocalSnackbarClearance
 import dev.rei.android.ui.components.LocalWorkspaceOpener
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviews
+import dev.rei.android.ui.components.ReiScreenPreviewSurface
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
@@ -137,17 +141,7 @@ fun ChatScreen(
 ) {
     if (sessionId == null) {
         val shell = LocalShell.current
-        Column(modifier.fillMaxSize()) {
-            ReiTopBar("Chat")
-            EmptyState(
-                icon = ReiIcons.Compose,
-                title = if (historyLoaded) "No chat open" else "Loading chats",
-                body = if (historyLoaded) "Start a new chat to talk with Rei." else null,
-                action = if (historyLoaded) {
-                    { Button(onClick = shell::newChat, shape = ReiShapes.Pill) { Text("New chat") } }
-                } else null,
-            )
-        }
+        ChatEmptyContent(historyLoaded = historyLoaded, onNewChat = shell::newChat, modifier = modifier)
         return
     }
     key(sessionId) { Conversation(api, sessionId, chat, active, onOpenBrowser, modifier.fillMaxSize()) }
@@ -173,7 +167,7 @@ private fun Conversation(
     val density = LocalDensity.current
     val keyboard = LocalSoftwareKeyboardController.current
     val motionScale = LocalMotionScale.current
-    val agentName = state.agent?.name ?: "Rei"
+    val agentName = state.agent?.name ?: stringResource(R.string.app_name)
     val pickers = rememberAttachmentPickers(sessionId, chat)
 
     LaunchedEffect(active) { chat.setVisible(active) }
@@ -247,7 +241,7 @@ private fun Conversation(
         chat.consumeFocus(target)
     }
     LaunchedEffect(state.notice) {
-        val message = state.notice ?: return@LaunchedEffect
+        val message = state.notice?.asString(context) ?: return@LaunchedEffect
         notices?.show(message)
         chat.consumeNotice()
     }
@@ -263,7 +257,8 @@ private fun Conversation(
     }
     DisposableEffect(Unit) { onDispose { setClearance(0.dp) } }
 
-    fun copy(text: String) = copyToClipboard(context, "Message", text)
+    val clipboardLabel = stringResource(R.string.chat_clipboard_label)
+    fun copy(text: String) = copyToClipboard(context, clipboardLabel, text)
 
     val expanded = currentWindowAdaptiveInfo().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
     val approvalMessages = remember(state.messages) { state.messages.mapNotNull { m -> m.approval?.let { a -> a.id to m.id } }.toMap() }
@@ -321,9 +316,18 @@ private fun Conversation(
                     }
                     Column(Modifier.align(Alignment.TopCenter).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (state.reconnecting) {
-                            StatusBanner("Reconnecting to Rei…", actionLabel = "Retry", onAction = chat::retryStream)
+                            StatusBanner(
+                                stringResource(R.string.chat_reconnecting),
+                                actionLabel = stringResource(R.string.common_retry),
+                                onAction = chat::retryStream,
+                            )
                         } else if (state.streamError != null) {
-                            StatusBanner(state.streamError.orEmpty(), kind = StatusKind.Error, actionLabel = "Retry", onAction = chat::retryStream)
+                            StatusBanner(
+                                state.streamError?.asString().orEmpty(),
+                                kind = StatusKind.Error,
+                                actionLabel = stringResource(R.string.common_retry),
+                                onAction = chat::retryStream,
+                            )
                         }
                     }
                     val scope = rememberCoroutineScope()
@@ -454,18 +458,18 @@ private fun Conversation(
     }
     confirmRetry?.let { target ->
         ConfirmDialog(
-            title = "Retry from here?",
-            text = "This creates a new version from this message and runs the reply again.",
-            confirmLabel = "Retry",
+            title = stringResource(R.string.chat_retry_title),
+            text = stringResource(R.string.chat_retry_body),
+            confirmLabel = stringResource(R.string.common_retry),
             onConfirm = { chat.retry(target); confirmRetry = null },
             onDismiss = { confirmRetry = null },
         )
     }
     confirmFork?.let { target ->
         ConfirmDialog(
-            title = "Fork into a new chat?",
-            text = "This opens a new chat with the conversation up to this message.",
-            confirmLabel = "Fork",
+            title = stringResource(R.string.chat_fork_title),
+            text = stringResource(R.string.chat_fork_body),
+            confirmLabel = stringResource(R.string.chat_fork_action),
             onConfirm = { chat.fork(target); confirmFork = null },
             onDismiss = { confirmFork = null },
         )
@@ -509,7 +513,7 @@ private fun Conversation(
         PermissionsSheet(
             current = state.profile,
             saving = state.savingProfile,
-            error = state.profileError,
+            error = state.profileError?.asString(),
             onDismiss = { permissionsSheet = false; chat.clearProfileError() },
             onSelect = { level -> chat.setProfile(level) { permissionsSheet = false } },
             onOpenSettings = { permissionsSheet = false; shell.openSettings(SettingsPage.Permissions) },
@@ -577,12 +581,12 @@ private fun TranscriptRow(
             ApprovalCard(approval = approval, onDecide = { approve, length, hours -> chat.decide(approval, approve, length, hours) }, agentName = agentName)
         }
         is TranscriptItem.Takeover -> item.message.takeover?.let { TakeoverCard(it, agentName, onOpen = onOpenBrowser) }
-        is TranscriptItem.Notice -> NoticeLine(item.text)
+        is TranscriptItem.Notice -> NoticeLine(item.text.asString())
         is TranscriptItem.Pending -> PendingBubble(
             text = item.send.text,
             attachments = item.send.attachments,
             failed = item.send.failed,
-            error = item.send.error,
+            error = item.send.error?.asString(),
             onRetry = chat::retrySend,
             onDiscard = chat::discardPending,
         )
@@ -615,51 +619,52 @@ private fun ChatTopBar(
     // The agent's home chat is the agent itself: it cannot be renamed, pinned or deleted.
     val manageable = session != null && session.origin != "home"
     ReiTopBar(
-        title = state.title.ifBlank { "Chat" },
+        title = state.title.ifBlank { stringResource(R.string.chat_title) },
         subtitle = state.agent?.name?.takeUnless { it.equals(state.title, ignoreCase = true) },
         scrolled = scrolled,
         leading = state.agent?.let { agent -> { AgentAvatar(agent.avatar, size = 36.dp, working = state.busy) } },
         actions = {
-            ReiIconButton(ReiIcons.MoreVertical, "Chat options", { menu = true })
+            ReiIconButton(ReiIcons.MoreVertical, stringResource(R.string.chat_options), { menu = true })
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (manageable && session != null) {
                     DropdownMenuItem(
-                        text = { Text("Rename") },
+                        text = { Text(stringResource(R.string.drawer_chat_rename)) },
                         leadingIcon = { Icon(ReiIcons.Edit, null) },
                         onClick = { menu = false; title = session.title; renaming = true },
                     )
                     DropdownMenuItem(
-                        text = { Text(if (session.pinned) "Unpin" else "Pin") },
+                        text = { Text(stringResource(if (session.pinned) R.string.drawer_chat_unpin else R.string.drawer_chat_pin)) },
                         leadingIcon = { Icon(ReiIcons.Pin, null) },
                         onClick = { menu = false; chat.pin(!session.pinned) },
                     )
                 }
+                val showDetailsDesc = stringResource(if (state.showDetails) R.string.chat_switch_on else R.string.chat_switch_off)
                 DropdownMenuItem(
-                    text = { Text("Show details") },
+                    text = { Text(stringResource(R.string.chat_show_details)) },
                     leadingIcon = { Icon(ReiIcons.Sliders, null) },
                     trailingIcon = { Switch(checked = state.showDetails, onCheckedChange = null) },
                     modifier = Modifier.semantics {
                         role = Role.Switch
                         toggleableState = ToggleableState(state.showDetails)
-                        stateDescription = if (state.showDetails) "On" else "Off"
+                        stateDescription = showDetailsDesc
                     },
                     onClick = { chat.setShowDetails(!state.showDetails) },
                 )
                 DropdownMenuItem(
-                    text = { Text("Inspect") },
+                    text = { Text(stringResource(R.string.chat_inspect_title)) },
                     leadingIcon = { Icon(ReiIcons.Eye, null) },
                     onClick = { menu = false; onInspect() },
                 )
                 if (session?.hasBrowser == true) {
                     DropdownMenuItem(
-                        text = { Text("Live browser") },
+                        text = { Text(stringResource(R.string.chat_live_browser)) },
                         leadingIcon = { Icon(ReiIcons.Globe, null) },
                         onClick = { menu = false; onOpenBrowser() },
                     )
                 }
                 if (manageable) {
                     DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
                         leadingIcon = { Icon(ReiIcons.Trash, null, tint = MaterialTheme.colorScheme.error) },
                         onClick = { menu = false; deleting = true },
                     )
@@ -672,17 +677,17 @@ private fun ChatTopBar(
             onDismissRequest = { renaming = false },
             shape = ReiShapes.Dialog,
             containerColor = ReiTheme.colors.card,
-            title = { Text("Rename chat") },
-            text = { ReiTextField(title, { title = it }, label = "Chat title", singleLine = true) },
-            dismissButton = { TextButton({ renaming = false }) { Text("Cancel") } },
-            confirmButton = { TextButton({ chat.rename(title.trim()); renaming = false }, enabled = title.isNotBlank()) { Text("Save") } },
+            title = { Text(stringResource(R.string.drawer_chat_rename_title)) },
+            text = { ReiTextField(title, { title = it }, label = stringResource(R.string.drawer_chat_title_label), singleLine = true) },
+            dismissButton = { TextButton({ renaming = false }) { Text(stringResource(R.string.common_cancel)) } },
+            confirmButton = { TextButton({ chat.rename(title.trim()); renaming = false }, enabled = title.isNotBlank()) { Text(stringResource(R.string.common_save)) } },
         )
     }
     if (deleting) {
         ConfirmDialog(
-            title = "Delete this chat?",
-            text = "This removes the conversation and its searchable history.",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.drawer_chat_delete_title),
+            text = stringResource(R.string.chat_delete_body),
+            confirmLabel = stringResource(R.string.common_delete),
             onConfirm = { chat.delete(); deleting = false },
             onDismiss = { deleting = false },
             destructive = true,
@@ -701,13 +706,13 @@ private fun EmptyChat(state: ChatUiState) {
     ) {
         if (agent != null) AgentAvatar(agent.avatar, size = 72.dp, name = agent.name)
         Text(
-            agent?.name ?: "Rei",
+            agent?.name ?: stringResource(R.string.app_name),
             Modifier.padding(top = 16.dp),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
         Text(
-            "Ask anything, or attach a file to start.",
+            stringResource(R.string.chat_empty_subtitle),
             Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -719,6 +724,7 @@ private fun EmptyChat(state: ChatUiState) {
 @Composable
 private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
+    val jumpLabel = stringResource(if (newContent) R.string.chat_jump_latest_new else R.string.chat_jump_latest)
     Box(modifier) {
         Surface(
             onClick = onClick,
@@ -727,7 +733,7 @@ private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Mod
             contentColor = colors.onSurface,
             border = BorderStroke(1.dp, colors.outlineVariant),
             shadowElevation = 2.dp,
-            modifier = Modifier.size(48.dp).semantics { contentDescription = if (newContent) "Jump to latest, new messages" else "Jump to latest" },
+            modifier = Modifier.size(48.dp).semantics { contentDescription = jumpLabel },
         ) {
             Box(contentAlignment = Alignment.Center) { Icon(ReiIcons.Down, null) }
         }
@@ -735,4 +741,25 @@ private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Mod
             Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(10.dp).background(colors.primary, CircleShape))
         }
     }
+}
+
+@Composable
+internal fun ChatEmptyContent(historyLoaded: Boolean, onNewChat: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxSize()) {
+        ReiTopBar(stringResource(R.string.chat_title))
+        EmptyState(
+            icon = ReiIcons.Compose,
+            title = stringResource(if (historyLoaded) R.string.chat_empty_none_title else R.string.chat_empty_loading_title),
+            body = if (historyLoaded) stringResource(R.string.chat_empty_none_body) else null,
+            action = if (historyLoaded) {
+                { Button(onClick = onNewChat, shape = ReiShapes.Pill) { Text(stringResource(R.string.drawer_new_chat)) } }
+            } else null,
+        )
+    }
+}
+
+@ReiPreviews
+@Composable
+private fun ChatEmptyPreview() = ReiScreenPreviewSurface {
+    ChatEmptyContent(historyLoaded = true, onNewChat = {})
 }
