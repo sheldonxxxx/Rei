@@ -20,7 +20,9 @@ val reiUpdateFeedUrl = providers.gradleProperty("reiUpdateFeedUrl").orNull.orEmp
 
 android {
     namespace = "dev.rei.android"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         applicationId = "dev.rei.android"
