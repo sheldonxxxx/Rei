@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -22,6 +21,7 @@ import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.ui.components.PillField
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.SettingsChevron
@@ -30,6 +30,8 @@ import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.components.SettingsSwitchRow
 import dev.rei.android.ui.icons.ReiIcons
 import kotlinx.serialization.json.JsonNull
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -76,17 +78,22 @@ private data class GeneralData(
     val reviewEvery: Int,
 )
 
-private suspend fun loadGeneral(api: ReiApi): GeneralData {
-    val zone = api.request("GET", listOf("api", "settings", "time-zone"))
-    val titles = api.request("GET", listOf("api", "settings", "titles"))
-    val agents = api.request("GET", listOf("api", "agents"))
-    val review = api.request("GET", listOf("api", "settings", "memory-extraction"))
-    return GeneralData(
+private suspend fun loadGeneral(api: ReiApi): GeneralData = coroutineScope {
+    val zoneJob = async { api.request("GET", listOf("api", "settings", "time-zone")) }
+    val titlesJob = async { api.request("GET", listOf("api", "settings", "titles")) }
+    val agentsJob = async { api.request("GET", listOf("api", "agents")) }
+    val reviewJob = async { api.request("GET", listOf("api", "settings", "memory-extraction")) }
+    val catalogJob = async { suspendRunCatching { api.models() }.getOrNull() }
+    val zone = zoneJob.await()
+    val titles = titlesJob.await()
+    val agents = agentsJob.await()
+    val review = reviewJob.await()
+    GeneralData(
         timeZone = zone.optionalString("timeZone"),
         titlesEnabled = titles.optionalString("enabled") == "true",
         titleModel = titles.optionalString("model"),
         titleDefault = titles.optionalString("default").orEmpty(),
-        catalog = runCatching { api.models() }.getOrNull(),
+        catalog = catalogJob.await(),
         agents = agents.objects("agents").map { it.string("id") to it.string("name") },
         companionAgent = (agents["companion"] as? JsonObject)?.optionalString("agentId"),
         reviewEnabled = review.optionalString("enabled") == "true",
@@ -99,10 +106,8 @@ private suspend fun loadGeneral(api: ReiApi): GeneralData {
  * notifications, devices and passkeys have their own rows on the index.
  */
 @Composable
-fun GeneralScreen(api: ReiApi, onBack: () -> Unit) {
-    var twoFactor by rememberSaveable { mutableStateOf(false) }
-    BackHandler(twoFactor) { twoFactor = false }
-    if (twoFactor) TwoFactorScreen(api) { twoFactor = false } else GeneralMain(api, onBack) { twoFactor = true }
+fun GeneralScreen(api: ReiApi, onOpenTwoFactor: () -> Unit, onBack: () -> Unit) {
+    GeneralMain(api, onBack, onOpenTwoFactor)
 }
 
 @Composable

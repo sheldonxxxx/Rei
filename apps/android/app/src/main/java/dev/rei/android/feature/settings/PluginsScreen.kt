@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -23,6 +22,7 @@ import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
 import dev.rei.android.data.obj
 import dev.rei.android.data.objects
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.readUpTo
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
@@ -44,16 +44,8 @@ private const val NewPlugin = "new"
  * [openId] opens one plugin straight away (a skill's "Part of the plugin"). Export stays on the web: it is a binary download.
  */
 @Composable
-fun PluginsScreen(api: ReiApi, onBack: () -> Unit, openId: String? = null) {
-    var selected by rememberSaveable { mutableStateOf(openId) }
-    var connection by rememberSaveable { mutableStateOf<String?>(null) }
-    BackHandler(selected != null && connection == null) { selected = null }
-    val id = selected
-    when {
-        connection != null -> ConnectorsScreen(api, onBack = { connection = null }, openId = connection, fromPlugin = true)
-        id == null -> PluginList(api, onBack) { selected = it }
-        else -> PluginDetailScreen(api, id, onBack = { selected = null }, onSelect = { selected = it }, onOpenConnector = { connection = it })
-    }
+fun PluginsScreen(api: ReiApi, onOpenPlugin: (String) -> Unit, onBack: () -> Unit) {
+    PluginList(api, onBack, onOpenPlugin)
 }
 
 @Composable
@@ -103,33 +95,43 @@ private fun PluginList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit
 }
 
 @Composable
-private fun PluginDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onSelect: (String) -> Unit, onOpenConnector: (String) -> Unit) {
+fun PluginEditScreen(api: ReiApi, id: String, onBack: () -> Unit, onSaved: (String) -> Unit) {
     val writes = rememberWrites()
-    var editing by rememberSaveable { mutableStateOf(false) }
     val creating = id == NewPlugin
     val loaded = rememberResource(id) { if (creating) null else pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
-    val agents = rememberResource(api) { runCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
+    val data = loaded.value
+    if (!creating && data == null) {
+        SubScreen("Edit plugin", onBack, busy = loaded.loading, error = loaded.error, onRetry = loaded::reload) {}
+        return
+    }
+    PluginEditor(
+        initial = data?.pkg ?: emptyPackage(),
+        existing = data != null,
+        busy = writes.busy,
+        error = writes.error,
+        onCancel = onBack,
+        onSave = { pkg ->
+            writes.run {
+                val saved = if (data != null) api.request("PATCH", listOf("api", "plugins", id), savePluginBody(pkg, data.row.revision))
+                else api.request("POST", listOf("api", "plugins"), savePluginBody(pkg, null))
+                onSaved(saved.obj("plugin").pluginRow().id)
+            }
+        },
+    )
+}
+
+@Composable
+fun PluginDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onEdit: (String) -> Unit, onOpenConnector: (String) -> Unit) {
+    if (id == NewPlugin) {
+        PluginEditScreen(api, id, onBack = onBack, onSaved = onEdit)
+        return
+    }
+    val writes = rememberWrites()
+    val loaded = rememberResource(id) { pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
+    val agents = rememberResource(api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
     var history by remember { mutableStateOf<PluginDetailData?>(null) }
     var confirmRemove by remember { mutableStateOf(false) }
     val data = loaded.value
-    BackHandler(editing && !creating) { editing = false }
-
-    if (creating || (editing && data != null)) {
-        PluginEditor(
-            initial = data?.pkg ?: emptyPackage(), existing = data != null, busy = writes.busy, error = writes.error,
-            onCancel = { if (data != null) editing = false else onBack() },
-            onSave = { pkg ->
-                writes.run {
-                    val saved = if (data != null) api.request("PATCH", listOf("api", "plugins", id), savePluginBody(pkg, data.row.revision))
-                    else api.request("POST", listOf("api", "plugins"), savePluginBody(pkg, null))
-                    editing = false
-                    val savedId = saved.obj("plugin").pluginRow().id
-                    if (savedId == id) loaded.reload() else onSelect(savedId)
-                }
-            },
-        )
-        return
-    }
 
     fun act(block: suspend () -> Unit) = writes.run(loaded::reload, block)
     SubScreen(data?.row?.name ?: "Plugin", onBack, busy = writes.busy || loaded.loading, error = writes.error ?: loaded.error, onRetry = loaded::reload) {
@@ -139,7 +141,7 @@ private fun PluginDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onSe
                 SettingsRow(row.description.ifBlank { row.name }, summary = listOf(row.kind, "Revision ${row.revision}", if (row.builtIn) "Built-in" else null).filterNotNull().joinToString(" · "))
             }
             if (!row.builtIn) {
-                FormGroup { FormButton("Edit plugin", primary = false, enabled = !writes.busy, onClick = { editing = true }) }
+                FormGroup { FormButton("Edit plugin", primary = false, enabled = !writes.busy, onClick = { onEdit(id) }) }
                 SettingsGroup {
                     SettingsSwitchRow("Enabled", row.enabled, { on -> act { api.request("PATCH", listOf("api", "plugins", id, "installation"), enabledBody(on)) } }, enabled = !writes.busy)
                 }

@@ -7,6 +7,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,14 +44,14 @@ internal object ReiFirebase {
         if (!configured(context) || !ReiNotifications.enabled(context) || !ReiNotifications.hasPermission(context)) return
         val app = context.applicationContext
         FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            scope.launch { runCatching { ReiNotifications.register(app, token) } }
+            scope.launch { suspendRunCatching { ReiNotifications.register(app, token) } }
         }
     }
 
     fun disable(context: Context) {
         val app = context.applicationContext
         scope.launch {
-            runCatching { ReiNotifications.unregister(app) }
+            suspendRunCatching { ReiNotifications.unregister(app) }
             if (configured(app) && !ReiNotifications.enabled(app)) FirebaseMessaging.getInstance().deleteToken()
         }
     }
@@ -59,7 +60,7 @@ internal object ReiFirebase {
 class ReiFirebaseService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         runBlocking(Dispatchers.IO) {
-            withTimeoutOrNull(8_000) { runCatching { ReiNotifications.register(applicationContext, token) } }
+            withTimeoutOrNull(8_000) { suspendRunCatching { ReiNotifications.register(applicationContext, token) } }
         }
     }
 

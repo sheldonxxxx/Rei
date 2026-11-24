@@ -45,12 +45,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.KnowledgeHit
 import dev.rei.android.data.KnowledgeNode
+import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.EmptyState
-import dev.rei.android.ui.components.LocalNotices
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.StatusBanner
@@ -68,10 +67,9 @@ import dev.rei.android.ui.theme.tabular
 
 /** The Knowledge destination. [onOpenPage] opens the page view; [onNewPage] opens an empty editor. */
 @Composable
-fun KnowledgeScreen(model: ReiViewModel, onOpenPage: (String) -> Unit, onNewPage: () -> Unit) {
-    val vm: KnowledgeViewModel = viewModel(factory = KnowledgeViewModel.factory(model))
+fun KnowledgeScreen(container: AppContainer, onOpenPage: (String) -> Unit, onNewPage: () -> Unit) {
+    val vm: KnowledgeViewModel = viewModel(factory = KnowledgeViewModel.factory(container))
     val state by vm.state.collectAsStateWithLifecycle()
-    val notices = LocalNotices.current
     KnowledgeContent(
         state = state,
         onText = vm::setText,
@@ -81,9 +79,7 @@ fun KnowledgeScreen(model: ReiViewModel, onOpenPage: (String) -> Unit, onNewPage
         onToggleExpanded = vm::toggleExpanded,
         onEnsureTags = vm::ensureTags,
         onOpen = onOpenPage,
-        onRestore = { node ->
-            vm.restore(node, failed = { notices?.show(it) }, done = { notices?.show("Restored “$it”") })
-        },
+        onRestore = vm::restore,
         onRefresh = { vm.refresh() },
         onRetry = vm::retry,
         onNewPage = onNewPage,

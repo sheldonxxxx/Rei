@@ -1,16 +1,18 @@
 package dev.rei.android.feature.knowledge
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
-import dev.rei.android.data.WorkspaceChanges
+import dev.rei.android.data.SessionRepository
+import dev.rei.android.data.UndoAction
+import dev.rei.android.data.WorkspaceRepository
 import dev.rei.android.data.addTag
 import dev.rei.android.data.createKnowledgePage
 import dev.rei.android.data.knowledgePage
@@ -18,10 +20,14 @@ import dev.rei.android.data.restoreKnowledgePage
 import dev.rei.android.data.saveKnowledgePage
 import dev.rei.android.data.setKnowledgePinned
 import dev.rei.android.data.trashKnowledgePage
+import dev.rei.android.di.AppContainer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -62,31 +68,69 @@ data class PageUiState(
     val canSave get() = draft.title.isNotBlank() && !saving && (isNew || dirty)
 }
 
-/** One page: read view first, an editor on demand, favorite, Trash and restore. One instance serves every open. */
-class KnowledgePageViewModel(application: Application, private val source: ReiViewModel) : AndroidViewModel(application) {
-    private val mutable = MutableStateFlow(PageUiState())
-    val state: StateFlow<PageUiState> = mutable.asStateFlow()
-    private var target: String? = null
-    private var load: Job? = null
-    private val api: ReiApi? get() = source.state.value.api
+sealed interface PageEvent {
+    data object Close : PageEvent
+}
 
-    /** Opens [target]: a page id, or [NewPageTarget] for an empty editor. Re-opening what is open does nothing. */
-    fun open(target: String) {
-        if (this.target == target && mutable.value.error == null) return
-        this.target = target
-        load?.cancel()
-        if (target == NewPageTarget) {
-            mutable.value = PageUiState(pageId = null, loading = false, editing = true)
-        } else {
-            mutable.value = PageUiState(pageId = target)
-            fetch(target)
+private const val KeyPageId = "knowledge_page_id"
+private const val KeyEditing = "knowledge_page_editing"
+private const val KeyDraftTitle = "knowledge_draft_title"
+private const val KeyDraftDescription = "knowledge_draft_description"
+private const val KeyDraftBody = "knowledge_draft_body"
+private const val KeyDraftTags = "knowledge_draft_tags"
+private const val KeyTagEntry = "knowledge_tag_entry"
+
+/**
+ * One Knowledge page: read view first, an editor on demand, favorite, Trash and restore.
+ * Scoped to its own NavBackStackEntry with [SavedStateHandle] so rotation and process death preserve unsaved edits.
+ */
+class KnowledgePageViewModel(
+    initialTarget: String,
+    private val session: SessionRepository,
+    private val workspace: WorkspaceRepository,
+    private val savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+    private val savedPageId: String? = if (savedStateHandle.contains(KeyPageId)) {
+        savedStateHandle.get<String>(KeyPageId)
+    } else {
+        initialTarget.takeIf { it != NewPageTarget }
+    }
+    private val restoredEditing: Boolean = savedStateHandle.get<Boolean>(KeyEditing) ?: (savedPageId == null)
+    private val restoredDraft = PageDraft(
+        title = savedStateHandle.get<String>(KeyDraftTitle).orEmpty(),
+        description = savedStateHandle.get<String>(KeyDraftDescription).orEmpty(),
+        body = savedStateHandle.get<String>(KeyDraftBody).orEmpty(),
+        tags = savedStateHandle.get<ArrayList<String>>(KeyDraftTags)?.toList().orEmpty(),
+    )
+
+    private val mutable = MutableStateFlow(
+        PageUiState(
+            pageId = savedPageId,
+            loading = savedPageId != null,
+            editing = restoredEditing,
+            draft = restoredDraft,
+            tagEntry = savedStateHandle.get<String>(KeyTagEntry).orEmpty(),
+        ),
+    )
+    val state: StateFlow<PageUiState> = mutable.asStateFlow()
+
+    private val eventsFlow = MutableSharedFlow<PageEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<PageEvent> = eventsFlow.asSharedFlow()
+
+    private var load: Job? = null
+    private val api: ReiApi? get() = session.currentApi
+
+    init {
+        if (savedPageId != null) {
+            fetch(savedPageId, keepEditing = restoredEditing)
         }
     }
 
-    /** The screen closed: the next open loads fresh. */
-    fun forget() { load?.cancel(); target = null; mutable.value = PageUiState() }
-
-    fun retry() { target?.takeIf { it != NewPageTarget }?.let { mutable.update { s -> s.copy(error = null, loading = true) }; fetch(it) } }
+    fun retry() {
+        val id = mutable.value.pageId ?: return
+        mutable.update { s -> s.copy(error = null, loading = true) }
+        fetch(id, keepEditing = mutable.value.editing)
+    }
 
     private fun fetch(id: String, keepEditing: Boolean = false) {
         val api = api ?: return
@@ -94,11 +138,18 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
         load = viewModelScope.launch {
             try {
                 val page = api.knowledgePage(id)
-                mutable.update {
-                    it.copy(
-                        page = page, loading = false, error = null, saving = false, conflict = false, saveError = null,
-                        editing = keepEditing && it.editing,
-                        draft = PageDraft(page.title, page.description, page.body, page.tags),
+                mutable.update { current ->
+                    val preserveDraft = keepEditing && current.editing
+                    val nextDraft = if (preserveDraft) current.draft else PageDraft(page.title, page.description, page.body, page.tags)
+                    current.copy(
+                        page = page,
+                        loading = false,
+                        error = null,
+                        saving = false,
+                        conflict = false,
+                        saveError = null,
+                        editing = preserveDraft,
+                        draft = nextDraft,
                     )
                 }
             } catch (failure: CancellationException) {
@@ -112,34 +163,60 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
     fun edit() {
         val page = mutable.value.page ?: return
         if (page.locked) return
-        mutable.update { it.copy(editing = true, draft = PageDraft(page.title, page.description, page.body, page.tags), saveError = null, conflict = false, tagEntry = "", tagError = null) }
+        val draft = PageDraft(page.title, page.description, page.body, page.tags)
+        persistDraftState(editing = true, draft = draft, tagEntry = "")
+        mutable.update { it.copy(editing = true, draft = draft, saveError = null, conflict = false, tagEntry = "", tagError = null) }
     }
 
     fun cancelEdit() {
         val page = mutable.value.page
+        val draft = page?.let { PageDraft(it.title, it.description, it.body, it.tags) } ?: PageDraft()
+        persistDraftState(editing = false, draft = draft, tagEntry = "")
         mutable.update {
-            it.copy(editing = false, saveError = null, conflict = false, tagEntry = "", tagError = null,
-                draft = page?.let { p -> PageDraft(p.title, p.description, p.body, p.tags) } ?: PageDraft())
+            it.copy(editing = false, saveError = null, conflict = false, tagEntry = "", tagError = null, draft = draft)
         }
     }
 
-    fun setTitle(value: String) = mutable.update { it.copy(draft = it.draft.copy(title = value)) }
-    fun setDescription(value: String) = mutable.update { it.copy(draft = it.draft.copy(description = value)) }
-    fun setBody(value: String) = mutable.update { it.copy(draft = it.draft.copy(body = value)) }
-    fun setTagEntry(value: String) = mutable.update { it.copy(tagEntry = value, tagError = null) }
+    fun setTitle(value: String) {
+        savedStateHandle[KeyDraftTitle] = value
+        mutable.update { it.copy(draft = it.draft.copy(title = value)) }
+    }
+
+    fun setDescription(value: String) {
+        savedStateHandle[KeyDraftDescription] = value
+        mutable.update { it.copy(draft = it.draft.copy(description = value)) }
+    }
+
+    fun setBody(value: String) {
+        savedStateHandle[KeyDraftBody] = value
+        mutable.update { it.copy(draft = it.draft.copy(body = value)) }
+    }
+
+    fun setTagEntry(value: String) {
+        savedStateHandle[KeyTagEntry] = value
+        mutable.update { it.copy(tagEntry = value, tagError = null) }
+    }
 
     fun commitTag() {
         val current = mutable.value
         addTag(current.draft.tags, current.tagEntry).fold(
-            onSuccess = { tags -> mutable.update { it.copy(draft = it.draft.copy(tags = tags), tagEntry = "", tagError = null) } },
+            onSuccess = { tags ->
+                savedStateHandle[KeyDraftTags] = ArrayList(tags)
+                savedStateHandle[KeyTagEntry] = ""
+                mutable.update { it.copy(draft = it.draft.copy(tags = tags), tagEntry = "", tagError = null) }
+            },
             onFailure = { failure -> mutable.update { it.copy(tagError = failure.message) } },
         )
     }
 
-    fun removeTag(tag: String) = mutable.update { it.copy(draft = it.draft.copy(tags = it.draft.tags - tag)) }
+    fun removeTag(tag: String) {
+        val next = mutable.value.draft.tags - tag
+        savedStateHandle[KeyDraftTags] = ArrayList(next)
+        mutable.update { it.copy(draft = it.draft.copy(tags = next)) }
+    }
 
     /** Saves the draft: creates the page when new, otherwise replaces the revision that was opened. */
-    fun save(done: (KnowledgePageData) -> Unit = {}) {
+    fun save() {
         val api = api ?: return
         val current = mutable.value
         if (!current.canSave) return
@@ -151,10 +228,10 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
             try {
                 val page = if (current.page == null) api.createKnowledgePage(draft.title, draft.description, draft.body, draft.tags)
                 else api.saveKnowledgePage(current.page.id, current.page.revision, draft.title, draft.description, draft.body, draft.tags)
-                target = page.id
+                savedStateHandle[KeyPageId] = page.id
+                persistDraftState(editing = false, draft = PageDraft(page.title, page.description, page.body, page.tags), tagEntry = "")
                 mutable.value = PageUiState(pageId = page.id, page = page, loading = false)
-                WorkspaceChanges.pagesChanged()
-                done(page)
+                workspace.notifyPagesChanged()
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: ReiApiException) {
@@ -167,7 +244,12 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
     }
 
     /** After a conflict: drop the draft and load the newer revision. */
-    fun reloadLatest() { mutable.value.pageId?.let { mutable.update { s -> s.copy(editing = false, conflict = false, saveError = null, loading = true) }; fetch(it) } }
+    fun reloadLatest() {
+        val id = mutable.value.pageId ?: return
+        persistDraftState(editing = false, draft = PageDraft(), tagEntry = "")
+        mutable.update { s -> s.copy(editing = false, conflict = false, saveError = null, loading = true) }
+        fetch(id, keepEditing = false)
+    }
 
     fun togglePinned() {
         val api = api ?: return
@@ -176,7 +258,7 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
             try {
                 val updated = api.setKnowledgePinned(page.id, !page.pinned)
                 mutable.update { it.copy(page = it.page?.copy(pinned = updated.pinned, revision = updated.revision)) }
-                WorkspaceChanges.pagesChanged()
+                workspace.notifyPagesChanged()
             } catch (failure: CancellationException) {
                 throw failure
             } catch (_: Exception) {
@@ -185,42 +267,61 @@ class KnowledgePageViewModel(application: Application, private val source: ReiVi
         }
     }
 
-    fun trash(done: (title: String, id: String) -> Unit, failed: (String) -> Unit) {
+    fun trash() {
         val api = api ?: return
         val page = mutable.value.page ?: return
         viewModelScope.launch {
             try {
                 api.trashKnowledgePage(page.id)
-                WorkspaceChanges.pagesChanged()
-                done(page.title, page.id)
+                workspace.notifyPagesChanged()
+                workspace.showNotice("Moved “${page.title}” to Trash", UndoAction.RestorePage(page.id))
+                eventsFlow.tryEmit(PageEvent.Close)
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                failed(failure.localizedMessage ?: "Could not move the page to Trash.")
+                workspace.showNotice(failure.localizedMessage ?: "Could not move the page to Trash.")
             }
         }
     }
 
-    fun restore(done: (String) -> Unit, failed: (String) -> Unit) {
+    fun restore() {
         val api = api ?: return
         val page = mutable.value.page ?: return
         viewModelScope.launch {
             try {
                 val restored = api.restoreKnowledgePage(page.id)
-                mutable.update { it.copy(page = restored, draft = PageDraft(restored.title, restored.description, restored.body, restored.tags)) }
-                WorkspaceChanges.pagesChanged()
-                done(restored.title)
+                val draft = PageDraft(restored.title, restored.description, restored.body, restored.tags)
+                persistDraftState(editing = mutable.value.editing, draft = draft, tagEntry = mutable.value.tagEntry)
+                mutable.update { it.copy(page = restored, draft = draft) }
+                workspace.notifyPagesChanged()
+                workspace.showNotice("Restored “${restored.title}”")
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                failed(failure.localizedMessage ?: "Could not restore the page.")
+                workspace.showNotice(failure.localizedMessage ?: "Could not restore the page.")
             }
         }
     }
 
+    private fun persistDraftState(editing: Boolean, draft: PageDraft, tagEntry: String) {
+        savedStateHandle[KeyEditing] = editing
+        savedStateHandle[KeyDraftTitle] = draft.title
+        savedStateHandle[KeyDraftDescription] = draft.description
+        savedStateHandle[KeyDraftBody] = draft.body
+        savedStateHandle[KeyDraftTags] = ArrayList(draft.tags)
+        savedStateHandle[KeyTagEntry] = tagEntry
+    }
+
     companion object {
-        fun factory(source: ReiViewModel): ViewModelProvider.Factory = viewModelFactory {
-            initializer { KnowledgePageViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application, source) }
+        fun factory(target: String, container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                KnowledgePageViewModel(
+                    initialTarget = target,
+                    session = container.sessionRepository,
+                    workspace = container.workspaceRepository,
+                    savedStateHandle = createSavedStateHandle(),
+                )
+            }
         }
     }
 }

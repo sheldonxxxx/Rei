@@ -81,7 +81,7 @@ class UpdateManager private constructor(
 
     init {
         // Nothing is in flight in a fresh process, and the installer keeps its own copy of an APK it has been given.
-        apkDirectory.deleteRecursively()
+        scope.launch(Dispatchers.IO) { apkDirectory.deleteRecursively() }
     }
 
     /** Called when the app opens: checks the feed unless one was checked in the last day. */
@@ -173,7 +173,7 @@ class UpdateManager private constructor(
         confirmations.clear()
         val installer = app.packageManager.packageInstaller
         installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
-        apkDirectory.deleteRecursively()
+        scope.launch(Dispatchers.IO) { apkDirectory.deleteRecursively() }
         mutableState.value = UpdateState.Failed(installFailureMessage(PackageInstaller.STATUS_FAILURE_ABORTED, null), feed)
     }
 
@@ -182,7 +182,7 @@ class UpdateManager private constructor(
         when (mutableState.value) {
             is UpdateState.Available, is UpdateState.NeedsPermission, is UpdateState.Failed -> {
                 mutableState.value = UpdateState.Idle
-                apkDirectory.deleteRecursively()
+                scope.launch(Dispatchers.IO) { apkDirectory.deleteRecursively() }
             }
             else -> Unit
         }
@@ -235,7 +235,7 @@ class UpdateManager private constructor(
             is UpdateState.Failed -> current.feed
             else -> null
         }
-        apkDirectory.deleteRecursively()
+        scope.launch(Dispatchers.IO) { apkDirectory.deleteRecursively() }
         if (status == PackageInstaller.STATUS_SUCCESS) {
             // Normally the process is replaced before this runs.
             mutableState.value = UpdateState.Idle

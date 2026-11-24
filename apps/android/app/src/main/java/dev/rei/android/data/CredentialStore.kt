@@ -20,10 +20,16 @@ import kotlinx.serialization.json.put
 
 class SavedConnection(val serverUrl: String, val token: String?)
 
-class CredentialStore(context: Context) {
+interface CredentialsGateway {
+    fun load(): SavedConnection?
+    fun save(serverUrl: String, token: String?)
+    fun clear()
+}
+
+class CredentialStore(context: Context) : CredentialsGateway {
     private val file = AtomicFile(File(context.noBackupFilesDir, "rei-connection"))
 
-    fun load(): SavedConnection? {
+    override fun load(): SavedConnection? {
         return runCatching {
             val encrypted = file.readFully()
             check(encrypted.size > IvBytes)
@@ -41,7 +47,7 @@ class CredentialStore(context: Context) {
         }.getOrNull()
     }
 
-    fun save(serverUrl: String, token: String?) {
+    override fun save(serverUrl: String, token: String?) {
         val normalized = ReiApi(serverUrl).serverUrl
         val plaintext = buildJsonObject {
             put("serverUrl", normalized)
@@ -64,7 +70,7 @@ class CredentialStore(context: Context) {
         }
     }
 
-    fun clear() {
+    override fun clear() {
         file.delete()
         deleteKey()
     }

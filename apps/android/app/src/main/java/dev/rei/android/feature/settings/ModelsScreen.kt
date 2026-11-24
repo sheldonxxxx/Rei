@@ -15,6 +15,7 @@ import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.SettingsGroup
 import dev.rei.android.ui.components.SettingsRow
@@ -66,7 +67,7 @@ internal fun limitPatch(label: String, context: String, maxOutput: String): Pair
 private suspend fun loadModels(api: ReiApi): ModelsData {
     val settings = api.request("GET", listOf("api", "settings", "models"))
     val catalog = api.models()
-    val providers = runCatching { api.request("GET", listOf("api", "providers")).objects("connections") }.getOrDefault(emptyList())
+    val providers = suspendRunCatching { api.request("GET", listOf("api", "providers")).objects("connections") }.getOrDefault(emptyList())
     return ModelsData(
         standard = settings.obj("standard").string("model"),
         fast = settings.obj("fast").string("model"),

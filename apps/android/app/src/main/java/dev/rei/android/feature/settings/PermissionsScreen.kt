@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +13,7 @@ import dev.rei.android.data.objects
 import dev.rei.android.data.obj
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
@@ -22,6 +22,9 @@ import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.icons.ReiIcons
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -83,19 +86,27 @@ private data class PermissionsData(
 
 private data class AgentLevel(val id: String, val name: String, val profile: ChatProfile)
 
-private suspend fun loadPermissions(api: ReiApi): PermissionsData {
-    val agentRows = api.request("GET", listOf("api", "agents")).objects("agents")
-    val grants = api.request("GET", listOf("api", "grants")).objects("grants").map { it.grant() }
-    val connectors = runCatching {
-        api.request("GET", listOf("api", "connectors")).objects("connectors").associate { it.string("id") to it.string("name") }
-    }.getOrDefault(emptyMap())
-    val titles = grants.mapNotNull { it.sessionId }.distinct().mapNotNull { id ->
-        runCatching { id to api.request("GET", listOf("api", "sessions", id, "summary")).obj("session").string("title") }.getOrNull()
-    }.toMap()
-    return PermissionsData(
+private suspend fun loadPermissions(api: ReiApi): PermissionsData = coroutineScope {
+    val agentsJob = async { api.request("GET", listOf("api", "agents")).objects("agents") }
+    val grantsJob = async { api.request("GET", listOf("api", "grants")).objects("grants").map { it.grant() } }
+    val connectorsJob = async {
+        suspendRunCatching {
+            api.request("GET", listOf("api", "connectors")).objects("connectors").associate { it.string("id") to it.string("name") }
+        }.getOrDefault(emptyMap())
+    }
+    val agentRows = agentsJob.await()
+    val grants = grantsJob.await()
+    val titles = grants.mapNotNull { it.sessionId }.distinct().map { id ->
+        async {
+            suspendRunCatching {
+                id to api.request("GET", listOf("api", "sessions", id, "summary")).obj("session").string("title")
+            }.getOrNull()
+        }
+    }.awaitAll().filterNotNull().toMap()
+    PermissionsData(
         agents = agentRows.map { AgentLevel(it.string("id"), it.string("name"), ChatProfile.fromWire(it.optionalString("defaultProfile"))) },
         grants = grants,
-        connectorNames = connectors,
+        connectorNames = connectorsJob.await(),
         agentNames = agentRows.associate { it.string("id") to it.string("name") },
         sessionTitles = titles,
     )
@@ -106,10 +117,8 @@ private suspend fun loadPermissions(api: ReiApi): PermissionsData {
  * advance, each revocable. The chat's permission sheet opens this screen.
  */
 @Composable
-fun PermissionsScreen(api: ReiApi, onBack: () -> Unit) {
-    var sandbox by rememberSaveable { mutableStateOf(false) }
-    BackHandler(sandbox) { sandbox = false }
-    if (sandbox) SandboxNetworkScreen(api) { sandbox = false } else PermissionsMain(api, onBack) { sandbox = true }
+fun PermissionsScreen(api: ReiApi, onOpenSandbox: () -> Unit, onBack: () -> Unit) {
+    PermissionsMain(api, onBack, onOpenSandbox)
 }
 
 @Composable
@@ -185,7 +194,7 @@ private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Un
 
 /** The sandbox whitelist: add or remove entries, save, or restore the defaults. The server checks every entry on save. */
 @Composable
-private fun SandboxNetworkScreen(api: ReiApi, onBack: () -> Unit) {
+fun SandboxNetworkScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
     val settings = rememberResource(api) {
         val body = api.request("GET", listOf("api", "settings", "sandbox-network"))

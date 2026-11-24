@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -21,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.data.objects
 import dev.rei.android.readUpTo
 import dev.rei.android.ui.components.ConfirmDialog
@@ -43,11 +43,8 @@ private const val MaxImportBytes = 8 * 1024 * 1024
  * belongs to; [openId] opens one skill straight away (a plugin's skill list).
  */
 @Composable
-fun SkillsScreen(api: ReiApi, onBack: () -> Unit, openId: String? = null, onOpenPlugin: ((String) -> Unit)? = null) {
-    var selected by rememberSaveable { mutableStateOf(openId) }
-    BackHandler(selected != null) { selected = null }
-    val id = selected
-    if (id != null) SkillDetailScreen(api, id, { selected = null }, onOpenPlugin) else SkillList(api, onBack) { selected = it }
+fun SkillsScreen(api: ReiApi, onOpenSkill: (String) -> Unit, onBack: () -> Unit) {
+    SkillList(api, onBack, onOpenSkill)
 }
 
 @Composable
@@ -56,7 +53,7 @@ private fun SkillList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit)
     val writes = rememberWrites()
     val data = rememberResource(api) {
         val skills = api.request("GET", listOf("api", "skills")).objects("skills").map { it.skillSummary() }
-        val agents = runCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList())
+        val agents = suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList())
         skills to agents
     }
     var creating by rememberSaveable { mutableStateOf(false) }
@@ -129,7 +126,7 @@ private fun SkillList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit)
 }
 
 @Composable
-private fun SkillDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onOpenPlugin: ((String) -> Unit)?) {
+fun SkillDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onOpenPlugin: ((String) -> Unit)?) {
     val writes = rememberWrites()
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     var missing by remember { mutableStateOf(false) }
@@ -140,7 +137,7 @@ private fun SkillDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onOpe
             if (failure.code == "not_found") { missing = true; null } else throw failure
         }
     }
-    val agents = rememberResource(api) { runCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
+    val agents = rememberResource(api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }

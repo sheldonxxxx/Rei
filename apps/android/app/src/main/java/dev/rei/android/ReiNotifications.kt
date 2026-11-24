@@ -1,7 +1,6 @@
 package dev.rei.android
 
 import android.Manifest
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,21 +13,15 @@ import androidx.core.content.edit
 import dev.rei.android.data.CredentialStore
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.optionalString
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-class ReiApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        ReiNotifications.ensureChannel(this)
-        ReiFirebase.initialize(this)
-    }
-}
-
-internal data class NotificationTarget(val sessionId: String, val messageId: String?)
+data class NotificationTarget(val sessionId: String, val messageId: String?)
 
 /** What a push message shows. The title falls back to the app name; the body can be empty when previews are off. */
 internal data class NotificationContent(val id: Int, val title: String, val body: String) {
@@ -112,8 +105,11 @@ internal object ReiNotifications {
         device != null && device == preferences(context).getString(Device, null) &&
             CredentialStore(context).load()?.let { it.token != null && it.serverUrl == preferences(context).getString(Server, null) } == true
 
-    fun open(context: Context, intent: Intent): NotificationTarget? {
-        if (intent.action != Open || !matchesDevice(context, intent.getStringExtra(Device))) return null
+    suspend fun open(context: Context, intent: Intent): NotificationTarget? {
+        if (intent.action != Open) return null
+        val device = intent.getStringExtra(Device)
+        val matched = withContext(Dispatchers.IO) { matchesDevice(context, device) }
+        if (!matched) return null
         val session = intent.getStringExtra(Session).orEmpty()
         return NotificationTarget(session, intent.getStringExtra(Message))
     }

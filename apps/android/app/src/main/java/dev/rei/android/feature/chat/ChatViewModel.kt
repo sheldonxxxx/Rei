@@ -1,15 +1,20 @@
 package dev.rei.android.feature.chat
 
-import android.app.Application
-import android.content.Context
-import androidx.lifecycle.AndroidViewModel
+import android.content.ContentResolver
+import android.content.SharedPreferences
+import android.net.Uri
+import androidx.core.content.edit
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import dev.rei.android.MessageTarget
-import dev.rei.android.ReiViewModel
 import dev.rei.android.chatDraftKey
+import dev.rei.android.data.ChatCatalogRepository
+import dev.rei.android.data.SessionRepository
+import dev.rei.android.data.uploadBody
+import dev.rei.android.di.AppContainer
+import dev.rei.android.di.AppDispatchers
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.ChatProfile
@@ -126,9 +131,13 @@ data class ChatUiState(
  * The open chat: its stream, drafts, attachments, sending and stopping, retry/edit/fork, versions, older history, read
  * markers and presence. The shell keeps only which chat is open (`ReiViewModel.state.sessionId`); this follows it.
  */
-class ChatViewModel(application: Application, private val source: ReiViewModel) : AndroidViewModel(application) {
-    private val local = application.getSharedPreferences("chat_state", Context.MODE_PRIVATE)
-    private val details = ShowDetailsStore.get(application)
+class ChatViewModel(
+    private val session: SessionRepository,
+    private val catalog: ChatCatalogRepository,
+    private val local: SharedPreferences,
+    private val details: ShowDetailsStore,
+    private val dispatchers: AppDispatchers = AppDispatchers(),
+) : ViewModel() {
     private val mutableState = MutableStateFlow(ChatUiState(showDetails = details.enabled.value))
     val state: StateFlow<ChatUiState> = mutableState.asStateFlow()
 
@@ -152,18 +161,20 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         viewModelScope.launch { details.enabled.collect { value -> mutableState.update { it.copy(showDetails = value) } } }
         viewModelScope.launch {
             // The catalog is the fallback for what the stream has not delivered yet: title, pin, the agent.
-            source.state.collect { shell ->
+            catalog.state.collect { shell ->
                 mutableState.update { chat ->
-                    val session = shell.sessions.firstOrNull { it.id == chat.sessionId }
-                    val agentId = (chat.detail?.session ?: session)?.agentId
-                    chat.copy(session = session ?: chat.session, agent = shell.agents.firstOrNull { it.id == agentId } ?: chat.agent)
+                    val item = shell.sessions.firstOrNull { it.id == chat.sessionId }
+                    val agentId = (chat.detail?.session ?: item)?.agentId
+                    chat.copy(session = item ?: chat.session, agent = shell.agents.firstOrNull { it.id == agentId } ?: chat.agent)
                 }
             }
         }
         viewModelScope.launch {
-            val subjects = source.state.map { Subject(it.api, it.sessionId) }.distinctUntilChanged()
+            val subjects = combine(session.api, catalog.state.map { it.sessionId }.distinctUntilChanged()) { api, id ->
+                Subject(api, id)
+            }.distinctUntilChanged()
             var opened: Subject? = null
-            combine(subjects, source.inForeground, visible, retryTick) { subject, foreground, shown, tick ->
+            combine(subjects, session.inForeground, visible, retryTick) { subject, foreground, shown, tick ->
                 Run(subject, foreground && shown, tick)
             }.distinctUntilChanged().collectLatest { (subject, active) ->
                 if (subject != opened) {
@@ -182,10 +193,10 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
                     throw failure
                 } catch (failure: Exception) {
                     if (failure is ReiApiException && failure.status == 404) {
-                        source.closeChat()
+                        catalog.closeChat()
                         mutableState.update { it.copy(notice = "This chat is no longer available.") }
                     } else if (failure is ReiApiException && failure.status in setOf(401, 426)) {
-                        source.reportFailure(failure)
+                        session.reportFailure(failure)
                     } else {
                         mutableState.update { it.copy(streamError = reason(failure), reconnecting = false) }
                     }
@@ -212,7 +223,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         lastRead = null
         val api = subject.api
         val id = subject.id
-        val shell = source.state.value
+        val shell = catalog.state.value
         val session = shell.sessions.firstOrNull { it.id == id }
         val fresh = ChatUiState(
             sessionId = id,
@@ -278,13 +289,13 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
             }
         }
         launch {
-            source.messageTarget.collect { resolveTarget(api, id) }
+            session.messageTarget.collect { resolveTarget(api, id) }
         }
         api.stream(id, connection = { up -> mutableState.update { if (up == it.reconnecting) it.copy(reconnecting = !up) else it } })
             .collect { event ->
                 if (current.sessionId != id) return@collect
                 when (event) {
-                    SessionEvent.Removed -> source.closeChat()
+                    SessionEvent.Removed -> catalog.closeChat()
                     is SessionEvent.Updated -> {
                         val detail = event.detail
                         mutableState.update { it.copy(detail = detail, session = detail.session, streamError = null, reconnecting = false) }
@@ -317,7 +328,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     }
 
     fun loadOlderActivity() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         val before = current.traceOlder ?: return
         viewModelScope.launch {
@@ -349,12 +360,12 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         try {
             api.presence(shown)
         } catch (failure: IOException) {
-            if (failure is ReiApiException && failure.status == 401) source.reportFailure(failure)
+            if (failure is ReiApiException && failure.status == 401) session.reportFailure(failure)
         }
     }
 
     private fun markLatestRead() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         if (!atBottom.value) return
         val latest = current.detail?.messages?.lastOrNull { it.role == "assistant" && it.createdAt > 0 } ?: return
@@ -369,7 +380,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
                 throw failure
             } catch (failure: IOException) {
                 lastRead = null
-                if (failure is ReiApiException && failure.status == 401) source.reportFailure(failure)
+                if (failure is ReiApiException && failure.status == 401) session.reportFailure(failure)
             }
         }
     }
@@ -377,12 +388,12 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     // ---- opening at a message ----------------------------------------------------------------------------------
 
     private suspend fun resolveTarget(api: ReiApi, id: String) {
-        val target = source.messageTarget.value?.takeIf { it.sessionId == id } ?: return
+        val target = session.messageTarget.value?.takeIf { it.sessionId == id } ?: return
         if (resolving || current.detail == null) return
         resolving = true
         try {
             var cursor = if (current.olderLoaded) current.olderCursor else current.detail?.before
-            while (current.sessionId == id && source.messageTarget.value == target) {
+            while (current.sessionId == id && session.messageTarget.value == target) {
                 if (current.messages.any { it.id == target.messageId }) {
                     mutableState.update { it.copy(focus = target.messageId) }
                     break
@@ -402,7 +413,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         } finally {
             resolving = false
         }
-        source.consumeMessageTarget(target)
+        session.consumeMessageTarget(target)
     }
 
     /** Scrolls the transcript to [messageId], as opening a chat from a notification does. */
@@ -415,7 +426,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     }
 
     fun loadOlder() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         if (current.loadingOlder) return
         val cursor = (if (current.olderLoaded) current.olderCursor else current.detail?.before) ?: return
@@ -441,9 +452,9 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
 
     fun editDraft(text: String) {
         typed = text
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
-        local.edit().putString(chatDraftKey(api.serverUrl, id), text).apply()
+        local.edit { putString(chatDraftKey(api.serverUrl, id), text) }
     }
 
     /** An unsent message goes back to the composer (unless you have already typed something new). */
@@ -473,9 +484,9 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     fun uploadFailed(message: String) = mutableState.update { it.copy(notice = message) }
 
     private fun updateAttachments(attachments: List<AttachmentRef>) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
-        local.edit().putString("${chatDraftKey(api.serverUrl, id)}:attachments", attachmentsJson(attachments)).apply()
+        local.edit { putString("${chatDraftKey(api.serverUrl, id)}:attachments", attachmentsJson(attachments)) }
         mutableState.update { it.copy(attachments = attachments) }
     }
 
@@ -485,7 +496,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     }
 
     fun loadSkills() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         if (current.skillsLoaded) return
         viewModelScope.launch {
@@ -507,7 +518,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     fun removeSkill(skill: SkillOption) = mutableState.update { it.copy(selectedSkills = it.selectedSkills - skill) }
 
     fun send() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         val text = typed.trim()
         val attachments = current.attachments
@@ -525,7 +536,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     }
 
     fun retrySend() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         val send = current.pending?.takeIf { it.failed } ?: return
         mutableState.update { it.copy(pending = send.copy(failed = false, error = null)) }
@@ -547,7 +558,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
 
     /** Give up on an unsent message: its text goes back to the composer. */
     fun discardPending() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         val send = current.pending ?: return
         clearPending(api, id, send.requestId)
@@ -565,7 +576,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
                 throw failure
             } catch (failure: ReiApiException) {
                 if (failure.status in setOf(401, 426)) {
-                    source.reportFailure(failure)
+                    session.reportFailure(failure)
                 } else if (failure.status in 400..499 && failure.status != 408) {
                     // Rei refused it: back to the composer with the reason.
                     clearPending(api, id, send.requestId)
@@ -596,7 +607,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     private fun clearPersisted(api: ReiApi, id: String, request: String) {
         val key = chatDraftKey(api.serverUrl, id)
         if (local.getString("$key:request", null) != request) return
-        local.edit().remove("$key:request").remove("$key:request:text").remove("$key:request:attachments").apply()
+        local.edit { remove("$key:request").remove("$key:request:text").remove("$key:request:attachments") }
     }
 
     private fun clearPending(api: ReiApi, id: String, request: String) {
@@ -605,7 +616,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     }
 
     fun stop() {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         mutableState.update { it.copy(stopping = true) }
         viewModelScope.launch {
@@ -628,18 +639,18 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     /** Edit a message you wrote: the chat rewinds to just before it and the new text runs there, as a new version. */
     fun edit(message: Message, text: String) = act { api, id ->
         val session = api.editMessage(id, message.id, text)
-        if (session.id != id) source.openChat(session.id)
+        if (session.id != id) catalog.openChat(session.id)
     }
 
     /** Run your message again from the same point. */
     fun retry(message: Message) = edit(message, message.text)
 
-    fun fork(message: Message) = act { api, id -> source.openChat(api.forkSession(id, message.id).id) }
+    fun fork(message: Message) = act { api, id -> catalog.openChat(api.forkSession(id, message.id).id) }
 
     fun switchVersion(message: Message, next: Boolean) = act { api, id -> api.switchVersion(id, message.id, next) }
 
     private fun act(block: suspend (ReiApi, String) -> Unit) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         viewModelScope.launch {
             try {
@@ -652,11 +663,27 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         }
     }
 
-    /** Decide an approval. The global and chat streams carry the result everywhere; the card reads the answer meanwhile. */
-    suspend fun decide(approval: ReiApproval, approve: Boolean, length: String, hours: Int?): ReiApproval {
-        val api = source.state.value.api ?: throw IOException("Not connected")
-        return api.decideApproval(approval.id, approve, length, hours)
+    /** Uploads a picked file into [sessionId] on [viewModelScope] so rotating mid-upload does not abort it. */
+    fun uploadAttachment(resolver: ContentResolver, sessionId: String, uri: Uri) {
+        val api = session.currentApi ?: return
+        viewModelScope.launch {
+            setUploading(true)
+            try {
+                val (name, body) = withContext(dispatchers.io) { resolver.uploadBody(uri) }
+                addAttachment(api.uploadAttachment(sessionId, name, body))
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                uploadFailed((failure as? ReiApiException)?.message ?: "Couldn’t attach that file. Try again.")
+            } finally {
+                setUploading(false)
+            }
+        }
     }
+
+    /** Decide an approval. Runs in the application scope so rotation does not cancel the HTTP request. */
+    suspend fun decide(approval: ReiApproval, approve: Boolean, length: String, hours: Int?): ReiApproval =
+        session.decideApproval(approval.id, approve, length, hours)
 
     // ---- agent settings and chat management ---------------------------------------------------------------------
 
@@ -665,7 +692,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     fun setEffort(level: String) = updateAgent { api, agent -> api.updateAgentSettings(agent.id, thinkingLevel = level) }
 
     private fun updateAgent(block: suspend (ReiApi, ChatAgent) -> ChatAgent) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val agent = current.agent ?: return
         viewModelScope.launch {
             try {
@@ -681,7 +708,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
 
     /** Choose this chat's permission level. [onSaved] runs once Rei has saved it; on failure the level goes back and [ChatUiState.profileError] says why. */
     fun setProfile(next: ChatProfile, onSaved: () -> Unit = {}) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         if (current.savingProfile) return
         if (next == current.profile) {
@@ -699,7 +726,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
             } catch (failure: Exception) {
                 if (failure is ReiApiException && failure.status in setOf(401, 426)) {
                     mutableState.update { if (it.sessionId == id) it.copy(profileChoice = null, savingProfile = false) else it }
-                    source.reportFailure(failure)
+                    session.reportFailure(failure)
                 } else {
                     mutableState.update { if (it.sessionId == id) it.failProfileChange(reason(failure)) else it }
                 }
@@ -711,11 +738,11 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
 
     fun setShowDetails(value: Boolean) = details.set(value)
 
-    fun rename(title: String) { current.sessionId?.let { source.renameChat(it, title) } }
+    fun rename(title: String) { current.sessionId?.let { catalog.renameChat(it, title) } }
 
-    fun pin(pinned: Boolean) { current.sessionId?.let { source.pinChat(it, pinned) } }
+    fun pin(pinned: Boolean) { current.sessionId?.let { catalog.pinChat(it, pinned) } }
 
-    fun delete() { current.sessionId?.let { source.deleteChat(it, deleteForks = false) } }
+    fun delete() { current.sessionId?.let { catalog.deleteChat(it, deleteForks = false) } }
 
     fun consumeNotice() = mutableState.update { it.copy(notice = null) }
 
@@ -723,7 +750,7 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
 
     private fun fail(failure: Exception) {
         if (failure is ReiApiException && failure.status in setOf(401, 426)) {
-            source.reportFailure(failure)
+            session.reportFailure(failure)
         } else {
             mutableState.update { it.copy(notice = reason(failure)) }
         }
@@ -738,8 +765,16 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
     private fun attachmentsJson(attachments: List<AttachmentRef>) = JsonArray(attachments.map { it.toJson() }).toString()
 
     companion object {
-        fun factory(source: ReiViewModel): ViewModelProvider.Factory = viewModelFactory {
-            initializer { ChatViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application, source) }
+        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                ChatViewModel(
+                    session = container.sessionRepository,
+                    catalog = container.chatCatalogRepository,
+                    local = container.chatPreferences,
+                    details = container.showDetailsStore,
+                    dispatchers = container.dispatchers,
+                )
+            }
         }
     }
 }

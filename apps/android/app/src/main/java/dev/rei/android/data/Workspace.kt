@@ -129,10 +129,15 @@ suspend fun ReiApi.setFileTrashed(id: String, trashed: Boolean): LibraryFile =
     request("PATCH", listOf("api", "files", id), buildJsonObject { put("trashed", trashed) }).obj("file").libraryFile()
 
 /** The bytes of one version, capped; null body means the server answered with no content. */
-suspend fun ReiApi.downloadVersionTo(fileId: String, versionId: String, output: OutputStream) {
+suspend fun ReiApi.downloadVersionTo(
+    fileId: String,
+    versionId: String,
+    output: OutputStream,
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
+) {
     val request: Request = fileRequest(fileId, versionId)
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        client.newCall(request).execute().use { response ->
+    with(ReiApi.Companion) {
+        client.executeStreaming(request, dispatcher) { response ->
             check(response.isSuccessful) { "Download failed (HTTP ${response.code})." }
             val content = checkNotNull(response.body) { "Download failed." }
             content.byteStream().use { it.copyTo(output) }

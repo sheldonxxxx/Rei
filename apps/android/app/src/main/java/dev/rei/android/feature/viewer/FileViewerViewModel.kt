@@ -1,30 +1,36 @@
 package dev.rei.android.feature.viewer
 
-import android.app.Application
 import android.content.ContentResolver
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryVersion
 import dev.rei.android.data.ReiApi
-import dev.rei.android.data.WorkspaceChanges
+import dev.rei.android.data.SessionRepository
+import dev.rei.android.data.UndoAction
+import dev.rei.android.data.WorkspaceRepository
 import dev.rei.android.data.downloadVersionTo
 import dev.rei.android.data.libraryDetail
 import dev.rei.android.data.setFileFavorite
 import dev.rei.android.data.setFileTrashed
+import dev.rei.android.di.AppContainer
+import dev.rei.android.di.AppDispatchers
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -56,40 +62,60 @@ data class ViewerUiState(
     val isLatest get() = shown == null || shown.versionId == detail?.file?.current?.versionId
 }
 
+sealed interface ViewerEvent {
+    data object Close : ViewerEvent
+}
+
 private const val MaxBytes = 25L * 1024 * 1024
 private const val MaxTextBytes = 1L * 1024 * 1024
+private const val KeyPendingDownloadVersionId = "viewer_pending_download_version_id"
+private const val KeyShownVersionId = "viewer_shown_version_id"
+private const val KeyCompatibility = "viewer_compatibility"
 
-/** The open file: its detail, the previewed version's content, favorite, Trash and download. One instance serves every open. */
-class FileViewerViewModel(application: Application, private val source: ReiViewModel) : AndroidViewModel(application) {
-    private val mutable = MutableStateFlow(ViewerUiState())
+/**
+ * The open file: its detail, the previewed version's content, favorite, Trash and download.
+ * Scoped to its NavBackStackEntry with [SavedStateHandle] so rotation keeps the downloaded preview and
+ * process death while the system `CreateDocument` picker is open completes the download on return.
+ */
+class FileViewerViewModel(
+    private val fileId: String,
+    pinnedVersionId: String?,
+    private val session: SessionRepository,
+    private val workspace: WorkspaceRepository,
+    private val savedStateHandle: SavedStateHandle,
+    private val dispatchers: AppDispatchers = AppDispatchers(),
+) : ViewModel() {
+    private val initialCompatibility = savedStateHandle.get<Boolean>(KeyCompatibility) ?: false
+    private val preferredVersionId = savedStateHandle.get<String>(KeyShownVersionId) ?: pinnedVersionId
+
+    private val mutable = MutableStateFlow(ViewerUiState(fileId = fileId, compatibility = initialCompatibility))
     val state: StateFlow<ViewerUiState> = mutable.asStateFlow()
+
+    private val eventsFlow = MutableSharedFlow<ViewerEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<ViewerEvent> = eventsFlow.asSharedFlow()
+
     private var load: Job? = null
-    private var pinned: String? = null
+    private val api: ReiApi? get() = session.currentApi
 
-    private val api: ReiApi? get() = source.state.value.api
-
-    /** Opens [fileId], on [versionId] when a chat attachment pins one. Re-opening what is already open does nothing. */
-    fun open(fileId: String, versionId: String?) {
-        val current = mutable.value
-        if (current.fileId == fileId && pinned == versionId && current.error == null) return
-        pinned = versionId
-        mutable.value = ViewerUiState(fileId = fileId)
-        loadDetail(fileId)
+    init {
+        loadDetail()
     }
 
-    /** The viewer closed: the next open loads fresh. */
-    fun forget() { load?.cancel(); pinned = null; mutable.value = ViewerUiState() }
+    fun retry() {
+        mutable.update { s -> s.copy(error = null) }
+        loadDetail()
+    }
 
-    fun retry() { mutable.value.fileId?.let { mutable.update { s -> s.copy(error = null) }; loadDetail(it) } }
-
-    private fun loadDetail(fileId: String) {
+    private fun loadDetail() {
         val api = api ?: return
         load?.cancel()
         load = viewModelScope.launch {
             try {
                 val detail = api.libraryDetail(fileId)
                 val versions = detail.versions.sortedByDescending { it.number }
-                val chosen = versions.firstOrNull { it.versionId == pinned } ?: detail.file.current
+                val targetVersionId = savedStateHandle.get<String>(KeyShownVersionId) ?: preferredVersionId
+                val chosen = versions.firstOrNull { it.versionId == targetVersionId } ?: detail.file.current
+                savedStateHandle[KeyShownVersionId] = chosen.versionId
                 mutable.update { it.copy(detail = detail.copy(versions = versions), shown = chosen) }
                 preview(api, chosen)
             } catch (failure: CancellationException) {
@@ -103,6 +129,8 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
     fun showVersion(version: LibraryVersion) {
         val api = api ?: return
         if (version.versionId == mutable.value.shown?.versionId) return
+        savedStateHandle[KeyShownVersionId] = version.versionId
+        savedStateHandle[KeyCompatibility] = false
         mutable.update { it.copy(shown = version, compatibility = false, content = ViewerContent.Loading) }
         load?.cancel()
         load = viewModelScope.launch { preview(api, version) }
@@ -114,6 +142,7 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
         val api = api ?: return
         val shown = mutable.value.shown ?: return
         val next = !mutable.value.compatibility
+        savedStateHandle[KeyCompatibility] = next
         mutable.update { it.copy(compatibility = next, content = ViewerContent.Loading) }
         load?.cancel()
         load = viewModelScope.launch { preview(api, shown) }
@@ -140,7 +169,7 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
                 }
                 PreviewKind.Image -> {
                     val (bytes, _) = fetch(api, version, MaxBytes, truncate = false, compat = false)
-                    val bitmap = withContext(Dispatchers.Default) { decodeImage(bytes) }
+                    val bitmap = withContext(dispatchers.default) { decodeImage(bytes) }
                     if (bitmap != null) ViewerContent.Picture(bitmap) else ViewerContent.Unavailable("This image can’t be previewed. Download it to open it in another app.")
                 }
                 PreviewKind.Pdf, PreviewKind.Office -> {
@@ -159,11 +188,11 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
     }
 
     /** Reads one version (or its compatibility PDF) under a cap; [truncate] keeps the first [limit] bytes instead of failing. */
-    private suspend fun fetch(api: ReiApi, version: LibraryVersion, limit: Long, truncate: Boolean, compat: Boolean): Pair<ByteArray, Boolean> =
-        withContext(Dispatchers.IO) {
-            val request = if (compat) api.authenticatedRequest(listOf("api", "files", version.fileId, "versions", version.versionId, "compatibility")).build()
-            else api.fileRequest(version.fileId, version.versionId)
-            api.client.newCall(request).execute().use { response ->
+    private suspend fun fetch(api: ReiApi, version: LibraryVersion, limit: Long, truncate: Boolean, compat: Boolean): Pair<ByteArray, Boolean> {
+        val request = if (compat) api.authenticatedRequest(listOf("api", "files", version.fileId, "versions", version.versionId, "compatibility")).build()
+        else api.fileRequest(version.fileId, version.versionId)
+        return with(ReiApi.Companion) {
+            api.client.executeStreaming(request, dispatchers.io) { response ->
                 check(response.isSuccessful) { "Preview failed (HTTP ${response.code})." }
                 val body = checkNotNull(response.body) { "Preview failed." }
                 val stream = body.source()
@@ -177,6 +206,7 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
                 }
             }
         }
+    }
 
     fun toggleFavorite() {
         val api = api ?: return
@@ -185,7 +215,7 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
             try {
                 val updated = api.setFileFavorite(file.id, !file.favorite)
                 mutable.update { it.copy(detail = it.detail?.copy(file = updated)) }
-                WorkspaceChanges.filesChanged()
+                workspace.notifyFilesChanged()
             } catch (failure: CancellationException) {
                 throw failure
             } catch (_: Exception) {
@@ -194,39 +224,64 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
         }
     }
 
-    /** Moves to (or restores from) Trash. [done] runs on success with the file's name; failure goes to [failed]. */
-    fun setTrashed(trashed: Boolean, done: (name: String) -> Unit, failed: (String) -> Unit) {
+    /** Moves to (or restores from) Trash; Undo runs in [WorkspaceRepository] so it outlives closing the viewer. */
+    fun setTrashed(trashed: Boolean) {
         val api = api ?: return
         val file = mutable.value.file ?: return
         viewModelScope.launch {
             try {
                 val updated = api.setFileTrashed(file.id, trashed)
                 mutable.update { it.copy(detail = it.detail?.copy(file = updated)) }
-                WorkspaceChanges.filesChanged()
-                done(file.name)
+                workspace.notifyFilesChanged()
+                if (trashed) {
+                    workspace.showNotice("Moved “${file.name}” to Trash", UndoAction.RestoreFile(file.id))
+                    eventsFlow.tryEmit(ViewerEvent.Close)
+                } else {
+                    workspace.showNotice("Restored ${file.name}")
+                }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                failed(failure.localizedMessage ?: if (trashed) "Could not move to Trash." else "Could not restore the file.")
+                val fallback = if (trashed) "Could not move to Trash." else "Could not restore the file."
+                workspace.showNotice(failure.localizedMessage ?: fallback)
             }
         }
     }
 
-    /** Streams [version] into the document the user picked. */
-    fun download(resolver: ContentResolver, destination: Uri, version: LibraryVersion, done: (String) -> Unit, failed: (String) -> Unit) {
+    /** Records the chosen version across process death before opening Android's CreateDocument picker. */
+    fun prepareDownload(version: LibraryVersion): String {
+        savedStateHandle[KeyPendingDownloadVersionId] = version.versionId
+        return version.name
+    }
+
+    /** Completes a pending download once Android's CreateDocument picker returns [destination] (or clears if cancelled). */
+    fun completeDownload(resolver: ContentResolver, destination: Uri?) {
+        if (destination == null) {
+            savedStateHandle.remove<String>(KeyPendingDownloadVersionId)
+            return
+        }
+        completeDownload { resolver.openOutputStream(destination, "wt") }
+    }
+
+    internal fun completeDownload(openOutput: () -> java.io.OutputStream?) {
+        val versionId = savedStateHandle.remove<String>(KeyPendingDownloadVersionId) ?: return
         val api = api ?: return
         mutable.update { it.copy(working = true) }
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    val output = checkNotNull(resolver.openOutputStream(destination, "wt")) { "Could not write to that location." }
-                    output.use { api.downloadVersionTo(version.fileId, version.versionId, it) }
+                val version = mutable.value.detail?.versions?.firstOrNull { it.versionId == versionId }
+                    ?: api.libraryDetail(fileId).let { detail ->
+                        detail.versions.firstOrNull { it.versionId == versionId } ?: detail.file.current
+                    }
+                withContext(dispatchers.io) {
+                    val output = checkNotNull(openOutput()) { "Could not write to that location." }
+                    output.use { api.downloadVersionTo(version.fileId, version.versionId, it, dispatchers.io) }
                 }
-                done(version.name)
+                workspace.showNotice("Saved ${version.name}")
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                failed(failure.localizedMessage ?: "Download failed.")
+                workspace.showNotice("Download failed: ${failure.localizedMessage ?: "Download failed."}")
             } finally {
                 mutable.update { it.copy(working = false) }
             }
@@ -243,8 +298,17 @@ class FileViewerViewModel(application: Application, private val source: ReiViewM
     }
 
     companion object {
-        fun factory(source: ReiViewModel): ViewModelProvider.Factory = viewModelFactory {
-            initializer { FileViewerViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application, source) }
+        fun factory(fileId: String, versionId: String?, container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                FileViewerViewModel(
+                    fileId = fileId,
+                    pinnedVersionId = versionId,
+                    session = container.sessionRepository,
+                    workspace = container.workspaceRepository,
+                    savedStateHandle = createSavedStateHandle(),
+                    dispatchers = container.dispatchers,
+                )
+            }
         }
     }
 }

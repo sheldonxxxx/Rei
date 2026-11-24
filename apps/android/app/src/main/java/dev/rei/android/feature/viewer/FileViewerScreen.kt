@@ -22,9 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,16 +35,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryVersion
 import dev.rei.android.data.ReiApi
-import dev.rei.android.data.WorkspaceChanges
-import dev.rei.android.data.setFileTrashed
+import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
-import dev.rei.android.ui.components.LocalNotices
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.SettingsGroup
@@ -61,27 +56,21 @@ import java.util.Date
 
 /** The full-screen viewer for one Library file. [versionId] pins a version (a chat attachment); [onClose] leaves it. */
 @Composable
-fun FileViewerScreen(model: ReiViewModel, api: ReiApi, fileId: String, versionId: String?, onClose: () -> Unit) {
-    val vm: FileViewerViewModel = viewModel(factory = FileViewerViewModel.factory(model))
-    LaunchedEffect(fileId, versionId) { vm.open(fileId, versionId) }
-    DisposableEffect(vm) { onDispose { vm.forget() } }
-    BackHandler(onBack = onClose)
+fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versionId: String?, onClose: () -> Unit) {
+    val vm: FileViewerViewModel = viewModel(factory = FileViewerViewModel.factory(fileId, versionId, container))
     val state by vm.state.collectAsStateWithLifecycle()
-    val notices = LocalNotices.current
     val context = LocalContext.current
-    var pendingDownload by remember { mutableStateOf<LibraryVersion?>(null) }
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
-        val version = pendingDownload
-        pendingDownload = null
-        if (uri != null && version != null) {
-            vm.download(
-                context.contentResolver, uri, version,
-                done = { notices?.show("Saved $it") },
-                failed = { notices?.show("Download failed: $it") },
-            )
+        vm.completeDownload(context.contentResolver, uri)
+    }
+    LaunchedEffect(vm) {
+        vm.events.collect { event ->
+            when (event) {
+                ViewerEvent.Close -> onClose()
+            }
         }
     }
-    fun download(version: LibraryVersion) { pendingDownload = version; saver.launch(version.name) }
+    fun download(version: LibraryVersion) { saver.launch(vm.prepareDownload(version)) }
 
     var info by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -95,9 +84,7 @@ fun FileViewerScreen(model: ReiViewModel, api: ReiApi, fileId: String, versionId
         onHistory = { history = true },
         onDownload = { state.shown?.let(::download) },
         onTrash = { confirmTrash = true },
-        onRestore = {
-            vm.setTrashed(false, done = { notices?.show("Restored $it") }, failed = { notices?.show(it) })
-        },
+        onRestore = { vm.setTrashed(false) },
         onRetry = { if (state.detail == null) vm.retry() else vm.reload() },
         onCompatibility = vm::toggleCompatibility,
         onShowLatest = vm::showLatest,
@@ -124,25 +111,7 @@ fun FileViewerScreen(model: ReiViewModel, api: ReiApi, fileId: String, versionId
             destructive = true,
             onConfirm = {
                 confirmTrash = false
-                vm.setTrashed(
-                    true,
-                    done = { name ->
-                        onClose()
-                        notices?.show("Moved “$name” to Trash", "Undo") {
-                            notices.launch {
-                                try {
-                                    api.setFileTrashed(fileId, false)
-                                    WorkspaceChanges.filesChanged()
-                                } catch (failure: kotlinx.coroutines.CancellationException) {
-                                    throw failure
-                                } catch (failure: Exception) {
-                                    notices.show(failure.localizedMessage ?: "Could not restore the file.")
-                                }
-                            }
-                        }
-                    },
-                    failed = { notices?.show(it) },
-                )
+                vm.setTrashed(true)
             },
             onDismiss = { confirmTrash = false },
         )

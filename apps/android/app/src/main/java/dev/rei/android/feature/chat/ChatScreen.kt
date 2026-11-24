@@ -146,7 +146,7 @@ private fun Conversation(
     val listState = rememberLazyListState()
     val snackbar = remember { SnackbarHostState() }
     val agentName = state.agent?.name ?: "Rei"
-    val pickers = rememberAttachmentPickers(api, sessionId, chat)
+    val pickers = rememberAttachmentPickers(sessionId, chat)
 
     LaunchedEffect(active) { chat.setVisible(active) }
     DisposableEffect(Unit) { onDispose { chat.setVisible(false) } }

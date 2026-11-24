@@ -1,9 +1,11 @@
 package dev.rei.android.feature.activity
 
-import dev.rei.android.ReiViewModel
+import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.ReiApi
+import dev.rei.android.data.ReiApproval
+import dev.rei.android.data.SessionRepository
 import dev.rei.android.data.objects
-import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -54,13 +56,18 @@ private data class Fetched(
  * `memory.changed`, reconnect and change in the waiting approvals.
  */
 @OptIn(FlowPreview::class)
-class ActivityStore(private val scope: CoroutineScope, private val source: ReiViewModel, private val clock: () -> Long = System::currentTimeMillis) {
+class ActivityStore(
+    private val scope: CoroutineScope,
+    private val session: SessionRepository,
+    private val catalog: ChatCatalogRepository,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
     private val fetched = MutableStateFlow(Fetched())
     private val flags = MutableStateFlow(Flags())
     private var notice = MutableStateFlow<String?>(null)
     private var fetchJob: Job? = null
 
-    val state: StateFlow<ActivityUiState> = combine(source.state, fetched, flags, notice) { live, data, flag, note ->
+    val state: StateFlow<ActivityUiState> = combine(catalog.state, fetched, flags, notice) { live, data, flag, note ->
         val titles = live.sessions.associate { it.id to it.title }
         ActivityUiState(
             feed = buildActivity(live.waitingApprovals, live.takeoverSessionIds, titles, data.jobs, data.triggers, data.changes, clock()),
@@ -71,27 +78,27 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
             notice = note,
             agentNames = live.agents.associate { it.id to it.name },
         )
-    }.stateIn(scope, SharingStarted.Eagerly, ActivityUiState())
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), ActivityUiState())
 
     init {
         scope.launch {
-            source.state.map { it.api }.distinctUntilChanged().collect { api ->
+            session.api.collect { api ->
                 fetchJob?.cancel()
                 fetched.value = Fetched()
                 if (api != null) load(api, pulled = false)
             }
         }
-        scope.launch { source.changes.debounce(400).collect { refresh(pulled = false) } }
+        scope.launch { session.changes.debounce(400).collect { refresh(pulled = false) } }
         scope.launch {
             // A trigger run starts waiting for you without any change notice: its approval is the sign.
-            source.state.map { live -> live.waitingApprovals.map { it.id }.toSet() + live.takeoverSessionIds }
+            catalog.state.map { live -> live.waitingApprovals.map { it.id }.toSet() + live.takeoverSessionIds }
                 .distinctUntilChanged().drop(1).debounce(400).collect { refresh(pulled = false) }
         }
     }
 
     /** Pull to refresh (or a change notice, with [pulled] false so the spinner stays still). */
     fun refresh(pulled: Boolean = true) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         load(api, pulled)
     }
 
@@ -110,16 +117,14 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
     }
 
     private suspend fun fetch(api: ReiApi, previous: Fetched): Fetched = coroutineScope {
-        val jobs = async { runCatching { parseJobs(api.request("GET", listOf("api", "background"))) } }
-        val triggers = async { runCatching { parseTriggers(api.request("GET", listOf("api", "triggers"))) } }
+        val jobs = async { suspendRunCatching { parseJobs(api.request("GET", listOf("api", "background"))) } }
+        val triggers = async { suspendRunCatching { parseTriggers(api.request("GET", listOf("api", "triggers"))) } }
         val jobResult = jobs.await()
         val triggerResult = triggers.await()
-        jobResult.exceptionOrNull()?.let { if (it is CancellationException) throw it }
-        triggerResult.exceptionOrNull()?.let { if (it is CancellationException) throw it }
         val list = jobResult.getOrNull() ?: previous.jobs
         val reviewIds = list.filter { it.status == "succeeded" }.sortedByDescending { it.finishedAt ?: it.createdAt }.take(ReviewsWithChanges).map { it.id }
         val details = reviewIds.map { id ->
-            async { id to runCatching { parseMemoryChanges(api.request("GET", listOf("api", "background", id)).objects("changes")) } }
+            async { id to suspendRunCatching { parseMemoryChanges(api.request("GET", listOf("api", "background", id)).objects("changes")) } }
         }.awaitAll()
         val failure = jobResult.exceptionOrNull() ?: triggerResult.exceptionOrNull()
         Fetched(
@@ -130,6 +135,9 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
             error = failure?.let { it.message ?: "Couldn’t load Background Activity." },
         )
     }
+
+    suspend fun decideApproval(approval: ReiApproval, approve: Boolean, length: String, hours: Int?): ReiApproval =
+        session.decideApproval(approval.id, approve, length, hours)
 
     fun retry(row: FailureRow) {
         val target = row.retry ?: return
@@ -150,7 +158,7 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
     fun dismissError() { flags.update { it.copy(error = null) } }
 
     private fun act(key: String, done: String, block: suspend (ReiApi) -> JsonObject) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         if (key in flags.value.busy) return
         flags.update { it.copy(busy = it.busy + key, error = null) }
         scope.launch {

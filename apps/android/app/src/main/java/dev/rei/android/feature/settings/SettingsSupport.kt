@@ -9,22 +9,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.rei.android.data.ReiApiException
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.text.NumberFormat
@@ -33,38 +35,88 @@ import java.util.Date
 /** Loaded data for a settings screen: [value] until it arrives is null; [reload] fetches again and keeps the old value showing. */
 @Stable
 class Resource<T> internal constructor(
-    private val state: androidx.compose.runtime.MutableState<T?>,
-    private val errorState: androidx.compose.runtime.MutableState<String?>,
-    private val loadingState: androidx.compose.runtime.MutableState<Boolean>,
-    private val revision: androidx.compose.runtime.MutableIntState,
+    private val state: MutableState<T?>,
+    private val errorState: MutableState<String?>,
+    private val loadingState: MutableState<Boolean>,
+    private val onReload: () -> Unit,
 ) {
     val value: T? get() = state.value
     val error: String? get() = errorState.value
     val loading: Boolean get() = loadingState.value
-    fun reload() { revision.intValue++ }
+    fun reload() = onReload()
     fun set(value: T?) { state.value = value }
+}
+
+/**
+ * Per-destination ViewModel backing Settings screens so network loads, in-flight writes, and form edits survive
+ * configuration changes instead of aborting in composition scopes.
+ */
+class SettingsScreenViewModel : ViewModel() {
+    val writes = Writes(viewModelScope)
+    private val resources = mutableMapOf<Int, Entry<Any?>>()
+    private val states = mutableMapOf<Int, MutableState<Any?>>()
+
+    private class Entry<T>(var key: Any?, private val scope: CoroutineScope, var loader: suspend () -> T) {
+        val state = mutableStateOf<T?>(null)
+        val error = mutableStateOf<String?>(null)
+        val loading = mutableStateOf(true)
+        var job: Job? = null
+        val resource = Resource(state, error, loading) { start() }
+
+        fun start() {
+            job?.cancel()
+            loading.value = true
+            job = scope.launch {
+                try {
+                    state.value = loader()
+                    error.value = null
+                } catch (failure: CancellationException) {
+                    throw failure
+                } catch (failure: Exception) {
+                    error.value = settingsError(failure)
+                } finally {
+                    loading.value = false
+                }
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    internal fun <T> resource(slot: Int, key: Any?, load: suspend () -> T): Resource<T> {
+        val existing = resources[slot] as? Entry<T>
+        if (existing == null) {
+            val created = Entry(key, viewModelScope, load)
+            resources[slot] = created as Entry<Any?>
+            created.start()
+            return created.resource
+        }
+        existing.loader = load
+        if (existing.key != key) {
+            existing.key = key
+            existing.state.value = null
+            existing.error.value = null
+            existing.start()
+        }
+        return existing.resource
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    internal fun <T> state(slot: Int, init: () -> T): MutableState<T> =
+        states.getOrPut(slot) { mutableStateOf(init() as Any?) } as MutableState<T>
 }
 
 @Composable
 fun <T> rememberResource(key: Any?, load: suspend () -> T): Resource<T> {
-    val state = remember(key) { mutableStateOf<T?>(null) }
-    val error = remember(key) { mutableStateOf<String?>(null) }
-    val loading = remember(key) { mutableStateOf(true) }
-    val revision = remember(key) { mutableIntStateOf(0) }
-    LaunchedEffect(key, revision.intValue) {
-        loading.value = true
-        try {
-            state.value = load()
-            error.value = null
-        } catch (failure: CancellationException) {
-            throw failure
-        } catch (failure: Exception) {
-            error.value = settingsError(failure)
-        } finally {
-            loading.value = false
-        }
-    }
-    return remember(key) { Resource(state, error, loading, revision) }
+    val vm: SettingsScreenViewModel = viewModel()
+    val slot = currentCompositeKeyHashCode.hashCode()
+    return vm.resource(slot, key, load)
+}
+
+@Composable
+internal fun <T> rememberSettingsState(init: () -> T): MutableState<T> {
+    val vm: SettingsScreenViewModel = viewModel()
+    val slot = currentCompositeKeyHashCode.hashCode()
+    return vm.state(slot, init)
 }
 
 /** Single-flight writes for a settings screen: [busy] while one runs, [error] after one failed. */
@@ -96,8 +148,8 @@ class Writes(private val scope: CoroutineScope) {
 
 @Composable
 fun rememberWrites(): Writes {
-    val scope = rememberCoroutineScope()
-    return remember { Writes(scope) }
+    val vm: SettingsScreenViewModel = viewModel()
+    return vm.writes
 }
 
 /**

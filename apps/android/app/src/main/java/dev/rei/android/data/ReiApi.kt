@@ -3,13 +3,19 @@ package dev.rei.android.data
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -387,7 +393,43 @@ class ReiApi(serverUrl: String, private val token: String? = null) {
             .followRedirects(false)
             .readTimeout(45, TimeUnit.SECONDS)
             .build()
-        val eventSources = EventSources.createFactory(http)
+        val sseHttp = http.newBuilder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+        val eventSources = EventSources.createFactory(sseHttp)
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        internal suspend fun <T> OkHttpClient.executeStreaming(
+            request: Request,
+            dispatcher: CoroutineDispatcher = Dispatchers.IO,
+            block: (Response) -> T,
+        ): T = withContext(dispatcher) {
+            val call = newCall(request)
+            val response = suspendCancellableCoroutine { continuation ->
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (continuation.isActive) continuation.resumeWithException(e)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        if (!continuation.isActive) {
+                            response.close()
+                            return
+                        }
+                        continuation.resume(response) { _, value, _ -> value.close() }
+                    }
+                })
+            }
+            val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+                if (cause != null) call.cancel()
+            }
+            try {
+                response.use(block)
+            } finally {
+                cancelHandle?.dispose()
+            }
+        }
 
         fun sessionPath(id: String): List<String> = listOf("api", "sessions", id)
 

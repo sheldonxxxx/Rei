@@ -1,7 +1,6 @@
 package dev.rei.android.feature.settings
 
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +50,7 @@ import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.ThemePreference
 
 /** The native settings sub-screens the index opens. */
+@kotlinx.serialization.Serializable
 enum class SettingsPage(val title: String) {
     General("General"),
     Appearance("Appearance"),
@@ -69,52 +69,6 @@ enum class SettingsPage(val title: String) {
     Plugins("Plugins"),
 }
 
-/**
- * Settings: the grouped index (account card, App, Security, Rei, Session) and the native sub-screens it opens. Back from a
- * sub-screen returns to the index; the shell handles back from the index.
- */
-@Composable
-fun SettingsScreen(
-    api: ReiApi,
-    serverUrl: String,
-    themePreference: ThemePreference,
-    onThemePreference: (ThemePreference) -> Unit,
-    onSignOut: () -> Unit,
-    onDisconnect: () -> Unit,
-    onOpenActivity: () -> Unit,
-    /** A page another screen asked for (the chat's permissions sheet opens Permissions); [onTargetShown] clears the request once it is open. */
-    target: SettingsPage? = null,
-    onTargetShown: () -> Unit = {},
-) {
-    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
-    // The plugin a skill belongs to, when the skill asked to open it; the index clears it.
-    var pluginId by rememberSaveable { mutableStateOf<String?>(null) }
-    val indexScroll = rememberScrollState()
-    androidx.compose.runtime.LaunchedEffect(target) {
-        if (target != null) { page = target; onTargetShown() }
-    }
-    BackHandler(page != null) { page = null }
-    val back = { page = null }
-    when (page) {
-        SettingsPage.Appearance -> AppearanceScreen(themePreference, onThemePreference, back)
-        SettingsPage.Notifications -> NotificationsScreen(api, back)
-        SettingsPage.Devices -> DevicesScreen(api, onSignOut, back)
-        SettingsPage.Passkeys -> PasskeysScreen(api, back)
-        SettingsPage.Memory -> MemoryScreen(api, onOpenActivity, back)
-        SettingsPage.Triggers -> TriggersScreen(api, back)
-        SettingsPage.Usage -> UsageScreen(api, back)
-        SettingsPage.Permissions -> PermissionsScreen(api, back)
-        SettingsPage.General -> GeneralScreen(api, back)
-        SettingsPage.Models -> ModelsScreen(api, back)
-        SettingsPage.Runtime -> RuntimeScreen(api, back)
-        SettingsPage.Providers -> ProvidersScreen(api, back)
-        SettingsPage.Connectors -> ConnectorsScreen(api, back)
-        SettingsPage.Skills -> SkillsScreen(api, back, onOpenPlugin = { pluginId = it; page = SettingsPage.Plugins })
-        SettingsPage.Plugins -> PluginsScreen(api, back, openId = pluginId)
-        null -> SettingsIndex(api, serverUrl, themePreference, { pluginId = null; page = it }, onSignOut, onDisconnect, indexScroll)
-    }
-}
-
 @Composable
 internal fun SettingsIndex(
     api: ReiApi,
@@ -127,14 +81,14 @@ internal fun SettingsIndex(
 ) {
     val context = LocalContext.current
     val details = remember { ShowDetailsStore.get(context) }
-    val showDetails by details.enabled.collectAsState()
+    val showDetails by details.enabled.collectAsStateWithLifecycle()
     val device = rememberResource(api) {
         api.request("GET", listOf("api", "devices")).objects("devices")
             .firstOrNull { it.optionalString("current") == "true" }?.string("label")
     }
     var confirm by rememberSaveable { mutableStateOf<String?>(null) }
     val updates = remember { UpdateManager.get(context) }
-    val updateState by updates.state.collectAsState()
+    val updateState by updates.state.collectAsStateWithLifecycle()
     val notices = LocalNotices.current
     androidx.compose.runtime.LaunchedEffect(updates, notices) {
         updates.messages.collect { notices?.show(it) }

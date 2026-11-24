@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -8,19 +7,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.string
 import dev.rei.android.ui.components.ConfirmDialog
+import dev.rei.android.ui.components.LocalNotices
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
 import dev.rei.android.ui.components.SettingsGroup
 import dev.rei.android.ui.components.SettingsRow
-import dev.rei.android.ui.components.StatusBanner
-import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.icons.ReiIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -30,7 +27,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-private enum class ProviderSection(val title: String) { Chat("Chat providers"), Embeddings("Embeddings"), Search("Web search") }
+@kotlinx.serialization.Serializable
+enum class ProviderSection(val title: String) { Chat("Chat providers"), Embeddings("Embeddings"), Search("Web search") }
 
 /**
  * Providers: where models come from. Chat connections, the embedding connection that Memory search uses, and the web search
@@ -38,56 +36,39 @@ private enum class ProviderSection(val title: String) { Chat("Chat providers"), 
  * shown again.
  */
 @Composable
-fun ProvidersScreen(api: ReiApi, onBack: () -> Unit) {
-    var section by rememberSaveable { mutableStateOf<ProviderSection?>(null) }
-    BackHandler(section != null) { section = null }
-    when (section) {
-        ProviderSection.Chat -> ChatProvidersScreen(api) { section = null }
-        ProviderSection.Embeddings -> EmbeddingScreen(api) { section = null }
-        ProviderSection.Search -> SearchProvidersScreen(api) { section = null }
-        null -> SubScreen("Providers", onBack) {
-            SettingsGroup {
-                SettingsRow("Chat providers", icon = ReiIcons.Globe, summary = "Connect OpenAI or a custom endpoint, then pick models under Models.", onClick = { section = ProviderSection.Chat }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Embeddings", icon = ReiIcons.Memory, summary = "How Memory search finds related notes.", onClick = { section = ProviderSection.Embeddings }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Web search", icon = ReiIcons.Search, summary = "Which search providers agents try, in order.", onClick = { section = ProviderSection.Search }, trailing = { SettingsChevron() })
-            }
+fun ProvidersScreen(onOpenSection: (ProviderSection) -> Unit, onBack: () -> Unit) {
+    SubScreen("Providers", onBack) {
+        SettingsGroup {
+            SettingsRow("Chat providers", icon = ReiIcons.Globe, summary = "Connect OpenAI or a custom endpoint, then pick models under Models.", onClick = { onOpenSection(ProviderSection.Chat) }, dividerBelow = true, trailing = { SettingsChevron() })
+            SettingsRow("Embeddings", icon = ReiIcons.Memory, summary = "How Memory search finds related notes.", onClick = { onOpenSection(ProviderSection.Embeddings) }, dividerBelow = true, trailing = { SettingsChevron() })
+            SettingsRow("Web search", icon = ReiIcons.Search, summary = "Which search providers agents try, in order.", onClick = { onOpenSection(ProviderSection.Search) }, trailing = { SettingsChevron() })
         }
     }
 }
 
 @Composable
-private fun ChatProvidersScreen(api: ReiApi, onBack: () -> Unit) {
+fun ChatProvidersScreen(api: ReiApi, onOpenForm: (kind: String, editingId: String?) -> Unit, onBack: () -> Unit) {
     val writes = rememberWrites()
     val rows = rememberResource(api) { providerRows(api.request("GET", listOf("api", "providers"))) }
-    // null: the list; otherwise the form being edited (a new connection or a saved one).
-    var form by remember { mutableStateOf<ProviderForm?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<ProviderRow?>(null) }
-    BackHandler(form != null) { form = null }
-    val current = form
-    if (current != null) {
-        ProviderEditor(api, current, { form = it }, rows::reload, { notice = it }) { form = null }
-    } else {
-        SubScreen("Chat providers", onBack, busy = writes.busy || rows.loading, error = writes.error ?: rows.error, onRetry = rows::reload) {
-            notice?.let { StatusBanner(it, kind = StatusKind.Info) }
-            val loaded = rows.value
-            if (loaded != null) {
-                SettingsGroup(title = "Connections") {
-                    if (loaded.isEmpty()) SettingsRow("No providers connected yet.")
-                    loaded.forEachIndexed { index, row ->
-                        SettingsRow(
-                            row.name,
-                            summary = listOf(providerSubtitle(row), if (row.connected) "Connected" else "Needs setup").filter { it.isNotEmpty() }.joinToString("\n"),
-                            onClick = { notice = null; form = editProviderForm(row) },
-                            dividerBelow = index < loaded.lastIndex,
-                            trailing = { ReiIconButton(ReiIcons.Trash, "Remove ${row.name}", { removing = row }) },
-                        )
-                    }
+    SubScreen("Chat providers", onBack, busy = writes.busy || rows.loading, error = writes.error ?: rows.error, onRetry = rows::reload) {
+        val loaded = rows.value
+        if (loaded != null) {
+            SettingsGroup(title = "Connections") {
+                if (loaded.isEmpty()) SettingsRow("No providers connected yet.")
+                loaded.forEachIndexed { index, row ->
+                    SettingsRow(
+                        row.name,
+                        summary = listOf(providerSubtitle(row), if (row.connected) "Connected" else "Needs setup").filter { it.isNotEmpty() }.joinToString("\n"),
+                        onClick = { onOpenForm(row.kind, row.id) },
+                        dividerBelow = index < loaded.lastIndex,
+                        trailing = { ReiIconButton(ReiIcons.Trash, "Remove ${row.name}", { removing = row }) },
+                    )
                 }
-                SettingsGroup {
-                    SettingsRow("Add OpenAI", icon = ReiIcons.Plus, onClick = { notice = null; form = newProviderForm(KindOpenAi) }, dividerBelow = true)
-                    SettingsRow("Add a custom endpoint", icon = ReiIcons.Plus, summary = "Any OpenAI-compatible server.", onClick = { notice = null; form = newProviderForm(KindCustom) })
-                }
+            }
+            SettingsGroup {
+                SettingsRow("Add OpenAI", icon = ReiIcons.Plus, onClick = { onOpenForm(KindOpenAi, null) }, dividerBelow = true)
+                SettingsRow("Add a custom endpoint", icon = ReiIcons.Plus, summary = "Any OpenAI-compatible server.", onClick = { onOpenForm(KindCustom, null) })
             }
         }
     }
@@ -104,6 +85,35 @@ private fun ChatProvidersScreen(api: ReiApi, onBack: () -> Unit) {
             onDismiss = { removing = null },
         )
     }
+}
+
+@Composable
+fun ProviderEditorScreen(api: ReiApi, kind: String, editingId: String?, onClose: () -> Unit) {
+    val notices = LocalNotices.current
+    val initialRow = rememberResource(editingId) {
+        if (editingId == null) null
+        else providerRows(api.request("GET", listOf("api", "providers"))).firstOrNull { it.id == editingId }
+    }
+    var form by rememberSettingsState<ProviderForm?> {
+        if (editingId == null) newProviderForm(kind) else null
+    }
+    val row = initialRow.value
+    LaunchedEffect(row) {
+        if (form == null && row != null) form = editProviderForm(row)
+    }
+    val current = form
+    if (current == null) {
+        SubScreen(if (editingId == null) "Add provider" else "Edit provider", onClose, busy = initialRow.loading, error = initialRow.error, onRetry = initialRow::reload) {}
+        return
+    }
+    ProviderEditor(
+        api = api,
+        form = current,
+        onForm = { form = it },
+        onSaved = {},
+        onNotice = { msg -> msg?.let { notices?.show(it) } },
+        onClose = onClose,
+    )
 }
 
 /** Add or edit one connection. The API key field starts empty and is cleared once the save request has gone out. */

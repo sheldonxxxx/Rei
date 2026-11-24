@@ -42,11 +42,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.LibraryFile
 import dev.rei.android.data.LibrarySort
 import dev.rei.android.data.LibraryTab
 import dev.rei.android.data.ReiApi
+import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.ReiPreviewSurface
@@ -69,8 +69,8 @@ private val FilterOrigins = listOf("upload" to "Uploaded", "agent" to "Agent-cre
 
 /** The Library destination: loads through [LibraryViewModel], opens files through [onOpen] (the shell's viewer). */
 @Composable
-fun LibraryScreen(model: ReiViewModel, api: ReiApi, onOpen: (LibraryFile) -> Unit) {
-    val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(model))
+fun LibraryScreen(container: AppContainer, api: ReiApi, onOpen: (LibraryFile) -> Unit) {
+    val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->

@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,11 +47,8 @@ internal fun statusLabel(status: String) = status.replace('_', ' ').replaceFirst
 
 /** Triggers: your agents' scheduled and event-driven work. Switch one on or off; open one for recent runs and Run now. */
 @Composable
-fun TriggersScreen(api: ReiApi, onBack: () -> Unit) {
-    var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    BackHandler(openId != null) { openId = null }
-    val id = openId
-    if (id != null) TriggerDetail(api, id) { openId = null } else TriggerList(api, onBack) { openId = it }
+fun TriggersScreen(api: ReiApi, onOpenTrigger: (String) -> Unit, onBack: () -> Unit) {
+    TriggerList(api, onBack, onOpenTrigger)
 }
 
 private fun pauseBody(active: Boolean) = buildJsonObject { put("paused", active) }
@@ -87,7 +83,7 @@ private fun TriggerList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Uni
 }
 
 @Composable
-private fun TriggerDetail(api: ReiApi, id: String, onBack: () -> Unit) {
+fun TriggerDetail(api: ReiApi, id: String, onBack: () -> Unit) {
     val writes = rememberWrites()
     val path = listOf("api", "triggers", id)
     val detail = rememberResource(id) {

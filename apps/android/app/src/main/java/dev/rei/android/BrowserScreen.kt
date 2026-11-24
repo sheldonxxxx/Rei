@@ -45,12 +45,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,281 +56,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.di.AppContainer
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.icons.ReiIcons
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import dev.rei.android.data.ReiApi
-import dev.rei.android.data.ReiApiException
-import dev.rei.android.data.objects
-import dev.rei.android.data.optionalString
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
-
-private data class LiveTakeover(val id: String, val status: String, val reason: String?)
-private data class PickOption(val label: String, val value: String, val selected: Boolean)
-private sealed interface BrowserPrompt {
-    data class Select(val options: List<PickOption>, val multiple: Boolean) : BrowserPrompt
-    data class Dialog(val kind: String, val message: String, val defaultPrompt: String?) : BrowserPrompt
-}
-private sealed interface SocketEvent {
-    data class Text(val raw: String) : SocketEvent
-    data class End(val code: Int) : SocketEvent
-}
-
-private class BrowserState {
-    var frame by mutableStateOf<Bitmap?>(null)
-    var viewport by mutableStateOf(PointF())
-    var url by mutableStateOf("")
-    var title by mutableStateOf("")
-    var control by mutableStateOf(false)
-    var ready by mutableStateOf(false)
-    var takeover by mutableStateOf<LiveTakeover?>(null)
-    var prompt by mutableStateOf<BrowserPrompt?>(null)
-    var status by mutableStateOf("Connecting…")
-    var socket: WebSocket? = null
-
-    fun disconnected() {
-        control = false
-        ready = false
-        frame = null
-        prompt = null
-    }
-
-    fun send(type: String, fields: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) {
-        if (!control || !ready) return
-        socket?.send(buildJsonObject {
-            put("type", type)
-            fields()
-        }.toString())
-    }
-
-    fun applyTakeover(data: JsonObject) {
-        val current = data["takeover"] as? JsonObject
-        takeover = current?.let {
-            LiveTakeover(it.optionalString("id").orEmpty(), it.optionalString("status").orEmpty(), it.optionalString("reason"))
-        }
-    }
-
-    fun text(raw: String): String? {
-        val message = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
-        fun updatePage() {
-            url = message.optionalString("url").orEmpty()
-            title = message.optionalString("title").orEmpty()
-        }
-        fun updateViewport(data: JsonObject) {
-            val w = data.optionalString("width")?.toFloatOrNull() ?: return
-            val h = data.optionalString("height")?.toFloatOrNull() ?: return
-            if (w > 0 && h > 0) viewport = PointF(w, h)
-        }
-        when (message.optionalString("type")) {
-            "hello" -> {
-                updatePage()
-                (message["viewport"] as? JsonObject)?.let(::updateViewport)
-                control = message.optionalString("control") == "true"
-                ready = true
-                status = ""
-            }
-            "page" -> updatePage()
-            "viewport" -> updateViewport(message)
-            "control" -> {
-                control = message.optionalString("control") == "true"
-                if (!control) prompt = null
-            }
-            "select" -> if (control) {
-                prompt = BrowserPrompt.Select(
-                    message.objects("options").map {
-                        PickOption(
-                            it.optionalString("label").orEmpty(),
-                            it.optionalString("value").orEmpty(),
-                            it.optionalString("selected") == "true",
-                        )
-                    },
-                    message.optionalString("multiple") == "true",
-                )
-            }
-            "dialog" -> if (control) {
-                prompt = BrowserPrompt.Dialog(
-                    message.optionalString("kind").orEmpty(), message.optionalString("message").orEmpty(),
-                    message.optionalString("defaultPrompt"),
-                )
-            }
-            "closed" -> return message.optionalString("reason") ?: "closed"
-        }
-        return null
-    }
-}
-
-private suspend fun BrowserState.collectLive(api: ReiApi, path: List<String>, refresh: suspend () -> Unit) {
-    var retryMs = 500L
-    while (true) {
-        disconnected()
-        status = if (retryMs == 500L) "Connecting…" else "Reconnecting…"
-        val events = Channel<SocketEvent>(32)
-        val frames = Channel<ByteString>(Channel.CONFLATED)
-        val connection = api.websocket(path + "live", object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                if (events.trySend(SocketEvent.Text(text)).isFailure) {
-                    events.close()
-                    webSocket.cancel()
-                }
-            }
-
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                frames.trySend(bytes)
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                events.trySend(SocketEvent.End(code))
-                events.close()
-                webSocket.close(code.takeIf { it != 1005 } ?: 1000, null)
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                events.trySend(SocketEvent.End(response?.code ?: 0))
-                events.close()
-            }
-        })
-        socket = connection
-        var retry = true
-        try {
-            coroutineScope {
-                var refreshJob: Job? = null
-                val frameReader = launch {
-                    for (bytes in frames) {
-                        val image = withContext(Dispatchers.Default) {
-                            val raw = bytes.toByteArray()
-                            BitmapFactory.decodeByteArray(raw, 0, raw.size)
-                        }
-                        if (image != null) frame = image
-                    }
-                }
-                try {
-                    for (event in events) {
-                        when (event) {
-                            is SocketEvent.Text -> {
-                                val wasReady = ready
-                                val previousControl = control
-                                val closed = runCatching { text(event.raw) }.getOrNull()
-                                if (closed != null) {
-                                    retry = closed == "restarted" || closed == "crashed"
-                                    status = if (closed == "no_window") "This chat has no browser window." else "The browser window closed."
-                                    break
-                                }
-                                if (ready && (!wasReady || control != previousControl)) {
-                                    retryMs = 500L
-                                    refreshJob?.cancel()
-                                    refreshJob = launch { refresh() }
-                                }
-                            }
-                            is SocketEvent.End -> {
-                                if (event.code in setOf(401, 403, 404, 426, 4401)) {
-                                    retry = false
-                                    status = if (event.code == 426) "Update Rei to open the live browser."
-                                    else "Rei denied access to this browser window."
-                                }
-                                break
-                            }
-                        }
-                    }
-                } finally {
-                    frameReader.cancel()
-                    refreshJob?.cancel()
-                }
-            }
-        } finally {
-            socket = null
-            connection.cancel()
-            events.cancel()
-            frames.cancel()
-            disconnected()
-        }
-        if (!retry) return
-        status = "Reconnecting…"
-        delay(retryMs)
-        retryMs = (retryMs * 2).coerceAtMost(8_000)
-    }
-}
 
 @Composable
-fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
-    val state = remember(api, sessionId) { BrowserState() }
-    val path = remember(sessionId) { listOf("api", "sessions", sessionId, "browser") }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit) {
+    val vm: BrowserViewModel = viewModel(factory = BrowserViewModel.factory(sessionId, container))
+    val state = vm.state
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var liveView by remember { mutableStateOf<RemoteViewport?>(null) }
-    var retry by remember { mutableIntStateOf(0) }
-    var busy by remember(api, sessionId) { mutableStateOf(false) }
-    var error by remember(api, sessionId) { mutableStateOf<String?>(null) }
-    var dragging by remember { mutableStateOf(false) }
-    var editAddress by remember { mutableStateOf(false) }
-    var ending by remember { mutableStateOf(false) }
-
-    suspend fun refresh() {
-        try {
-            state.applyTakeover(api.request("GET", path))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            // The live connection reports availability. Failed refreshes can be retried from the toolbar.
-        }
-    }
-
-    LaunchedEffect(api, sessionId, retry, lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            state.collectLive(api, path, ::refresh)
-        }
-    }
-
-    fun act(action: suspend () -> Unit) {
-        if (busy) return
-        scope.launch {
-            busy = true
-            error = null
-            try {
-                action()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ReiApiException) {
-                error = e.message
-                refresh()
-            } catch (_: Exception) {
-                error = "The browser action failed."
-            } finally {
-                busy = false
-            }
-        }
-    }
-
-    fun end(action: String, note: String) {
-        val takeover = state.takeover ?: return
-        act {
-            api.request("POST", listOf("api", "takeovers", takeover.id, "end"), buildJsonObject {
-                put("action", action)
-                if (note.isNotBlank()) put("note", note.trim().take(500))
-            })
-            state.takeover = null
-            ending = false
-        }
-    }
+    var dragging by rememberSaveable { mutableStateOf(false) }
+    var editAddress by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -356,30 +95,25 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
             }
             when {
                 state.control -> Button(
-                    onClick = { if (state.takeover == null) act { refresh(); ending = state.takeover != null } else ending = true },
-                    enabled = !busy,
+                    onClick = vm::requestReturnControl,
+                    enabled = !vm.busy,
                     modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp),
                 ) { Text("Return control") }
-                state.ready -> Button(onClick = {
-                    act {
-                        try {
-                            state.applyTakeover(api.request("POST", path + "takeover"))
-                        } catch (e: ReiApiException) {
-                            if (e.code != "already_active") throw e
-                            refresh()
-                        }
-                    }
-                }, enabled = !busy, modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp)) { Text("Take over") }
+                state.ready -> Button(
+                    onClick = vm::takeOver,
+                    enabled = !vm.busy,
+                    modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp),
+                ) { Text("Take over") }
             }
         }
 
         state.takeover?.takeIf { state.ready && it.status == "pending" }?.let { request ->
             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(request.reason ?: "The agent requested browser takeover.", Modifier.weight(1f))
-                TextButton(onClick = { ending = true }, enabled = !busy) { Text("Decline") }
+                TextButton(onClick = { vm.ending = true }, enabled = !vm.busy) { Text("Decline") }
             }
         }
-        error?.let { Text(it, Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
+        vm.error?.let { Text(it, Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
 
         if (state.control) {
             Row(
@@ -415,14 +149,14 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
             if (!state.ready || state.frame == null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(state.status.ifBlank { "Waiting for a browser frame…" }, color = androidx.compose.ui.graphics.Color.White)
-                    if (!state.ready) TextButton(onClick = { retry++ }) { Text("Reconnect") }
+                    if (!state.ready) TextButton(onClick = vm::reconnect) { Text("Reconnect") }
                 }
             }
         }
     }
 
     if (editAddress && state.control) {
-        var address by remember { mutableStateOf(state.url) }
+        var address by rememberSaveable(state.url) { mutableStateOf(state.url) }
         AlertDialog(
             onDismissRequest = { editAddress = false },
             title = { Text("Open address") },
@@ -437,22 +171,22 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
         )
     }
 
-    if (ending && state.takeover != null) {
-        var note by remember { mutableStateOf("") }
+    if (vm.ending && state.takeover != null) {
+        var note by rememberSaveable { mutableStateOf("") }
         val pending = state.takeover?.status == "pending"
         AlertDialog(
-            onDismissRequest = { if (!busy) ending = false },
+            onDismissRequest = { if (!vm.busy) vm.ending = false },
             title = { Text(if (pending) "Decline takeover" else "Return control") },
             text = { OutlinedTextField(note, { note = it.take(500) }, label = { Text("Note to agent (optional)") }) },
             confirmButton = {
-                Button(onClick = { end(if (pending) "cancel" else "done", note) }, enabled = !busy) {
+                Button(onClick = { vm.endTakeover(if (pending) "cancel" else "done", note) }, enabled = !vm.busy) {
                     Text(if (pending) "Decline" else "Done")
                 }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { ending = false }, enabled = !busy) { Text("Keep open") }
-                    if (!pending) TextButton(onClick = { end("cancel", note) }, enabled = !busy) { Text("Cancel takeover") }
+                    TextButton(onClick = { vm.ending = false }, enabled = !vm.busy) { Text("Keep open") }
+                    if (!pending) TextButton(onClick = { vm.endTakeover("cancel", note) }, enabled = !vm.busy) { Text("Cancel takeover") }
                 }
             },
         )

@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,15 +35,8 @@ import kotlinx.serialization.json.put
  * (a plugin's "Connection settings"); [fromPlugin] hides Remove, since a plugin's connections come and go with it.
  */
 @Composable
-fun ConnectorsScreen(api: ReiApi, onBack: () -> Unit, openId: String? = null, fromPlugin: Boolean = false) {
-    var selected by rememberSaveable { mutableStateOf(openId) }
-    BackHandler(selected != null && !(fromPlugin && selected == openId)) { selected = null }
-    val id = selected
-    if (id != null) {
-        ConnectorDetail(api, id, canRemove = !fromPlugin, onBack = if (fromPlugin && id == openId) onBack else ({ selected = null }))
-    } else {
-        ConnectorList(api, onBack) { selected = it }
-    }
+fun ConnectorsScreen(api: ReiApi, onOpenConnector: (String) -> Unit, onBack: () -> Unit) {
+    ConnectorList(api, onBack, onOpenConnector)
 }
 
 @Composable
@@ -119,7 +111,7 @@ private fun ConnectorList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> U
 }
 
 @Composable
-private fun ConnectorDetail(api: ReiApi, id: String, canRemove: Boolean, onBack: () -> Unit) {
+fun ConnectorDetail(api: ReiApi, id: String, canRemove: Boolean, onBack: () -> Unit) {
     val writes = rememberWrites()
     val loaded = rememberResource(id) {
         connectorList(api.request("GET", listOf("api", "connectors"))).firstOrNull { it.id == id }

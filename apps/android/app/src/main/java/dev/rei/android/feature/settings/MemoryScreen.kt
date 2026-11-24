@@ -1,6 +1,5 @@
 package dev.rei.android.feature.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +13,7 @@ import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.LocalNotices
@@ -46,11 +46,8 @@ internal data class MemoryEdit(val id: String, val op: String, val by: String, v
  * link to Memory review in Background Activity.
  */
 @Composable
-fun MemoryScreen(api: ReiApi, onOpenActivity: () -> Unit, onBack: () -> Unit) {
-    var historyOf by rememberSaveable { mutableStateOf<String?>(null) }
-    BackHandler(historyOf != null) { historyOf = null }
-    val id = historyOf
-    if (id != null) MemoryHistory(api, id) { historyOf = null } else MemoryList(api, onOpenActivity, onBack) { historyOf = it }
+fun MemoryScreen(api: ReiApi, onOpenActivity: () -> Unit, onOpenHistory: (String) -> Unit, onBack: () -> Unit) {
+    MemoryList(api, onOpenActivity, onBack, onOpenHistory)
 }
 
 @Composable
@@ -59,7 +56,7 @@ private fun MemoryList(api: ReiApi, onOpenActivity: () -> Unit, onBack: () -> Un
     val writes = rememberWrites()
     val memory = rememberResource(api) { parseMemory(api.request("GET", listOf("api", "memory"))) }
     val names = rememberResource(api) {
-        runCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
+        suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
     }
     var sheet by remember { mutableStateOf<MemoryEntry?>(null) }
     var editing by remember { mutableStateOf<MemoryEntry?>(null) }
@@ -144,7 +141,7 @@ private fun MemoryList(api: ReiApi, onOpenActivity: () -> Unit, onBack: () -> Un
                     val change = api.request("DELETE", listOf("api", "memory", "lines", entry.id)).obj("change").string("id")
                     notices?.show("Entry removed", "Undo") {
                         notices.launch {
-                            runCatching { api.request("POST", listOf("api", "memory", "changes", change, "undo")) }
+                            suspendRunCatching { api.request("POST", listOf("api", "memory", "changes", change, "undo")) }
                             memory.reload()
                         }
                     }
@@ -159,7 +156,7 @@ private fun androidx.compose.ui.Modifier.androidAddLabel(group: String) =
     this.then(androidx.compose.ui.Modifier.semantics { contentDescription = "Add an entry to $group" })
 
 @Composable
-private fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
+fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
     val writes = rememberWrites()
     val edits = rememberResource(lineId) {
         api.request("GET", listOf("api", "memory", "lines", lineId, "changes")).objects("changes").map {

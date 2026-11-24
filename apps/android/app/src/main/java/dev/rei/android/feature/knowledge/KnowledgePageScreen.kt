@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,14 +45,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.rei.android.ReiViewModel
 import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.data.ReiApi
-import dev.rei.android.data.restoreKnowledgePage
+import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
-import dev.rei.android.ui.components.LocalNotices
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.StatusBanner
@@ -67,16 +66,28 @@ import dev.rei.android.ui.theme.tabular
  * [onOpenPage] follows a breadcrumb or sub-page link; [onClose] leaves the screen.
  */
 @Composable
-fun KnowledgePageScreen(model: ReiViewModel, api: ReiApi, target: String, onOpenPage: (String) -> Unit, onClose: () -> Unit) {
-    val vm: KnowledgePageViewModel = viewModel(factory = KnowledgePageViewModel.factory(model))
-    LaunchedEffect(target) { vm.open(target) }
-    // Closing forgets the page, so opening it again loads it fresh.
-    DisposableEffect(vm) { onDispose { vm.forget() } }
+fun KnowledgePageScreen(
+    container: AppContainer,
+    api: ReiApi,
+    target: String,
+    onOpenPage: (String) -> Unit,
+    onClose: () -> Unit,
+    onDirtyChanged: (Boolean) -> Unit = {},
+) {
+    val vm: KnowledgePageViewModel = viewModel(factory = KnowledgePageViewModel.factory(target, container))
     val state by vm.state.collectAsStateWithLifecycle()
-    val notices = LocalNotices.current
-    val context = LocalContext.current
-    var discard by remember { mutableStateOf(false) }
+    var discard by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(vm) {
+        vm.events.collect { event ->
+            when (event) {
+                PageEvent.Close -> onClose()
+            }
+        }
+    }
+    LaunchedEffect(state.dirty) { onDirtyChanged(state.dirty) }
+    DisposableEffect(Unit) { onDispose { onDirtyChanged(false) } }
 
     fun back() {
         when {
@@ -85,7 +96,8 @@ fun KnowledgePageScreen(model: ReiViewModel, api: ReiApi, target: String, onOpen
             else -> onClose()
         }
     }
-    BackHandler(onBack = ::back)
+    // Only intercept system back when editing; otherwise NavHost drives native Predictive Back.
+    BackHandler(enabled = state.editing, onBack = ::back)
 
     KnowledgePageContent(
         state = state,
@@ -94,7 +106,7 @@ fun KnowledgePageScreen(model: ReiViewModel, api: ReiApi, target: String, onOpen
         onMenu = { menu = it },
         onBack = ::back,
         onEdit = vm::edit,
-        onSave = { vm.save() },
+        onSave = vm::save,
         onTitle = vm::setTitle,
         onDescription = vm::setDescription,
         onBody = vm::setBody,
@@ -105,27 +117,8 @@ fun KnowledgePageScreen(model: ReiViewModel, api: ReiApi, target: String, onOpen
         onRetry = vm::retry,
         onOpenPage = onOpenPage,
         onFavorite = vm::togglePinned,
-        onTrash = {
-            vm.trash(
-                done = { title, id ->
-                    onClose()
-                    notices?.show("Moved “$title” to Trash", "Undo") {
-                        notices.launch {
-                            try {
-                                api.restoreKnowledgePage(id)
-                                dev.rei.android.data.WorkspaceChanges.pagesChanged()
-                            } catch (failure: kotlinx.coroutines.CancellationException) {
-                                throw failure
-                            } catch (failure: Exception) {
-                                notices.show(failure.localizedMessage ?: "Could not restore the page.")
-                            }
-                        }
-                    }
-                },
-                failed = { notices?.show(it) },
-            )
-        },
-        onRestore = { vm.restore(done = { notices?.show("Restored “$it”") }, failed = { notices?.show(it) }) },
+        onTrash = vm::trash,
+        onRestore = vm::restore,
     )
     if (discard) {
         ConfirmDialog(

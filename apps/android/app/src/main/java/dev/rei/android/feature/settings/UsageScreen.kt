@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
 import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.SettingsChevron
 import dev.rei.android.ui.components.SettingsGroup
@@ -62,7 +63,7 @@ fun UsageScreen(api: ReiApi, onBack: () -> Unit) {
     var to by rememberSaveable { mutableStateOf(initial.second) }
     val problem = if (period == "custom") rangeProblem(from, to) else null
     val agents = rememberResource(api) {
-        runCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
+        suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
     }
     val usage = rememberResource(Triple(period, from.takeIf { period == "custom" }, to.takeIf { period == "custom" })) {
         if (problem != null) null
