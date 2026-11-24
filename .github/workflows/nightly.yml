@@ -1,0 +1,146 @@
+name: Nightly
+
+# Installs Rei the way a user does, from the npm package, against images built from main:
+#
+#   1. build the six images and push them to a registry on the runner, tagged like a release (<version>-nightly.<run>)
+#   2. build rei-ai pinned to their digests (scripts/cli-package.mjs, as release.yml does), npm pack it, install the
+#      tarball into a temporary prefix, then `rei setup --non-interactive`, `rei status`, `rei doctor` and the
+#      packaged smoke scripts, from a temporary REI_HOME
+#   3. remove that stack, set up the latest published rei-ai, and `rei upgrade` it to tonight's package: the upgrade a
+#      user makes. Skipped, with a notice, until a release beyond the 0.0.0 placeholder is on npm.
+#
+# Nothing is published and the workflow has no secrets: the registry lives and dies with the job.
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  HUSKY: "0"
+  REI_NO_UPDATE_CHECK: "1"
+
+jobs:
+  install:
+    name: install and upgrade from npm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    services:
+      # Pulls and digests work as they do from GHCR; Docker allows plain HTTP to a registry on localhost.
+      registry:
+        image: registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+        ports:
+          - 5000:5000
+    env:
+      IMAGES: localhost:5000/rei
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The control image copies the built web app.
+      - run: npm run build
+      - name: Name tonight's version and the temporary folders
+        run: |
+          set -euo pipefail
+          {
+            echo "VERSION=$(node -p 'require("./package.json").version')-nightly.${GITHUB_RUN_NUMBER}"
+            echo "REI_HOME=$RUNNER_TEMP/rei-home"
+            echo "PREFIX=$RUNNER_TEMP/prefix"
+          } >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/prefix/bin" >> "$GITHUB_PATH"
+      - name: Build and push the images
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/refs"
+          for name in control gateway reader egress exec browser; do
+            context=. file="containers/$name/Dockerfile"
+            if [ "$name" = browser ]; then context=containers/browser; fi
+            ref="$IMAGES/rei-$name:$VERSION"
+            docker build -t "$ref" -f "$file" "$context"
+            docker push "$ref"
+            digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" \
+              | grep "^$IMAGES/rei-$name@" | head -n 1 | cut -d@ -f2)
+            # The line images-merge writes in release.yml: name|reference|digest.
+            printf '%s|%s|%s\n' "$name" "$ref" "$digest" > "$RUNNER_TEMP/refs/$name.txt"
+          done
+          cat "$RUNNER_TEMP"/refs/*.txt
+      - name: Build, pack and install rei-ai
+        run: |
+          set -euo pipefail
+          node scripts/cli-package.mjs --version "$VERSION" --refs "$RUNNER_TEMP/refs" --require-digests \
+            --out "$RUNNER_TEMP/rei-ai"
+          npm pack "$RUNNER_TEMP/rei-ai" --pack-destination "$RUNNER_TEMP"
+          npm install -g --prefix "$PREFIX" "$RUNNER_TEMP/rei-ai-$VERSION.tgz"
+          [ "$(rei --version)" = "$VERSION" ]
+      - name: rei setup
+        run: rei setup --non-interactive
+      - name: rei status and doctor
+        run: |
+          set -euo pipefail
+          rei status
+          rei doctor
+      - name: Smoke scripts
+        run: |
+          set -euo pipefail
+          "$REI_HOME/smoke-exec.sh"
+          "$REI_HOME/smoke-browser.sh"
+      - name: Logs on failure
+        if: ${{ failure() }}
+        run: |
+          cd "$REI_HOME" || exit 0
+          for file in compose.dodai.yaml compose.yaml; do
+            docker compose --env-file .env --env-file .secrets/secrets.env -f "$file" ps -a
+            docker compose --env-file .env --env-file .secrets/secrets.env -f "$file" logs --tail 200
+          done
+
+      # ---- the upgrade from the latest published release
+      - name: Find the latest published release
+        id: previous
+        run: |
+          set -euo pipefail
+          previous=$(npm view rei-ai dist-tags.latest 2>/dev/null || true)
+          if [ -z "$previous" ] || [ "$previous" = 0.0.0 ]; then
+            echo "::notice title=Upgrade test skipped::No rei-ai release is on npm yet (only the 0.0.0 placeholder, or nothing), so there is nothing to upgrade from."
+            echo "version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Upgrading from rei-ai $previous."
+            echo "version=$previous" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Remove tonight's stack
+        if: ${{ steps.previous.outputs.version != '' }}
+        run: |
+          set -euo pipefail
+          cd "$REI_HOME"
+          docker compose --env-file .env --env-file .secrets/secrets.env -f compose.yaml down -v --remove-orphans
+          docker compose --env-file .env --env-file .secrets/secrets.env -f compose.dodai.yaml down -v --remove-orphans
+          docker volume ls -q | grep '^rei_' | xargs -r docker volume rm
+          cd / && rm -rf "$REI_HOME"
+      - name: Set up the latest release
+        if: ${{ steps.previous.outputs.version != '' }}
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm install -g --prefix "$PREFIX" "rei-ai@$PREVIOUS"
+          rei setup --non-interactive
+      - name: rei upgrade to tonight's package
+        if: ${{ steps.previous.outputs.version != '' }}
+        run: |
+          set -euo pipefail
+          npm install -g --prefix "$PREFIX" "$RUNNER_TEMP/rei-ai-$VERSION.tgz"
+          rei upgrade
+          [ "$(cat "$REI_HOME/.installed-version")" = "$VERSION" ]
+          "$REI_HOME/smoke-exec.sh"
