@@ -51,6 +51,18 @@ it("saves a changed sandbox network mode", async () => {
   await waitFor(() => expect(update).toHaveBeenCalledWith(expect.any(String), { networkMode: "any" }));
 });
 
+it("opts in to creating triggers for other agents", async () => {
+  const update = setup();
+  const permission = screen.getByRole("switch", { name: "Create triggers for other agents" });
+  expect(permission.getAttribute("aria-checked")).toBe("false");
+  fireEvent.click(permission);
+  expect(permission.getAttribute("aria-checked")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith(expect.any(String), { canCreateTriggersForOtherAgents: true }),
+  );
+});
+
 it("restores all connectors and preserves an existing list on load failure", async () => {
   const update = setup(["notes", "removed"], true);
   expect((await screen.findByRole("alert")).textContent).toContain("Could not load connectors");

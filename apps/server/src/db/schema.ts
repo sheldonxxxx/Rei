@@ -51,7 +51,8 @@ CREATE TABLE agents (
         created_at INTEGER NOT NULL
       , default_profile TEXT NOT NULL DEFAULT 'standard', model TEXT, allowed_connector_ids TEXT, thinking_level TEXT NOT NULL DEFAULT 'off'
       CHECK (thinking_level IN ('off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')),
-        network_mode TEXT NOT NULL DEFAULT 'block' CHECK (network_mode IN ('block', 'whitelist', 'any')));
+        network_mode TEXT NOT NULL DEFAULT 'block' CHECK (network_mode IN ('block', 'whitelist', 'any')),
+        can_create_triggers_for_other_agents INTEGER NOT NULL DEFAULT 0 CHECK (can_create_triggers_for_other_agents IN (0, 1)));
 
 CREATE TABLE session_trees (
         id TEXT PRIMARY KEY,
@@ -1183,6 +1184,13 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
       ensureApprovalCheckpointColumns(db);
       db.exec(SESSION_IMPORTS_SCHEMA);
       db.exec(BACKUP_SCHEMA);
+      if (
+        !db
+          .all<{ name: string }>("PRAGMA table_info(agents)")
+          .some((c) => c.name === "can_create_triggers_for_other_agents")
+      )
+        db.exec(`ALTER TABLE agents ADD COLUMN can_create_triggers_for_other_agents INTEGER NOT NULL DEFAULT 0
+          CHECK (can_create_triggers_for_other_agents IN (0, 1))`);
       return false;
     }
     if (version !== 0) throw new Error(refusal(version));

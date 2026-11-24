@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -87,6 +88,7 @@ fun SettingsScreen(
     var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     // The plugin a skill belongs to, when the skill asked to open it; the index clears it.
     var pluginId by rememberSaveable { mutableStateOf<String?>(null) }
+    val indexScroll = rememberScrollState()
     androidx.compose.runtime.LaunchedEffect(target) {
         if (target != null) { page = target; onTargetShown() }
     }
@@ -108,7 +110,7 @@ fun SettingsScreen(
         SettingsPage.Connectors -> ConnectorsScreen(api, back)
         SettingsPage.Skills -> SkillsScreen(api, back, onOpenPlugin = { pluginId = it; page = SettingsPage.Plugins })
         SettingsPage.Plugins -> PluginsScreen(api, back, openId = pluginId)
-        null -> SettingsIndex(api, serverUrl, themePreference, { pluginId = null; page = it }, onSignOut, onDisconnect)
+        null -> SettingsIndex(api, serverUrl, themePreference, { pluginId = null; page = it }, onSignOut, onDisconnect, indexScroll)
     }
 }
 
@@ -120,6 +122,7 @@ internal fun SettingsIndex(
     onOpen: (SettingsPage) -> Unit,
     onSignOut: () -> Unit,
     onDisconnect: () -> Unit,
+    scroll: ScrollState = rememberScrollState(),
 ) {
     val context = LocalContext.current
     val details = remember { ShowDetailsStore.get(context) }
@@ -135,7 +138,6 @@ internal fun SettingsIndex(
     androidx.compose.runtime.LaunchedEffect(updates, notices) {
         updates.messages.collect { notices?.show(it) }
     }
-    val scroll = rememberScrollState()
     Column(Modifier.fillMaxSize()) {
         ReiTopBar("", scrolled = scroll.value > 0)
         Column(

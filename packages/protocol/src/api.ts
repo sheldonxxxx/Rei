@@ -297,19 +297,13 @@ export interface UpdateAgentResponse {
   agent: Agent;
 }
 
-/** Longest description accepted by POST /api/agents, in characters. */
-export const AGENT_DESCRIPTION_MAX_CHARS = 500;
+/** Longest agent name accepted when creating or editing an agent. */
+export const AGENT_NAME_MAX_CHARS = 40;
 
-/**
- * POST /api/agents: make a new agent from one sentence ("a social media manager"). A model writes the name, avatar
- * emoji and instructions. Answers `{ agent, session }` (the agent and its home chat) and sends `agent.upserted` and
- * `session.upserted`.
- * Errors: "bad_request" (an empty or over-500-character description), "design_failed" (502: the model errored, was over
- * its limit, timed out or wrote something unreadable; nothing is created). A server in faux mode has no model and makes
- * a plain design from the description instead.
- */
+/** POST /api/agents creates an agent and its home chat using the supplied identity. */
 export interface CreateAgentRequest {
-  description: string;
+  name: string;
+  avatar: string;
 }
 export interface CreateAgentResponse {
   agent: Agent;

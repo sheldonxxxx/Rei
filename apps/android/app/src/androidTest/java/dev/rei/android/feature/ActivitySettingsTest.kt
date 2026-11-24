@@ -1,9 +1,15 @@
 package dev.rei.android.feature
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -27,6 +33,7 @@ import dev.rei.android.feature.activity.RetryTarget
 import dev.rei.android.feature.activity.RunningRow
 import dev.rei.android.feature.settings.AppearanceScreen
 import dev.rei.android.feature.settings.SettingsIndex
+import dev.rei.android.feature.settings.SettingsScreen
 import dev.rei.android.shell.Destination
 import dev.rei.android.shell.DrawerMode
 import dev.rei.android.shell.LocalShell
@@ -192,6 +199,32 @@ class ActivitySettingsTest {
         compose.onNodeWithText("System").assertIsSelected()
         compose.onNodeWithText("Dark").performClick()
         assertEquals(ThemePreference.Dark, chosen)
+    }
+
+    @Test
+    fun returningFromSubScreenKeepsScrollPosition() {
+        compose.setContent {
+            ReiTheme {
+                CompositionLocalProvider(LocalShell provides ShellController(Destination.Settings, DrawerMode.Modal, {}, {}, {})) {
+                    Box(Modifier.size(360.dp, 400.dp)) {
+                        SettingsScreen(
+                            api = ReiApi("http://127.0.0.1:1"),
+                            serverUrl = "http://127.0.0.1:1",
+                            themePreference = ThemePreference.System,
+                            onThemePreference = {},
+                            onSignOut = {},
+                            onDisconnect = {},
+                            onOpenActivity = {},
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("Plugins").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Plugins").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Plugins").assertIsDisplayed()
+        compose.onNodeWithText("Settings").assertIsNotDisplayed()
     }
 }
 

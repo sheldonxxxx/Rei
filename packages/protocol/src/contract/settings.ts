@@ -70,10 +70,18 @@ const ThinkingLevelSchema = oneOf(THINKING_LEVELS);
 
 // ---- agents ---------------------------------------------------------------------------------------------------------
 
-export const CreateAgentRequestSchema = obj({
-  description: str({ description: "One sentence: what the agent is for." }),
+const AgentIdentitySchema = obj({
+  name: str({ description: "The chosen agent name." }),
+  avatar: str({ description: "The chosen agent avatar." }),
 });
-true satisfies Same<Static<typeof CreateAgentRequestSchema>, CreateAgentRequest>;
+true satisfies Same<Static<typeof AgentIdentitySchema>, CreateAgentRequest>;
+export const CreateAgentRequestSchema = union([
+  AgentIdentitySchema,
+  obj(
+    { description: str({ description: "Legacy description used to derive a name locally." }) },
+    { description: "Compatibility request for older clients." },
+  ),
+]);
 export const CreateAgentResponseSchema = obj({ agent: AgentSchema, session: SessionSchema });
 true satisfies Same<Static<typeof CreateAgentResponseSchema>, CreateAgentResponse>;
 export const UpdateAgentRequestSchema = obj({
@@ -84,6 +92,7 @@ export const UpdateAgentRequestSchema = obj({
   networkMode: opt(oneOf(SANDBOX_NETWORK_MODES)),
   defaultProfile: opt(ProfileNameSchema),
   allowedConnectorIds: opt(nullable(arr(str({ minLength: 1, maxLength: 200 }), { maxItems: 1000 }))),
+  canCreateTriggersForOtherAgents: opt(bool()),
   instructions: opt(str()),
 });
 true satisfies Same<Static<typeof UpdateAgentRequestSchema>, UpdateAgentRequest>;
@@ -100,9 +109,9 @@ export const createAgentRoute = defineRoute({
   method: "POST",
   path: "/api/agents",
   tag: "agents",
-  summary: "Make a new agent from one sentence; a model writes its name, avatar and instructions.",
+  summary: "Create an agent with a chosen name and avatar.",
   description:
-    'Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: "bad_request" (an empty or over-500-character description), "design_failed" (502).',
+    'Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: "bad_request", "bad_avatar".',
   body: CreateAgentRequestSchema,
   response: CreateAgentResponseSchema,
 });

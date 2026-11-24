@@ -31,7 +31,6 @@ import { Embedder, type EmbedderConfig, type EmbedderDeps } from "./memory/embed
 import { MemoryService, type MemoryServiceDeps } from "./memory/service.ts";
 import { NotificationService } from "./notify/service.ts";
 import { PiAdapter } from "./pi/adapter.ts";
-import { AgentDesigner } from "./pi/agent-designer.ts";
 import { type BehaviorDefaults, behaviorSettings } from "./pi/behavior-settings.ts";
 import { ModelCatalog } from "./pi/catalog.ts";
 import { savedTimeZone } from "./pi/clock-context.ts";
@@ -591,19 +590,6 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
     gatewayUrl: config.gatewayUrl,
     fetchImpl: deps.fetchImpl,
   });
-  // A new agent is written by the chat-titles model (Settings), else the fast default.
-  const designer = new AgentDesigner({
-    runtime,
-    recorder,
-    clock,
-    log,
-    gatewayUrl: config.gatewayUrl,
-    fetchImpl: deps.fetchImpl,
-    model: async () => {
-      const settings = await titles.settings();
-      return settings.model ?? settings.default;
-    },
-  });
   const modelCatalog = new ModelCatalog({ store, modelsConfig: deps.modelsConfig, runtime });
   let knowledgeSweep: ReturnType<typeof setInterval> | undefined;
   const eventReceiver = eventSources
@@ -666,7 +652,6 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
         trees.syncCodemode();
       },
     },
-    designer,
     modelCatalog,
     mcp,
     providers,

@@ -275,6 +275,9 @@
               }
             ]
           },
+          "canCreateTriggersForOtherAgents": {
+            "type": "boolean"
+          },
           "homeSessionId": {
             "type": "string",
             "description": "The agent's pinned home chat."
@@ -5813,8 +5816,8 @@
         "tags": [
           "agents"
         ],
-        "summary": "Make a new agent from one sentence; a model writes its name, avatar and instructions.",
-        "description": "Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: \"bad_request\" (an empty or over-500-character description), \"design_failed\" (502).",
+        "summary": "Create an agent with a chosen name and avatar.",
+        "description": "Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: \"bad_request\", \"bad_avatar\".",
         "responses": {
           "200": {
             "description": "OK",
@@ -5916,17 +5919,40 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "description": {
-                    "type": "string",
-                    "description": "One sentence: what the agent is for."
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The chosen agent name."
+                      },
+                      "avatar": {
+                        "type": "string",
+                        "description": "The chosen agent avatar."
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "avatar"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "description": {
+                        "type": "string",
+                        "description": "Legacy description used to derive a name locally."
+                      }
+                    },
+                    "required": [
+                      "description"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Compatibility request for older clients."
                   }
-                },
-                "required": [
-                  "description"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }
@@ -6106,6 +6132,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "canCreateTriggersForOtherAgents": {
+                    "type": "boolean"
                   },
                   "instructions": {
                     "type": "string"

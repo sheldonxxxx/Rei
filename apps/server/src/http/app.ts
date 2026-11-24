@@ -8,7 +8,7 @@ import type {
   UpdateModelSettingsRequest,
 } from "@rei/protocol";
 import {
-  AGENT_DESCRIPTION_MAX_CHARS,
+  AGENT_NAME_MAX_CHARS,
   type AgentSettingsPatch,
   addMemoryLineRoute,
   agentInstructionsRoute,
@@ -214,7 +214,7 @@ import { normaliseLine } from "../memory/lines.ts";
 import type { MemoryService } from "../memory/service.ts";
 import type { NotificationService } from "../notify/service.ts";
 import type { PiAdapter } from "../pi/adapter.ts";
-import type { AgentDesigner } from "../pi/agent-designer.ts";
+import { legacyAgentIdentity } from "./legacy-agent-identity.ts";
 
 const INSTRUCTIONS_MAX = 8_000;
 
@@ -282,8 +282,6 @@ export interface AppDeps {
   background?: BackgroundTaskService;
   /** Defaults behind Settings > Behavior, and what to do when it changes (GET and PUT /api/settings/behavior). */
   behavior?: { defaults: BehaviorDefaults; onChange?: (settings: BehaviorSettings) => void };
-  /** Writes a new agent's name, avatar and instructions (POST /api/agents). */
-  designer?: AgentDesigner;
   /** Profile docs and history search. */
   memory?: MemoryService;
   /** Knowledge: shared long-term pages. */
@@ -316,6 +314,23 @@ export interface AppDeps {
 
 const COOKIE_MAX_AGE_S = 30 * 24 * 3600;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function agentName(value: string): string {
+  const name = value.trim();
+  if (name === "" || name.length > AGENT_NAME_MAX_CHARS)
+    throw badRequest("bad_request", `The name must be 1 to ${AGENT_NAME_MAX_CHARS} characters.`);
+  return name;
+}
+
+function agentAvatar(value: string): string {
+  const avatar = normalizeAvatar(value);
+  if (avatar === null)
+    throw badRequest(
+      "bad_avatar",
+      "The avatar must be a built-in bot (bot:<id>), a small png, jpeg or webp picture, or an emoji of at most 8 characters.",
+    );
+  return avatar;
+}
 
 /** A model id the user chose: 1 to 100 characters, no spaces. */
 function modelId(value: unknown): string {
@@ -670,12 +685,16 @@ export function createApp(deps: AppDeps): Hono {
     if (!target || !store.getAgent(target)) throw badRequest("unknown_agent", "That agent does not exist.");
     return { session: adapter.createSession(target) };
   });
-  mountRoute(app, createAgentRoute, contract, async (_c, { body }) => {
-    if (!deps.designer) throw notFound("Creating agents is not available.");
-    const description = body.description.trim();
-    if (description === "" || description.length > AGENT_DESCRIPTION_MAX_CHARS)
-      throw badRequest("bad_request", `The description must be 1 to ${AGENT_DESCRIPTION_MAX_CHARS} characters.`);
-    return adapter.createAgent(await deps.designer.design(description));
+  mountRoute(app, createAgentRoute, contract, (_c, { body }) => {
+    // Older clients still submit a description. Derive their identity locally.
+    const identity =
+      "description" in body
+        ? legacyAgentIdentity(body.description)
+        : { name: agentName(body.name), avatar: agentAvatar(body.avatar) };
+    return adapter.createAgent({
+      ...identity,
+      instructions: `You are ${identity.name}, a personal AI assistant. Be direct, concise and honest about what you do not know.`,
+    });
   });
   mountRoute(app, deleteAgentRoute, contract, async (c) => {
     await adapter.deleteAgent(param(c, "id"));
@@ -685,22 +704,9 @@ export function createApp(deps: AppDeps): Hono {
     const id = param(c, "id");
     if (!store.getAgent(id)) throw notFound("That agent does not exist.");
     // Everything is checked before anything is changed.
-    let avatar: string | undefined;
-    if (b.avatar !== undefined) {
-      const normalised = normalizeAvatar(b.avatar);
-      if (normalised === null)
-        throw badRequest(
-          "bad_avatar",
-          "The avatar must be a built-in bot (bot:<id>), a small png, jpeg or webp picture, or an emoji of at most 8 characters.",
-        );
-      avatar = normalised;
-    }
+    const avatar = b.avatar === undefined ? undefined : agentAvatar(b.avatar);
     const settings: AgentSettingsPatch = {};
-    if (b.name !== undefined) {
-      const name = b.name.trim();
-      if (name === "" || name.length > 40) throw badRequest("bad_request", "The name must be 1 to 40 characters.");
-      settings.name = name;
-    }
+    if (b.name !== undefined) settings.name = agentName(b.name);
     if (b.model !== undefined) {
       // null goes back to the default model; anything else is a model id the gateway is asked for by name.
       if (b.model !== null) {
@@ -709,6 +715,8 @@ export function createApp(deps: AppDeps): Hono {
     }
     if (b.thinkingLevel !== undefined) settings.thinkingLevel = b.thinkingLevel;
     if (b.networkMode !== undefined) settings.networkMode = b.networkMode;
+    if (b.canCreateTriggersForOtherAgents !== undefined)
+      settings.canCreateTriggersForOtherAgents = b.canCreateTriggersForOtherAgents;
     if (b.allowedConnectorIds !== undefined) {
       if (b.allowedConnectorIds?.some((id) => !id.trim()))
         throw badRequest("bad_request", "Connectors must be null or a list of connector IDs.");

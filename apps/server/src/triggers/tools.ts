@@ -43,6 +43,7 @@ export const TRIGGERS_NOTE = [
   "- `allow`: what a run may do without asking, beyond its permission profile. One entry per tool; for a tool that sends, also the fixed destination. Irreversible actions always ask. Leave it empty unless the user asks.",
   "- When the time, the days or the job are unclear, ask first instead of guessing; their time zone and your profile fill other gaps.",
   "- create_trigger shows the user a card of exactly what would be set up and creates nothing until they approve. Draft it completely, then tell them in one sentence to look at the card. If a call comes back as not done with a reason, correct what it names and call again.",
+  "- To create a trigger for another agent, the owner must enable that permission for you in Agent Settings. Use list_triggers to find eligible agent IDs, then pass the target ID as agentId. Leave it out for your own triggers.",
   "- Pause or resume with update_trigger and `paused`.",
 ].join("\n");
 
@@ -175,23 +176,30 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
   const { treeId, store, triggers, catalog, skills } = deps;
   const callerOf = (conversationId: unknown): Caller | undefined =>
     store.sessionByConversation(treeId, String(conversationId));
-  const contextFor = (session: Caller): SpecContext =>
+  const contextFor = (agentId: string): SpecContext =>
     specContext(store, {
-      agentId: session.agent_id,
+      agentId,
       catalog,
       skills,
       sources: triggers.sources,
       ...(deps.defaultTz ? { defaultTz: deps.defaultTz } : {}),
     });
 
-  const previewOf = (op: TriggerPreview["op"], fields: TriggerFields, session: Caller): TriggerPreview => {
-    const needs =
-      fields.action.kind === "skill" ? skills.find(session.agent_id, fields.action.skill)?.allowedTools : undefined;
+  const targetOf = (session: Caller, agentId: string | undefined): string => {
+    if (agentId === undefined || agentId === session.agent_id) return session.agent_id;
+    if (!store.getAgent(session.agent_id)?.canCreateTriggersForOtherAgents)
+      throw new Invalid("Enable ‘Create triggers for other agents’ in your agent settings to choose another agent.");
+    if (!store.getAgent(agentId)) throw new Invalid("That agent does not exist. list_triggers shows eligible agents.");
+    return agentId;
+  };
+
+  const previewOf = (op: TriggerPreview["op"], fields: TriggerFields, agentId: string): TriggerPreview => {
+    const needs = fields.action.kind === "skill" ? skills.find(agentId, fields.action.skill)?.allowedTools : undefined;
     return {
       kind: "trigger",
       op,
       name: fields.name,
-      agentName: store.getAgent(session.agent_id)?.name ?? "",
+      agentName: store.getAgent(agentId)?.name ?? "",
       startText: startText(fields.start),
       startKind: fields.start.kind,
       nextRuns:
@@ -243,8 +251,14 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
     catalog,
     configure(
       "trigger.create",
-      (a: { name?: unknown }) => `Create the trigger "${nameOf(a)}"`,
-      (args, _f, session) => previewOf("create", buildNew(args, contextFor(session)), session),
+      (a: { name?: unknown; agentId?: string }) => {
+        const target = a.agentId === undefined ? undefined : store.getAgent(a.agentId);
+        return `Create the trigger "${nameOf(a)}"${target ? ` for ${target.name}` : ""}`;
+      },
+      (args, _f, session) => {
+        const agentId = targetOf(session, args.agentId);
+        return previewOf("create", buildNew(args, contextFor(agentId)), agentId);
+      },
     ),
     {
       name: "create_trigger",
@@ -253,6 +267,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
         "Set up a trigger: something you do on a schedule or when an outside event arrives. Returns the trigger's id and its next run. Rei may ask the user to review what will be set up.",
       parameters: obj({
         name: str({ description: 'A short name, e.g. "Morning check".' }),
+        agentId: opt(str({ description: "Target agent ID from list_triggers. Omit for yourself." })),
         start: startParam,
         action: actionParam,
         ...settings,
@@ -261,9 +276,10 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
         const session = callerOf(api.conversationId);
         if (!session) return fail("This session is no longer available.");
         try {
-          const fields = buildNew(args, contextFor(session));
+          const agentId = targetOf(session, args.agentId);
+          const fields = buildNew(args, contextFor(agentId));
           const made = triggers.create({
-            agentId: session.agent_id,
+            agentId,
             fields,
             createdBySessionId: session.id,
             author: "agent",
@@ -289,9 +305,9 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
         if (onlyPaused(args)) return undefined;
         const row = own(session, args.id);
         const current = triggers.fields(row);
-        const next = applyPatch(current, args as Record<string, unknown>, contextFor(session));
-        const { kind: _k, op: _o, before: _b, ...before } = previewOf("update", current, session);
-        return { ...previewOf("update", next, session), before };
+        const next = applyPatch(current, args as Record<string, unknown>, contextFor(session.agent_id));
+        const { kind: _k, op: _o, before: _b, ...before } = previewOf("update", current, session.agent_id);
+        return { ...previewOf("update", next, session.agent_id), before };
       },
       { classFor: (a: Record<string, unknown>): ActionClass => (onlyPaused(a) ? "write_internal" : "configure") },
     ),
@@ -315,7 +331,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
           const row = own(session, args.id);
           const a = args as Record<string, unknown>;
           if (!onlyPaused(a)) {
-            const next = applyPatch(triggers.fields(row), a, contextFor(session));
+            const next = applyPatch(triggers.fields(row), a, contextFor(session.agent_id));
             triggers.update(row.id, next, { log: true, author: "agent" });
           }
           if (typeof args.paused === "boolean")
@@ -336,7 +352,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
       "trigger.delete",
       (a: { id?: unknown }) =>
         `Delete the trigger ${typeof a.id === "string" ? (triggers.row(a.id)?.name ?? a.id) : ""}`.trim(),
-      (args, _f, session) => previewOf("delete", triggers.fields(own(session, args.id)), session),
+      (args, _f, session) => previewOf("delete", triggers.fields(own(session, args.id)), session.agent_id),
     ),
     {
       name: "delete_trigger",
@@ -370,7 +386,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
       name: "list_triggers",
       callers: MODEL_AND_SCRIPTS,
       description:
-        "List your triggers: id, name, when it starts, what it does, status, next run and how the last run went. Also lists the event sources and the event types each sent in the last 30 days.",
+        "List your triggers, recent event types by source, and agent IDs you may choose when creating a trigger.",
       parameters: obj({}),
       replay: "safe",
       execute: async (_args, api) => {
@@ -382,14 +398,20 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
           sources.length === 0
             ? "\nEvent sources: none."
             : `\nEvent sources (a trigger can start on their events):\n${sources.map((x) => `- ${x.id}: types seen lately: ${x.types.length ? x.types.join(", ") : "none yet"}`).join("\n")}`;
-        if (mine.length === 0) return ok(`You have no triggers.${sourceLines}`);
+        const targets = store.getAgent(session.agent_id)?.canCreateTriggersForOtherAgents
+          ? store.listAgents().filter((agent) => agent.id !== session.agent_id)
+          : [];
+        const targetLines = targets.length
+          ? `\nOther agents you can create triggers for:\n${targets.map((agent) => `- ${agent.name} (${agent.id})`).join("\n")}`
+          : "";
+        if (mine.length === 0) return ok(`You have no triggers.${sourceLines}${targetLines}`);
         return ok(
           `${mine
             .map(
               (t) =>
                 `- ${t.id} "${t.name}": ${t.startText}; ${t.action.kind}; ${t.status}${t.pausedReason ? ` (${t.pausedReason})` : ""}; ${nextText(t)}${t.lastRun ? ` Last run: ${t.lastRun.status}${t.lastRun.reason ? ` (${t.lastRun.reason})` : ""}.` : ""}`,
             )
-            .join("\n")}${sourceLines}`,
+            .join("\n")}${sourceLines}${targetLines}`,
         );
       },
     },

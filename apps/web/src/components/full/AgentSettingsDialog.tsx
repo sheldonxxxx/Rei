@@ -1,5 +1,11 @@
 import type { Agent, AgentInstructionsResponse, Connector, ModelsResponse, UpdateAgentRequest } from "@rei/protocol";
-import { SANDBOX_NETWORK_MODES, type SandboxNetworkMode, THINKING_LEVELS, type ThinkingLevel } from "@rei/protocol";
+import {
+  AGENT_NAME_MAX_CHARS,
+  SANDBOX_NETWORK_MODES,
+  type SandboxNetworkMode,
+  THINKING_LEVELS,
+  type ThinkingLevel,
+} from "@rei/protocol";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
 import { Checkbox } from "@/components/primitives/checkbox.tsx";
@@ -11,10 +17,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/primitives/dialog.tsx";
-import { Field, FieldDescription, FieldLegend, FieldSet } from "@/components/primitives/field.tsx";
+import { Field, FieldContent, FieldDescription, FieldLegend, FieldSet } from "@/components/primitives/field.tsx";
 import { Input } from "@/components/primitives/input.tsx";
 import { Label } from "@/components/primitives/label.tsx";
 import { NativeSelect } from "@/components/primitives/native-select.tsx";
+import { Switch } from "@/components/primitives/switch.tsx";
 import { Textarea } from "@/components/primitives/textarea.tsx";
 import type { Api } from "../../api/client.ts";
 import { describeError } from "../../api/client.ts";
@@ -23,7 +30,6 @@ import { DialogError } from "../dialogParts.tsx";
 import { Icon } from "../Icon.tsx";
 import { Tip } from "../Tip.tsx";
 
-const NAME_MAX = 40;
 /** The picker's value for "no choice, use the default model". */
 const DEFAULT_CHOICE = "";
 const EFFORT_HELP =
@@ -61,8 +67,13 @@ export function AgentSettingsDialog({ agent, mode = "agent", api, onClose, onCha
   const [choice, setChoice] = useState(agent.model ?? DEFAULT_CHOICE);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(agent.thinkingLevel);
   const [networkMode, setNetworkMode] = useState<SandboxNetworkMode>(agent.networkMode);
+  const [canCreateTriggersForOtherAgents, setCanCreateTriggersForOtherAgents] = useState(
+    agent.canCreateTriggersForOtherAgents ?? false,
+  );
   const networkId = useId();
   const networkHelpId = useId();
+  const triggerPermissionId = useId();
+  const triggerPermissionHelpId = useId();
   const [catalog, setCatalog] = useState<ModelsResponse | null>(null);
   const [catalogFailed, setCatalogFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -135,11 +146,13 @@ export function AgentSettingsDialog({ agent, mode = "agent", api, onClose, onCha
   )
     patch.allowedConnectorIds = allowedConnectorIds;
   if (mode === "agent" && networkMode !== agent.networkMode) patch.networkMode = networkMode;
+  if (mode === "agent" && canCreateTriggersForOtherAgents !== (agent.canCreateTriggersForOtherAgents ?? false))
+    patch.canCreateTriggersForOtherAgents = canCreateTriggersForOtherAgents;
   if (mode === "agent" && saved && instructions.trim() !== saved.instructions) patch.instructions = instructions.trim();
   if (mode === "model" && chosen !== agent.model) patch.model = chosen;
   if (mode === "model" && thinkingLevel !== agent.thinkingLevel) patch.thinkingLevel = thinkingLevel;
   const changed = Object.keys(patch).length > 0;
-  const nameBad = trimmed.length < 1 || trimmed.length > NAME_MAX;
+  const nameBad = trimmed.length < 1 || trimmed.length > AGENT_NAME_MAX_CHARS;
   const options = catalog?.models ?? [];
   const defaultAvailable = !!catalog && options.includes(catalog.default);
   const supported = catalog?.thinkingLevels?.[chosen ?? catalog.default];
@@ -208,7 +221,7 @@ export function AgentSettingsDialog({ agent, mode = "agent", api, onClose, onCha
                   id={nameId}
                   type="text"
                   value={name}
-                  maxLength={NAME_MAX}
+                  maxLength={AGENT_NAME_MAX_CHARS}
                   autoComplete="off"
                   disabled={busy}
                   aria-invalid={nameBad || undefined}
@@ -275,6 +288,23 @@ export function AgentSettingsDialog({ agent, mode = "agent", api, onClose, onCha
                 </div>
               )}
             </FieldSet>
+          )}
+          {mode === "agent" && (
+            <Field orientation="horizontal" className="items-center justify-between gap-4">
+              <FieldContent>
+                <Label htmlFor={triggerPermissionId}>Create triggers for other agents</Label>
+                <FieldDescription id={triggerPermissionHelpId}>
+                  Let this agent set up scheduled or event-driven work for another agent to run.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id={triggerPermissionId}
+                checked={canCreateTriggersForOtherAgents}
+                disabled={busy}
+                aria-describedby={triggerPermissionHelpId}
+                onCheckedChange={setCanCreateTriggersForOtherAgents}
+              />
+            </Field>
           )}
           {mode === "agent" && (
             <Field className="gap-2">
