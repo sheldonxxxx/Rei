@@ -368,7 +368,7 @@ function readStorage(
     standinFile: env.REI_STANDIN_FILE && env.REI_STANDIN_FILE !== "" ? env.REI_STANDIN_FILE : undefined,
     garage: storage.garage,
     qdrant: storage.qdrant,
-    ...(env.REI_CODEX_IMAGES === "1" && gatewayUrl ? { codexImageGateway: gatewayUrl } : {}),
+    ...(gatewayUrl ? { codexImageGateway: gatewayUrl } : {}),
     control: {
       ...DEFAULT_CONFIG,
       mode,

@@ -21538,7 +21538,7 @@
                   "properties": {
                     "enabled": {
                       "type": "boolean",
-                      "description": "False when the gateway was not set up for Codex Images (REI_CODEX_IMAGES)."
+                      "description": "False when Rei has no gateway connection for Codex Images."
                     },
                     "signedIn": {
                       "type": "boolean"

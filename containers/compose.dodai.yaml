@@ -57,7 +57,6 @@ services:
     read_only: true
     tmpfs: [/tmp]
     environment:
-      REI_CODEX_IMAGES: ${REI_CODEX_IMAGES:-0}
       REI_STANDIN: ${REI_STANDIN:?run containers/init.sh}
       REI_LOG_LEVEL: ${REI_GATEWAY_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
       # Must match the gateway's fixed addresses below. The full app never listens on gateway-shared.

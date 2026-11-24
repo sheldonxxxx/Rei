@@ -24,7 +24,6 @@ export interface GatewayConfig {
   secretDir: string;
   credentialsFile: string;
   codexCredentialsFile: string;
-  codexImagesEnabled: boolean;
   providersFile: string;
   /** Connectors and the VAPID key pair (node/secretstore.ts). */
   secretsFile: string;
@@ -89,7 +88,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     cappedCallMaxMs,
     readerUrl: parseReaderUrl(env.GATEWAY_READER_URL),
     ...dataPaths(env.GATEWAY_DATA ?? "/data"),
-    codexImagesEnabled: env.REI_CODEX_IMAGES === "1",
     standinToken,
     standinFile,
     upstreams: [...DEFAULT_UPSTREAMS, ...parseUpstreamRules(env.GATEWAY_ALLOWED_UPSTREAMS ?? "")],

@@ -8,12 +8,9 @@ import { chat, detail, say, settled } from "./helpers/sessions.ts";
 const name = "image_generate";
 const base = { REI_MODEL_MODE: "faux" };
 
-it("requires an enabled image route and a gateway", () => {
+it("uses the image route whenever a gateway is configured", () => {
   expect(readConfig(base).codexImageGateway).toBeUndefined();
-  expect(readConfig({ ...base, REI_CODEX_IMAGES: "1" }).codexImageGateway).toBeUndefined();
-  expect(readConfig({ ...base, REI_CODEX_IMAGES: "1", GATEWAY_URL: "http://gateway:8780" }).codexImageGateway).toBe(
-    "http://gateway:8780",
-  );
+  expect(readConfig({ ...base, GATEWAY_URL: "http://gateway:8780" }).codexImageGateway).toBe("http://gateway:8780");
 });
 
 it("names a saved image from its given name, else the prompt's first words", () => {
