@@ -75,7 +75,7 @@ function help(command?: string): string {
     case "import":
       return IMPORT_HELP;
     case "init":
-      return "./rei init\n\nCreate what the stack needs once: containers/.env, the shared secrets in containers/.secrets/secrets.env and the external storage volumes. Existing values are never replaced. Setup runs it; containers/init.sh is the same command.";
+      return "./rei init\n\nCreate what the stack needs once: containers/.env, the shared secrets in containers/.secrets/secrets.env and the external storage volumes. Existing values are never replaced. Setup runs it.";
     case "upgrade":
       return "./rei upgrade [--force]\n\nMove this installation to the release of this CLI: install it first with npm i -g rei-ai@<version>. The configuration is copied to backups/ in REI_HOME, the new compose files are written, the new images are pulled and the services recreated, and doctor checks the result. Data volumes and secrets are kept; the new release upgrades its databases when it starts. A downgrade is refused; --force writes the older files anyway.";
     case "redeploy":
@@ -140,16 +140,18 @@ async function main(argv: string[]): Promise<number> {
     env: process.env,
   });
   // An npm installation that was never set up has no compose files to act on: say what to do instead of a docker error.
-  const needsStack = !["setup", "init", "start", "upgrade"].includes(command);
-  if (mode === "image" && needsStack && !existsSync(join(layout.containersDir, "compose.yaml"))) {
+  const notSetUp = (): boolean => {
+    if (mode !== "image" || ["setup", "init", "start", "upgrade"].includes(command)) return false;
+    if (existsSync(join(layout.containersDir, "compose.yaml"))) return false;
     console.error(
-      say(`rei: Rei is not set up in ${layout.containersDir}. Run rei setup first (REI_HOME picks another folder).`),
+      `rei: Rei is not set up in ${layout.containersDir}. Run rei setup first (REI_HOME picks another folder).`,
     );
-    return 1;
-  }
+    return true;
+  };
   // Passed to the gateway's own CLI as they are: its options are its own, and it answers on the terminal.
   // `import` reads an export here and talks to the app's HTTP API; its options are its own too.
   if (command === "callers" || command === "sources" || command === "reader" || command === "import") {
+    if (notSetUp()) return 1;
     const ctx = makeCtx(parts({ out: realOut(), prompter: realPrompter() }));
     if (command === "reader") return reader(ctx, flags);
     if (command === "import") return importCommand(ctx, flags);
@@ -170,6 +172,7 @@ async function main(argv: string[]): Promise<number> {
     console.error(say(`rei ${command}: unknown option ${unknown.join(", ")}\n\n${usage(mode)}`));
     return 2;
   }
+  if (notSetUp()) return 1;
   const terminal = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const guidedCommand = ["setup", "reset-password", "redeploy", "upgrade"].includes(command);
   const wantsGuide = guidedCommand && useGuide(argv, process.env, terminal);
