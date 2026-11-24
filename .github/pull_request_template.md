@@ -1,3 +1,5 @@
+<!-- Title: a Conventional Commit header, for example `fix(server): handle session pagination`. It becomes the squash commit on main (docs/workflow.md). -->
+
 ## Problem
 
 <!-- What is wrong or missing, and why does it matter? Link the issue if there is one. -->

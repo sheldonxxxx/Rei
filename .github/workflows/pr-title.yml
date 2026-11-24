@@ -1,0 +1,34 @@
+name: PR title
+
+# Pull requests are squash-merged and the title becomes the commit on main, so it must be a Conventional Commit
+# (docs/workflow.md, scripts/check-pr-title.mjs). `pr-title` is a required check on main. It is a workflow of its own so
+# that editing a title re-checks it without re-running CI. It uses no secrets and never runs on `pull_request_target`;
+# the title reaches the script through env, never through the shell command itself.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/check-pr-title.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check the title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-pr-title.mjs

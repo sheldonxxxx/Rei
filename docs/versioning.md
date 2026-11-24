@@ -1,13 +1,13 @@
 # Rei レイ versions and releases
 
-The first release is **v0.0.1**. Rei uses semantic versions: `major.minor.patch`, and a pre-release adds a suffix such as `-rc.1`.
+The first published release is **v0.1.0**. Rei uses semantic versions: `major.minor.patch`, and a pre-release adds a suffix such as `-rc.1`. Which part to bump for a change is in [the development workflow](workflow.md#versions).
 
-The root `package.json` is the display-version source. The web app reads it to show `Rei v0.0.1` in the browser title and a smaller, muted version beside Rei in the sidebar. The installed app name stays Rei. Workspace packages use the same release number; gateway status reports its package version. The Android app's version is derived from the same number (see [What a release contains](#what-a-release-contains)).
+The root `package.json` is the display-version source. The web app reads it to show `Rei v0.1.0` in the browser title and a smaller, muted version beside Rei in the sidebar. The installed app name stays Rei. Workspace packages use the same release number; gateway status reports its package version. The Android app's version is derived from the same number (see [What a release contains](#what-a-release-contains)).
 
 To set a version without creating a Git commit or tag:
 
 ```sh
-npm version 0.0.2 --workspaces --include-workspace-root --no-git-tag-version
+npm version 0.1.1 --workspaces --include-workspace-root --no-git-tag-version
 npm run typecheck
 npm test
 npm run build -w @rei/web
@@ -31,28 +31,32 @@ Rei never downgrades a database. Take a backup before an upgrade ([Backup and re
 
 A release is a Git tag. Pushing a tag `vX.Y.Z` (or `vX.Y.Z-suffix`) starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which checks it and then publishes everything without stopping. The tag is the release: only repository admins can push a `v*` tag, so pushing one is the decision to release. Do the [one-time setup](#one-time-setup) first.
 
-1. Start from an up-to-date `main` whose CI is green, and run `npm run verify`.
-2. Bump every manifest and the lockfile to the new version:
+1. Start a branch `chore/release-v0.2.0` from an up-to-date `main` whose CI is green.
+2. Bump every manifest and the lockfile to the new version, then run `npm run verify`:
 
    ```sh
    npm version 0.2.0 --workspaces --include-workspace-root --no-git-tag-version
    ```
 
    Every workspace must carry the same version as the root, or the release stops at the version gate.
-3. Commit and push `main`, then wait for its CI:
+3. Commit, push the branch and open a pull request titled `chore(release): v0.2.0`. Merge it (squash) once its checks pass, like any other pull request ([workflow](workflow.md#6-merge)):
 
    ```sh
    git commit -am "chore(release): v0.2.0"
-   git push origin main
+   git push -u origin chore/release-v0.2.0
+   gh pr create --fill --title "chore(release): v0.2.0"
+   gh pr merge --squash --auto
    ```
 
-4. Tag that commit and push the tag. The tag is the release; push no branch with it:
+4. Wait for the CI run on `main` for the merge commit to pass. Then tag that commit and push the tag. The tag is the release; push no branch with it:
 
    ```sh
-   git tag -a v0.2.0 -m "Rei 0.2.0"
+   git fetch origin main
+   git tag -a v0.2.0 -m "Rei 0.2.0" origin/main
    git push origin v0.2.0
    ```
 
+   Check first that `origin/main` is the release commit (`git log -1 origin/main` shows `chore(release): v0.2.0`), in case something merged after it.
 5. Watch the run under **Actions → Release**. If the `release` environment has required reviewers (see [one-time setup](#one-time-setup)), approve it when it asks ("Review deployments"): once for the images and the Android build together, and once more when the `npm` job starts, before `rei-ai` is published.
 6. When the run is green, check the [release page](#what-a-release-contains), and after the first release make each package public (see below).
 
