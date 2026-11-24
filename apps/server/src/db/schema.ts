@@ -976,6 +976,18 @@ export function ensureEventsSchema(db: Db): void {
 }
 
 const SCHEMA_VERSION = 20;
+/**
+ * The oldest schema this release upgrades in place. Each release upgrades a database from at least the previous minor
+ * release (docs/versioning.md#database-upgrades); anything older, or newer than SCHEMA_VERSION, is refused untouched.
+ */
+const OLDEST_UPGRADABLE = 18;
+
+/** Why a database with this user_version is refused, pointing at the way back: the release that wrote it, or a backup. */
+function refusal(version: number): string {
+  if (version > SCHEMA_VERSION)
+    return `This database was written by a newer Rei (schema ${version}; this release reads up to ${SCHEMA_VERSION}). Rei does not downgrade a database: run that newer release again, or restore the backup taken before the upgrade (docs/storage.md#backup-and-recovery). Nothing was changed.`;
+  return `This database uses schema ${version}, older than this release upgrades (${OLDEST_UPGRADABLE} to ${SCHEMA_VERSION}). Upgrade through the releases in between first (docs/versioning.md#database-upgrades), or restore a backup (docs/storage.md#backup-and-recovery). Nothing was changed.`;
+}
 
 function ensureApprovalCheckpointColumns(db: Db): void {
   const columns = new Set(db.all<{ name: string }>("PRAGMA table_info(approvals)").map((c) => c.name));
@@ -1119,13 +1131,13 @@ ALTER TABLE agents_v20 RENAME TO agents;
 }
 
 /**
- * Opens the current fresh schema. A version 18 or 19 database is upgraded in place (see renameNetworkModes); older databases are
- * never migrated or reset automatically.
+ * Opens the current fresh schema. A database from OLDEST_UPGRADABLE on is upgraded in place (18 and 19: see
+ * renameNetworkModes); an older or newer one is refused with the way back, and is never migrated or reset automatically.
  */
 export function initializeDatabase(db: Db, now: () => number = () => Date.now()): boolean {
   return db.transaction(() => {
     const version = db.get<{ user_version: number }>("PRAGMA user_version")!.user_version;
-    if (version === SCHEMA_VERSION || version === 19 || version === 18) {
+    if (version >= OLDEST_UPGRADABLE && version <= SCHEMA_VERSION) {
       const columns = db.all<{ name: string }>("PRAGMA table_info(knowledge_pages)");
       if (!columns.some((c) => c.name === "metadata_json"))
         throw new Error(
@@ -1155,9 +1167,9 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
       db.exec(SESSION_IMPORTS_SCHEMA);
       return false;
     }
+    if (version !== 0) throw new Error(refusal(version));
     const existing = db.get<{ n: number }>("SELECT COUNT(*) AS n FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")!.n;
-    if (version !== 0 || existing > 0)
-      throw new Error("This database is not a current Rei installation. Start with an empty data directory.");
+    if (existing > 0) throw new Error("This database is not a Rei installation. Start with an empty data directory.");
     db.exec(SCHEMA);
     db.run("INSERT INTO meta (key, value) VALUES ('installed_at', ?)", String(now()));
     db.exec(PLUGIN_SCHEMA);

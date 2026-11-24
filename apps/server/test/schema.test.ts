@@ -51,23 +51,37 @@ describe("fresh Rei database", () => {
     }
   });
 
-  it.each([1, 5, 9, 10, 11, 12, 13, 14, 15, 16, 99])(
-    "refuses version %i without migrating or resetting it",
-    (version) => {
-      const db = openSqliteDb(":memory:");
-      try {
-        db.exec(
-          `CREATE TABLE saved_data(value TEXT);INSERT INTO saved_data VALUES('kept');PRAGMA user_version=${version}`,
-        );
-        expect(() => initializeDatabase(db)).toThrow(/empty data directory/);
-        expect(db.get("SELECT value FROM saved_data")).toEqual({ value: "kept" });
-        expect(db.get<{ user_version: number }>("PRAGMA user_version")!.user_version).toBe(version);
-        expect(db.get("SELECT name FROM sqlite_master WHERE name='agents'")).toBeUndefined();
-      } finally {
-        db.close();
-      }
-    },
-  );
+  // The upgrade policy (docs/versioning.md#database-upgrades): a too-old or a newer database is refused untouched, and the
+  // message names the way back instead of suggesting the data be thrown away.
+  it.each([
+    [1, /schema 1, older than this release upgrades \(18 to 20\).*releases in between.*restore a backup/],
+    [5, /schema 5, older than this release upgrades/],
+    [9, /schema 9, older than this release upgrades/],
+    [10, /schema 10, older than this release upgrades/],
+    [11, /schema 11, older/],
+    [12, /schema 12, older/],
+    [13, /schema 13, older/],
+    [14, /schema 14, older/],
+    [15, /schema 15, older/],
+    [16, /schema 16, older/],
+    [17, /schema 17, older than this release upgrades \(18 to 20\)/],
+    [21, /written by a newer Rei \(schema 21; this release reads up to 20\).*does not downgrade.*restore the backup/],
+    [99, /written by a newer Rei \(schema 99/],
+  ])("refuses version %i without migrating or resetting it", (version, message) => {
+    const db = openSqliteDb(":memory:");
+    try {
+      db.exec(
+        `CREATE TABLE saved_data(value TEXT);INSERT INTO saved_data VALUES('kept');PRAGMA user_version=${version}`,
+      );
+      expect(() => initializeDatabase(db)).toThrow(message);
+      expect(() => initializeDatabase(db)).toThrow(/docs\/storage\.md#backup-and-recovery.*Nothing was changed/);
+      expect(db.get("SELECT value FROM saved_data")).toEqual({ value: "kept" });
+      expect(db.get<{ user_version: number }>("PRAGMA user_version")!.user_version).toBe(version);
+      expect(db.get("SELECT name FROM sqlite_master WHERE name='agents'")).toBeUndefined();
+    } finally {
+      db.close();
+    }
+  });
   it("refuses an unrecognized populated database", () => {
     const db = openSqliteDb(":memory:");
     try {

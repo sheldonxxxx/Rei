@@ -43,7 +43,7 @@ The default address is [http://127.0.0.1:8787](http://127.0.0.1:8787). To choose
 REI_PUBLISH=127.0.0.1:8788
 ```
 
-This release initializes an empty database with the current schema. Use fresh Docker volumes and a fresh data directory. Unrecognized databases are rejected rather than converted.
+A new installation starts with an empty database. A later release upgrades it in place on its first start, from at least the previous minor release; Rei refuses a database that is too old or was written by a newer release, and changes nothing (see [Database upgrades](versioning.md#database-upgrades)). Take a backup before upgrading ([Backup and recovery](storage.md#backup-and-recovery)).
 
 ## Create your account
 
@@ -242,7 +242,7 @@ Numeric control-plane environment settings must be non-negative safe integers; b
 - **Memory unavailable:** test the connection under **Settings → Providers → Embeddings**. Keyword-only recall remains available.
 - **Files or search failing after a redeploy:** run `./rei doctor` (it checks that the control plane reaches the object store and the search index in Dodai, and that the storage volumes exist), then `containers/smoke-storage.sh`. If `./rei start` says a storage volume is missing, run `./rei setup`: it creates the external volumes.
 - **Account password lost:** run `./rei reset-password` from the host terminal. An enabled authenticator remains required, and registered passkeys keep working.
-- **Unrecognized database:** provision an empty data directory for this fresh-install release.
+- **Database refused at start:** `docker compose … logs control` shows why. A database written by a newer release needs that release again; one older than the previous minor release needs the releases in between first ([Database upgrades](versioning.md#database-upgrades)). Either way, a backup taken before the upgrade restores the old state ([Backup and recovery](storage.md#backup-and-recovery)).
 
 ### Web search defaults
 

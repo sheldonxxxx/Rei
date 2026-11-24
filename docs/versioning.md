@@ -15,6 +15,18 @@ npm run build -w @rei/web
 
 Review and commit the updated manifests and lockfile together. Rebuild the web app and deployment images to ship the new version on your own machine.
 
+## Database upgrades
+
+Each release upgrades a database written by **at least the previous minor release** in place, on its first start: `0.3.x` opens a `0.2.x` database, and every patch release opens what the other patches of its minor wrote. Skipping further (from `0.1.x` straight to `0.3.x`) is not promised: upgrade through the releases in between, one minor at a time.
+
+The control plane's SQLite schema carries a number (`SCHEMA_VERSION` in `apps/server/src/db/schema.ts`, with `OLDEST_UPGRADABLE` beside it). On start it:
+
+- creates the schema in an empty data directory;
+- upgrades a database from `OLDEST_UPGRADABLE` up to the current number, in one transaction, so a failed upgrade leaves the database as it was;
+- refuses, without changing anything, a database older than `OLDEST_UPGRADABLE` or newer than the current number. The control plane stops with a message that says which, and its log shows it (`docker compose … logs control`). For a newer database, run the release that wrote it again; for an older one, step through the releases in between; for either, a backup taken before the upgrade gets you back.
+
+Rei never downgrades a database. Take a backup before an upgrade ([Backup and recovery](storage.md#backup-and-recovery)); `rei upgrade` copies the configuration and secrets in `REI_HOME` for you, but not the data volumes. A release that changes the schema raises `SCHEMA_VERSION`, keeps `OLDEST_UPGRADABLE` no newer than the schema of the previous minor release, and adds a test that upgrades a database of each version it accepts.
+
 ## Releasing
 
 A release is a Git tag. Pushing a tag `vX.Y.Z` (or `vX.Y.Z-suffix`) starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which checks it, waits for one approval, then publishes everything. Do the [one-time setup](#one-time-setup) first.
