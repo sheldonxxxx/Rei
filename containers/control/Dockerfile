@@ -15,7 +15,7 @@
 # that the sandbox, which shares exec-net with this container, finds nothing listening there.
 
 # ---- production dependencies of the server workspace only (the lockfile pins every version) -------------------------
-FROM node:24.22.1-alpine3.24 AS deps
+FROM node:26.13.1-alpine3.24 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/protocol/package.json packages/protocol/
@@ -40,7 +40,7 @@ RUN rm -rf node_modules/@anthropic-ai node_modules/@google node_modules/@aws-sdk
  && test -x pi-env-linux-x64/pi-env && test -x pi-env-linux-arm64/pi-env && test "$(ls | wc -l)" = 2
 
 # ---- runtime ------------------------------------------------------------------------------------------------------
-FROM node:24.22.1-alpine3.24
+FROM node:26.13.1-alpine3.24
 # A dedicated unix user, distinct from the gateway's (1100), so neither can read the other's files.
 # (The base image's own "node" user owns uid/gid 1000, so it goes first.)
 RUN deluser --remove-home node && delgroup node 2>/dev/null; \
