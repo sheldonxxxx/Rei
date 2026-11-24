@@ -87,7 +87,6 @@ services:
       REI_ANDROID_PASSKEY_ORIGINS: ${REI_ANDROID_PASSKEY_ORIGINS:-}
       # Dev-only demo connector (tools with no real effect) for trying approvals with the real model.
       REI_DEMO_TOOLS: ${REI_DEMO_TOOLS:-0}
-      REI_CODEX_IMAGES: ${REI_CODEX_IMAGES:-0}
       # Tokens the codemode prompt section may spend on tool declarations (default 1500); the Code mode eval sweeps it.
       REI_CODEMODE_INLINE_BUDGET: ${REI_CODEMODE_INLINE_BUDGET-}
       # The user's time zone, for dates the server writes (rei setup sets it from the host).

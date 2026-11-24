@@ -486,7 +486,7 @@ export const OpenAiOAuthCallbackRequestSchema = obj({
 });
 
 export const CodexImagesStatusSchema = obj({
-  enabled: bool({ description: "False when the gateway was not set up for Codex Images (REI_CODEX_IMAGES)." }),
+  enabled: bool({ description: "False when Rei has no gateway connection for Codex Images." }),
   signedIn: bool(),
   pending: bool({ description: "A device-code sign-in is waiting for approval." }),
   userCode: opt(str()),

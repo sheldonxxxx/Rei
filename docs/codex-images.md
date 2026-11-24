@@ -1,10 +1,10 @@
 # Codex images
 
-Rei can generate and edit images using a separate Codex sign-in. The feature is off by default. The existing gateway makes direct requests to the Codex Images endpoints on `chatgpt.com` and refreshes the Codex credential on demand. The image route is available on the gateway’s Rei-only listener. The regular OpenAI connection continues to serve chat and search.
+Rei can generate and edit images using a separate Codex sign-in. The existing gateway makes direct requests to the Codex Images endpoints on `chatgpt.com` and refreshes the Codex credential on demand. The image route is available on the gateway’s Rei-only listener. The regular OpenAI connection continues to serve chat and search.
 
-## Enable it
+## Sign in
 
-Set `REI_CODEX_IMAGES=1` in `containers/.env` and run `./rei setup`. If you previously used the optional image worker, remove `codex-images` from `COMPOSE_PROFILES`. If its container is still present, stop and remove it. The default container name is `rei-codex-images-1`. The new gateway connection requires its own sign-in.
+The feature is on with the gateway. If you previously used the optional image worker, remove `codex-images` from `COMPOSE_PROFILES` and, if its container is still present, stop and remove it (default name `rei-codex-images-1`). The gateway connection requires its own sign-in.
 
 Sign in from the web app: open **Settings → Providers → Images**, choose **Sign in to Codex Images**, then enter the code shown on the OpenAI device page that opens. Rei finishes sign-in once you approve it. Device-code login must be allowed for your ChatGPT account (ChatGPT → Settings → Security). **Sign out** removes the saved credential.
 
@@ -21,6 +21,6 @@ Ask the agent to generate an image, or attach an image and ask for an edit. You 
 
 **Settings → Usage** has an **Images** section: requests, how many succeeded or failed, generated and edited counts, average time, and failures by reason (rate limited, another image already in progress, sign-in needed, other). Rei keeps daily counters only, never prompts or images, and counts start from the version that added them. Image requests count toward your Codex limits, which OpenAI does not report per request, so there are no token figures.
 
-## Disable it
+## Sign out
 
-Remove `REI_CODEX_IMAGES` from `containers/.env` and run `./rei setup`. To remove the saved image credential, use **Sign out** on the Images tab or the Compose command above with `codex-images logout`. Use `codex-images status` to check whether the gateway has a saved image credential.
+To remove the saved image credential, use **Sign out** on the Images tab or the Compose command above with `codex-images logout`. Use `codex-images status` to check whether the gateway has a saved image credential. Without a credential the image tool reports that sign-in is needed.

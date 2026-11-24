@@ -99,8 +99,7 @@ export function CodexImagesSettings({ api }: { api: CodexImagesApi }) {
       </div>
       {!status.enabled ? (
         <p className="m-0 rounded-xl border p-4 text-sm text-muted-foreground">
-          Codex Images is turned off for this installation. See the Codex images guide for turning it on, then sign in
-          here.
+          Codex Images needs the gateway, which this installation does not have connected.
         </p>
       ) : (
         <div className="flex flex-col gap-3 rounded-xl border p-4">

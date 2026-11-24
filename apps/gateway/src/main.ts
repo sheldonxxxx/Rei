@@ -57,12 +57,8 @@ const apps = createGatewayApps({
   ...(config.reiBudget ? { reiBudget: config.reiBudget } : {}),
   cappedCallMaxMs: config.cappedCallMaxMs,
   setupSearch: searchSetup,
-  ...(config.codexImagesEnabled
-    ? {
-        codexImages: codexImages(codexAccess(new FileCredentialStore(config.codexCredentialsFile), redactor)),
-        codexImagesSetup: codexImagesSetup(new FileCredentialStore(config.codexCredentialsFile)),
-      }
-    : {}),
+  codexImages: codexImages(codexAccess(new FileCredentialStore(config.codexCredentialsFile), redactor)),
+  codexImagesSetup: codexImagesSetup(new FileCredentialStore(config.codexCredentialsFile)),
   ...(config.embeddingUrl && config.embeddingModel
     ? {
         embedding: {

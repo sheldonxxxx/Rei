@@ -35,7 +35,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("explains that Codex Images is off when the installation has not enabled it", async () => {
   const { api } = setup({ enabled: false, signedIn: false, pending: false });
-  await screen.findByText(/turned off for this installation/);
+  await screen.findByText(/needs the gateway/);
   expect(screen.queryByRole("button", { name: "Sign in to Codex Images" })).toBeNull();
   expect(api.startCodexImagesSignIn).not.toHaveBeenCalled();
 });
