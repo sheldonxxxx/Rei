@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
                             onSignOut = model::signOut,
                             onDisconnect = model::disconnect,
                         )
-                        else -> ConnectScreen(state, model::connect, model::signIn, model::disconnect, model::signInWithPasskey)
+                        else -> ConnectScreen(state, model::connect, model::signIn, model::disconnect, onPasskey = model::signInWithPasskey)
                     }
                     // Over both, so update dialogs always work; while signed in, the progress banner docks below ReiTopBar.
                     UpdatePrompt(Modifier.align(Alignment.TopCenter), showBanner = !(state.signedIn && api != null))

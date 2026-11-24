@@ -149,7 +149,7 @@ fun ApprovalCard(
                 )
             }
             if (pending && item.expiresAt > 0) {
-                val deadline = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(item.expiresAt))
+                val deadline = remember(item.expiresAt) { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(item.expiresAt)) }
                 Text("Expires at $deadline", style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer)
             }
             if (item.argsPreview.isNotBlank()) {

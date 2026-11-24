@@ -50,6 +50,9 @@ private val sourceExtensions = setOf(
     "php", "swift", "toml", "yaml", "yml", "json", "jsonl", "xml", "html", "htm",
 )
 
+private val SpreadsheetFilePattern = Regex(".*\\.(xls[xmb]?|xltx?|ods|csv|tsv)$")
+private val PresentationFilePattern = Regex(".*\\.(pptx?|ppsx?|odp)$")
+
 /**
  * The card's icon for a file: sheets, slides, pictures, source files (code), prose and plain text (file-text), everything
  * else. Web shows the terminal icon for plain text; on Android terminal is for commands only.
@@ -57,8 +60,8 @@ private val sourceExtensions = setOf(
 fun fileIcon(name: String, mediaType: String): ImageVector {
     val lower = name.lowercase()
     return when {
-        Regex(".*\\.(xls[xmb]?|xltx?|ods|csv|tsv)$").matches(lower) -> ReiIcons.Spreadsheet
-        Regex(".*\\.(pptx?|ppsx?|odp)$").matches(lower) -> ReiIcons.Presentation
+        SpreadsheetFilePattern.matches(lower) -> ReiIcons.Spreadsheet
+        PresentationFilePattern.matches(lower) -> ReiIcons.Presentation
         else -> when (previewKind(name, mediaType)) {
             PreviewKind.Image -> ReiIcons.Image
             PreviewKind.Html -> ReiIcons.Code

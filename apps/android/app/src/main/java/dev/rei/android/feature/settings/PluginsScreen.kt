@@ -3,7 +3,10 @@ package dev.rei.android.feature.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,6 +20,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
@@ -246,9 +251,19 @@ private fun PluginEditor(initial: PluginPackage, existing: Boolean, busy: Boolea
                 if (pkg.skills.isNotEmpty()) {
                     Text("Skills to read first", style = MaterialTheme.typography.labelLarge)
                     pkg.skills.forEach { skill ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(skill.name in connection.skills, { on -> pkg = pkg.updateConnection(index) { it.withSkill(skill.name, on) } }, enabled = !busy)
-                            Text(skill.name)
+                        val checked = skill.name in connection.skills
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .toggleable(value = checked, enabled = !busy, role = Role.Checkbox) { on ->
+                                    pkg = pkg.updateConnection(index) { it.withSkill(skill.name, on) }
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked, onCheckedChange = null, enabled = !busy, modifier = Modifier.clearAndSetSemantics {})
+                            Text(skill.name, Modifier.padding(start = 8.dp))
                         }
                     }
                 }

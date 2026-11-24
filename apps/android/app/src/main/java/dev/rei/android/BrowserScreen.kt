@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -53,6 +54,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -67,7 +70,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
 
 @Composable
-fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit) {
+fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val vm: BrowserViewModel = viewModel(factory = BrowserViewModel.factory(sessionId, container))
     val state = vm.state
     val context = LocalContext.current
@@ -75,7 +78,7 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
     var dragging by rememberSaveable { mutableStateOf(false) }
     var editAddress by rememberSaveable { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             ReiIconButton(ReiIcons.Close, "Close browser", onBack)
             Column(Modifier.weight(1f)) {
@@ -241,11 +244,19 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
                     }
                     select?.options?.forEach { option ->
                         if (select.multiple) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(option.value in selected, {
-                                    selected = if (it) selected + option.value else selected - option.value
-                                })
-                                Text(option.label)
+                            val checked = option.value in selected
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .toggleable(value = checked, role = Role.Checkbox) {
+                                        selected = if (it) selected + option.value else selected - option.value
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(checked, onCheckedChange = null, modifier = Modifier.clearAndSetSemantics {})
+                                Text(option.label, Modifier.padding(start = 8.dp))
                             }
                         } else {
                             TextButton(onClick = {
@@ -416,6 +427,7 @@ private class RemoteViewport(context: Context) : View(context) {
             lastCenter = null
         }
         if (controlling && !multiTouch && bitmap != null) gestures.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP && !multiTouch) performClick()
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) releaseDrag()
         return true
     }

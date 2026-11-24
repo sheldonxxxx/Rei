@@ -53,7 +53,13 @@ fun ReiIconButton(
     ) {
         if (toggled == null) {
             IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
-                Icon(icon, contentDescription = contentDescription, tint = tint.orContent(), modifier = Modifier.size(iconSize))
+                val baseTint = tint.orContent()
+                Icon(
+                    icon,
+                    contentDescription = contentDescription,
+                    tint = if (enabled) baseTint else baseTint.copy(alpha = 0.38f),
+                    modifier = Modifier.size(iconSize),
+                )
             }
         } else {
             Box(

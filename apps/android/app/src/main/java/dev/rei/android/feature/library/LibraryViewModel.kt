@@ -2,6 +2,7 @@ package dev.rei.android.feature.library
 
 import android.content.ContentResolver
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -37,6 +38,7 @@ import kotlinx.coroutines.withContext
 /** An upload in flight: [index] of [total], the file's [name]. */
 data class UploadProgress(val index: Int, val total: Int, val name: String)
 
+@Immutable
 data class LibraryUiState(
     /** What the field shows right now; [query] follows it after a short pause. */
     val searchText: String = "",

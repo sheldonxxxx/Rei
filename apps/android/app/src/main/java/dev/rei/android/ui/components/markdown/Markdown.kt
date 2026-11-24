@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
@@ -600,60 +601,66 @@ private fun InlineMarkdown(
             caretOn = !caretOn
         }
     }
-    val rendered: AnnotatedString = buildAnnotatedString {
-        fun text(value: String, inLink: Boolean) {
-            if (!env.chips || inLink) return append(value)
-            for (chip in splitChips(value)) when (chip) {
-                is Chip.Plain -> append(chip.text)
-                is Chip.Mention -> withStyle(SpanStyle(background = colors.secondaryContainer, color = colors.onSecondaryContainer, fontSize = 0.9.em)) {
-                    append("\u2009@${chip.name}\u2009")
-                }
-                is Chip.Due -> {
-                    val overdue = chip.date < today
-                    val style = if (overdue) SpanStyle(background = colors.tertiaryContainer, color = colors.onTertiaryContainer, fontSize = 0.9.em)
-                    else SpanStyle(background = colors.surfaceContainerHigh, color = colors.onSurface, fontSize = 0.9.em)
-                    withStyle(style) { append("\u2009\uD83D\uDCC5 ${chip.date}\u2009") }
+    val baseRendered: AnnotatedString = remember(parent, env.chips, env.citations, env.struck, colors, today) {
+        buildAnnotatedString {
+            fun text(value: String, inLink: Boolean) {
+                if (!env.chips || inLink) return append(value)
+                for (chip in splitChips(value)) when (chip) {
+                    is Chip.Plain -> append(chip.text)
+                    is Chip.Mention -> withStyle(SpanStyle(background = colors.secondaryContainer, color = colors.onSecondaryContainer, fontSize = 0.9.em)) {
+                        append("\u2009@${chip.name}\u2009")
+                    }
+                    is Chip.Due -> {
+                        val overdue = chip.date < today
+                        val style = if (overdue) SpanStyle(background = colors.tertiaryContainer, color = colors.onTertiaryContainer, fontSize = 0.9.em)
+                        else SpanStyle(background = colors.surfaceContainerHigh, color = colors.onSurface, fontSize = 0.9.em)
+                        withStyle(style) { append("\u2009\uD83D\uDCC5 ${chip.date}\u2009") }
+                    }
                 }
             }
-        }
-        fun render(node: Node, inLink: Boolean = false) {
-            fun nested() = children(node).forEach { render(it, inLink) }
-            when (node) {
-                is MarkdownText -> {
-                    var from = 0
-                    for (match in if (inLink) emptySequence() else citationUse.findAll(node.literal)) {
-                        val label = match.groupValues[1]
-                        val number = env.citations[label] ?: continue
-                        text(node.literal.substring(from, match.range.first), inLink)
-                        withLink(LinkAnnotation.Clickable("citation-$label", styles) { env.cite(label) }) { append("[$number]") }
-                        from = match.range.last + 1
+            fun render(node: Node, inLink: Boolean = false) {
+                fun nested() = children(node).forEach { render(it, inLink) }
+                when (node) {
+                    is MarkdownText -> {
+                        var from = 0
+                        for (match in if (inLink) emptySequence() else citationUse.findAll(node.literal)) {
+                            val label = match.groupValues[1]
+                            val number = env.citations[label] ?: continue
+                            text(node.literal.substring(from, match.range.first), inLink)
+                            withLink(LinkAnnotation.Clickable("citation-$label", styles) { env.cite(label) }) { append("[$number]") }
+                            from = match.range.last + 1
+                        }
+                        text(node.literal.substring(from), inLink)
                     }
-                    text(node.literal.substring(from), inLink)
+                    is Link -> if (isExternalMarkdownLink(node.destination) || parseReference(node.destination) != null) {
+                        withLink(LinkAnnotation.Clickable("link-${node.destination}", styles) { env.open(node.destination) }) {
+                            children(node).forEach { render(it, true) }
+                        }
+                    } else nested()
+                    is StrongEmphasis -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { nested() }
+                    is Emphasis -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { nested() }
+                    is Strikethrough -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { nested() }
+                    is Code -> withStyle(code) { append(node.literal) }
+                    is HardLineBreak -> append("\n")
+                    is SoftLineBreak -> append("\n")
+                    is HtmlInline -> append(node.literal)
+                    is MarkdownImage -> append(inlinePlain(node).ifBlank { "Image" })
+                    else -> nested()
                 }
-                is Link -> if (isExternalMarkdownLink(node.destination) || parseReference(node.destination) != null) {
-                    withLink(LinkAnnotation.Clickable("link-${node.destination}", styles) { env.open(node.destination) }) {
-                        children(node).forEach { render(it, true) }
-                    }
-                } else nested()
-                is StrongEmphasis -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { nested() }
-                is Emphasis -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { nested() }
-                is Strikethrough -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { nested() }
-                is Code -> withStyle(code) { append(node.literal) }
-                is HardLineBreak -> append("\n")
-                is SoftLineBreak -> append("\n")
-                is HtmlInline -> append(node.literal)
-                is MarkdownImage -> append(inlinePlain(node).ifBlank { "Image" })
-                else -> nested()
             }
+            if (env.struck === parent) withStyle(SpanStyle(color = colors.onSurfaceVariant, textDecoration = TextDecoration.LineThrough)) {
+                children(parent).forEach { render(it) }
+            } else children(parent).forEach { render(it) }
         }
-        if (env.struck === parent) withStyle(SpanStyle(color = colors.onSurfaceVariant, textDecoration = TextDecoration.LineThrough)) {
-            children(parent).forEach { render(it) }
-        } else children(parent).forEach { render(it) }
-        if (showCaret) withStyle(SpanStyle(color = if (caretOn || scale <= 0f) colors.primary else androidx.compose.ui.graphics.Color.Transparent)) { append(" ▍") }
+    }
+    val rendered = if (!showCaret) baseRendered else buildAnnotatedString {
+        append(baseRendered)
+        withStyle(SpanStyle(color = if (caretOn || scale <= 0f) colors.primary else androidx.compose.ui.graphics.Color.Transparent)) { append(" ▍") }
     }
     if (rendered.isNotEmpty()) Text(
         rendered,
-        if (align != null) Modifier.fillMaxWidth() else Modifier,
+        (if (align != null) Modifier.fillMaxWidth() else Modifier)
+            .then(if (heading in 1..6) Modifier.semantics { heading() } else Modifier),
         textAlign = align,
         fontWeight = if (bold) FontWeight.SemiBold else null,
         style = when {

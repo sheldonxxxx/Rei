@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -86,33 +87,41 @@ fun ToolActivityRow(
     )
 
     Column(modifier.fillMaxWidth().arrive(ReiEnter.Rise), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
+        Column(
             Modifier
+                .fillMaxWidth()
                 .heightIn(min = 48.dp)
                 .clickable(onClickLabel = if (open) "Hide activity" else "Show activity", role = Role.Button) { expanded = !open }
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (open) "Expanded" else "Collapsed"
-                    contentDescription = heading
+                    contentDescription = buildString {
+                        append(heading)
+                        if (!run.live && run.approvalWaitMs > 0) {
+                            append(". Waited for approval ")
+                            append(duration(run.approvalWaitMs))
+                        }
+                    }
                 }
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                .padding(horizontal = 4.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(heading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(
-                ReiIcons.Chevron,
-                contentDescription = null,
-                Modifier.size(18.dp).rotate(rotation),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(heading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    ReiIcons.Chevron,
+                    contentDescription = null,
+                    Modifier.size(18.dp).rotate(rotation),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (!run.live && run.approvalWaitMs > 0) {
                 Text(
-                    "· Waited for approval ${duration(run.approvalWaitMs)}",
-                    Modifier.padding(start = 6.dp),
+                    "Waited for approval ${duration(run.approvalWaitMs)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -186,74 +195,85 @@ internal fun ActivityRowItem(
         step.tokens?.let { "${groupedNumber(it)} tokens" },
         step.errorCode,
     ) else emptyList()
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = if (detail) 44.dp else 32.dp)
-            .then(if (onInspect != null) Modifier.clickable(onClickLabel = "Inspect step", role = Role.Button) { onInspect(step.id) } else Modifier)
-            .semantics(mergeDescendants = true) { contentDescription = "$label — $status" }
-            .padding(horizontal = if (detail) 12.dp else 0.dp, vertical = if (detail) 8.dp else 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(activityIcon(step, allowed), contentDescription = null, Modifier.size(16.dp), tint = tone)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = labelColor,
-                maxLines = if (detail) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (step.pageId != null || step.webTitle != null) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: "Page") { onOpenPage(id) } }
-                    step.webTitle?.let { title -> ChipLabel(ReiIcons.Globe, listOfNotNull(title, step.webHost).joinToString(" · "), null) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .then(if (onInspect != null) Modifier.clickable(onClickLabel = "Inspect step", role = Role.Button) { onInspect(step.id) } else Modifier)
+                .semantics(mergeDescendants = true) { contentDescription = "$label — $status" }
+                .padding(horizontal = if (detail) 12.dp else 0.dp, vertical = if (detail) 8.dp else 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(activityIcon(step, allowed), contentDescription = null, Modifier.size(16.dp), tint = tone)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = labelColor,
+                    maxLines = if (detail) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (facts.isNotEmpty() || (detail && step.sideEffect)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (facts.isNotEmpty()) {
+                            Text(facts.joinToString(" · "), style = MaterialTheme.typography.labelMedium.tabular(), color = colors.onSurfaceVariant)
+                        }
+                        if (step.sideEffect) {
+                            Text(
+                                "acted outside",
+                                Modifier.background(colors.tertiaryContainer, ReiShapes.Pill).padding(horizontal = 8.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onTertiaryContainer,
+                            )
+                        }
+                    }
                 }
             }
-            if (facts.isNotEmpty() || (detail && step.sideEffect)) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (facts.isNotEmpty()) {
-                        Text(facts.joinToString(" · "), style = MaterialTheme.typography.labelMedium.tabular(), color = colors.onSurfaceVariant)
-                    }
-                    if (step.sideEffect) {
-                        Text(
-                            "acted outside",
-                            Modifier.background(colors.tertiaryContainer, ReiShapes.Pill).padding(horizontal = 8.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onTertiaryContainer,
-                        )
-                    }
-                }
+            if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
+            if (onInspect != null) Icon(ReiIcons.Forward, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
+        }
+        if (step.pageId != null || step.webTitle != null) {
+            FlowRow(
+                Modifier.padding(start = if (detail) 40.dp else 28.dp, end = if (detail) 12.dp else 0.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: "Page") { onOpenPage(id) } }
+                step.webTitle?.let { title -> ChipLabel(ReiIcons.Globe, listOfNotNull(title, step.webHost).joinToString(" · "), null) }
             }
         }
-        if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
-        if (onInspect != null) Icon(ReiIcons.Forward, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun ChipLabel(icon: ImageVector, text: String, onClick: (() -> Unit)?) {
-    Surface(
-        shape = ReiShapes.Pill,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier,
+    Box(
+        Modifier
+            .then(if (onClick != null) Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick) else Modifier),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text,
-                Modifier.widthIn(max = 260.dp),
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textDecoration = if (onClick != null) TextDecoration.Underline else null,
-            )
+        Surface(
+            shape = ReiShapes.Pill,
+            color = Color.Transparent,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(icon, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text,
+                    Modifier.widthIn(max = 260.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (onClick != null) TextDecoration.Underline else null,
+                )
+            }
         }
     }
 }

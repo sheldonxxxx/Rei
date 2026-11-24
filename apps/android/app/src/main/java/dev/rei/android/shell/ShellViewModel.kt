@@ -1,5 +1,6 @@
 package dev.rei.android.shell
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What the drawer shows. Built from the signed-in session's live catalog (the global stream). */
+@Immutable
 data class DrawerUiState(
     val agents: List<ChatAgent> = emptyList(),
     val selectedAgentId: String? = null,
@@ -47,6 +49,7 @@ data class DrawerUiState(
     val serverUrl: String = "",
 )
 
+@Immutable
 data class SearchUiState(
     val query: String = "",
     val hits: List<HistoryHit> = emptyList(),

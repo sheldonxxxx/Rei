@@ -1,5 +1,6 @@
 package dev.rei.android.feature.knowledge
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -43,6 +44,7 @@ data class PageDraft(
     val tags: List<String> = emptyList(),
 )
 
+@Immutable
 data class PageUiState(
     /** Null for a page being written; the id once it exists. */
     val pageId: String? = null,

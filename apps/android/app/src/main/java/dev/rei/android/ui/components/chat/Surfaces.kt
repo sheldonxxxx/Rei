@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,6 +38,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -423,54 +427,71 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
             visualTransformation = if (spec.obscured) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = if (spec.obscured) KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false) else KeyboardOptions.Default,
         )
-        is SurfaceSpec.Toggle -> Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = spec.checked,
-                onCheckedChange = { if (spec.pointer != null) engine.input(spec.pointer, JsonPrimitive(it)) },
-                enabled = engine.interactive && spec.pointer != null && !engine.sending,
-            )
-            Text(spec.label)
+        is SurfaceSpec.Toggle -> {
+            val toggleEnabled = engine.interactive && spec.pointer != null && !engine.sending
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = spec.checked, enabled = toggleEnabled, role = Role.Checkbox) {
+                        if (spec.pointer != null) engine.input(spec.pointer, JsonPrimitive(it))
+                    }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = spec.checked,
+                    onCheckedChange = null,
+                    enabled = toggleEnabled,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+                Text(spec.label, Modifier.padding(start = 8.dp))
+            }
         }
         is SurfaceSpec.Choices -> {
             Text(spec.label)
             val enabled = engine.interactive && spec.pointer != null && !engine.sending
-            spec.options.forEach { (value, label) ->
-                val isSelected = value in spec.selected
-                val updateSelection: (Boolean) -> Unit = { select ->
-                    if (spec.pointer != null) {
-                        val next = when {
-                            !select -> spec.selected - value
-                            spec.exclusive -> listOf(value)
-                            else -> spec.selected + value
+            Column(if (spec.exclusive) Modifier.selectableGroup() else Modifier) {
+                spec.options.forEach { (value, label) ->
+                    val isSelected = value in spec.selected
+                    val updateSelection: (Boolean) -> Unit = { select ->
+                        if (spec.pointer != null) {
+                            val next = when {
+                                !select -> spec.selected - value
+                                spec.exclusive -> listOf(value)
+                                else -> spec.selected + value
+                            }
+                            engine.input(spec.pointer, JsonArray(next.map(::JsonPrimitive)))
                         }
-                        engine.input(spec.pointer, JsonArray(next.map(::JsonPrimitive)))
                     }
-                }
-                if (spec.exclusive) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
-                                updateSelection(true)
-                            }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = isSelected, onClick = null, enabled = enabled)
-                        Text(label, Modifier.padding(start = 8.dp))
-                    }
-                } else {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .toggleable(value = isSelected, enabled = enabled, role = Role.Checkbox) { select ->
-                                updateSelection(select)
-                            }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = isSelected, onCheckedChange = null, enabled = enabled)
-                        Text(label, Modifier.padding(start = 8.dp))
+                    if (spec.exclusive) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
+                                    updateSelection(true)
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = isSelected, onClick = null, enabled = enabled, modifier = Modifier.clearAndSetSemantics {})
+                            Text(label, Modifier.padding(start = 8.dp))
+                        }
+                    } else {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .toggleable(value = isSelected, enabled = enabled, role = Role.Checkbox) { select ->
+                                    updateSelection(select)
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = isSelected, onCheckedChange = null, enabled = enabled, modifier = Modifier.clearAndSetSemantics {})
+                            Text(label, Modifier.padding(start = 8.dp))
+                        }
                     }
                 }
             }
@@ -480,6 +501,7 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
             androidx.compose.material3.Slider(
                 value = spec.value,
                 onValueChange = { if (spec.pointer != null) engine.input(spec.pointer, JsonPrimitive(it)) },
+                modifier = Modifier.semantics { contentDescription = spec.label.ifBlank { "Slider" } },
                 enabled = engine.interactive && spec.pointer != null,
                 valueRange = spec.min..spec.max,
             )
@@ -557,11 +579,14 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
     var sort by remember { mutableStateOf<String?>(null) }
     var ascending by remember { mutableStateOf(true) }
     var page by remember { mutableIntStateOf(0) }
+    val colWidth = (120 * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)).dp
     if (spec.filterable) ReiTextField(
         query, { query = it; page = 0 }, label = "Filter rows", singleLine = true,
     )
-    val matches = spec.rows.filter { row -> row.values.any { it.contains(query, ignoreCase = true) } }
-    val ordered = sort?.let { key -> matches.sortedBy { it[key].orEmpty() }.let { if (ascending) it else it.asReversed() } } ?: matches
+    val ordered = remember(spec.rows, query, sort, ascending) {
+        val matches = if (query.isBlank()) spec.rows else spec.rows.filter { row -> row.values.any { it.contains(query, ignoreCase = true) } }
+        sort?.let { key -> matches.sortedBy { it[key].orEmpty() }.let { if (ascending) it else it.asReversed() } } ?: matches
+    }
     Column(Modifier.horizontalScroll(rememberScrollState())) {
         Row {
             spec.columns.forEach { (key, name) ->
@@ -569,15 +594,15 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
                     ascending = if (sort == key) !ascending else true
                     sort = key
                     page = 0
-                }, modifier = Modifier.width(120.dp)) { Text(name) }
-                else Text(name, Modifier.width(120.dp).padding(8.dp), style = MaterialTheme.typography.labelLarge)
+                }, modifier = Modifier.width(colWidth)) { Text(name) }
+                else Text(name, Modifier.width(colWidth).padding(8.dp), style = MaterialTheme.typography.labelLarge)
             }
         }
         HorizontalDivider()
         ordered.drop(page * spec.pageSize).take(spec.pageSize).forEach { row ->
             Row {
                 spec.columns.forEach { (key, _) ->
-                    Text(row[key].orEmpty(), Modifier.width(120.dp).padding(8.dp))
+                    Text(row[key].orEmpty(), Modifier.width(colWidth).padding(8.dp))
                 }
             }
             HorizontalDivider()

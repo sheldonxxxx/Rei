@@ -3,6 +3,7 @@ package dev.rei.android.feature.chat
 import android.content.ContentResolver
 import android.content.SharedPreferences
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -71,6 +72,7 @@ data class PendingSend(
     val error: String? = null,
 )
 
+@Immutable
 data class ChatUiState(
     val sessionId: String? = null,
     val session: Session? = null,

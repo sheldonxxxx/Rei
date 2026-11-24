@@ -1,5 +1,6 @@
 package dev.rei.android.feature.knowledge
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -38,8 +39,10 @@ import kotlinx.coroutines.sync.withPermit
 enum class KnowledgeTab(val label: String) { All("All pages"), Favorites("Favorites"), Trash("Trash") }
 
 /** One visible line of the page list: a node at [depth], open or closed. */
+@Immutable
 data class KnowledgeRow(val node: KnowledgeNode, val depth: Int, val expanded: Boolean)
 
+@Immutable
 data class KnowledgeUiState(
     val searchText: String = "",
     val tab: KnowledgeTab = KnowledgeTab.All,
@@ -58,7 +61,7 @@ data class KnowledgeUiState(
 ) {
     /** Words or tags are set: the list shows search results instead of the tree. */
     val searching get() = searchText.isNotBlank() || selectedTags.isNotEmpty()
-    val rows: List<KnowledgeRow> get() = knowledgeRows(tab, tree, trash, expanded)
+    val rows: List<KnowledgeRow> by lazy(LazyThreadSafetyMode.NONE) { knowledgeRows(tab, tree, trash, expanded) }
 }
 
 /**

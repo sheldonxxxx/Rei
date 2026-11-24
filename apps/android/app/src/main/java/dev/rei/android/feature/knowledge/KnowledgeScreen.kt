@@ -71,7 +71,7 @@ import dev.rei.android.ui.theme.tabular
 
 /** The Knowledge destination. [onOpenPage] opens the page view; [onNewPage] opens an empty editor. */
 @Composable
-fun KnowledgeScreen(container: AppContainer, onOpenPage: (String) -> Unit, onNewPage: () -> Unit) {
+fun KnowledgeScreen(container: AppContainer, onOpenPage: (String) -> Unit, onNewPage: () -> Unit, modifier: Modifier = Modifier) {
     val vm: KnowledgeViewModel = viewModel(factory = KnowledgeViewModel.factory(container))
     val state by vm.state.collectAsStateWithLifecycle()
     KnowledgeContent(
@@ -88,6 +88,7 @@ fun KnowledgeScreen(container: AppContainer, onOpenPage: (String) -> Unit, onNew
         onRetry = vm::retry,
         onNewPage = onNewPage,
         onDismissError = vm::dismissError,
+        modifier = modifier,
     )
 }
 
@@ -126,7 +127,7 @@ fun KnowledgeContent(
                 MotionRegion(key = Triple(state.tab, state.selectedTags, state.searching), ready = state.loaded) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                         LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
-                        item {
+                        item(key = "header", contentType = "header") {
                             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 WorkspaceHeader(
                                     title = "Knowledge",
@@ -142,24 +143,24 @@ fun KnowledgeContent(
                             }
                         }
                         when {
-                            !state.loaded -> item {
+                            !state.loaded -> item(key = "loading", contentType = "loading") {
                                 Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
                                     CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
                                 }
                             }
-                            state.loadFailed -> item {
+                            state.loadFailed -> item(key = "error", contentType = "error") {
                                 EmptyState(ReiIcons.Alert, "Couldn’t load pages", body = state.error ?: "Try loading your pages again.") {
                                     OutlinedButton(onRetry) { Text("Try again") }
                                 }
                             }
                             state.searching -> {
-                                if (state.hits.isEmpty()) item { KnowledgeEmpty(state, onResetFilters, onNewPage) }
-                                else items(state.hits, key = { it.pageId + it.section }) { hit ->
+                                if (state.hits.isEmpty()) item(key = "empty", contentType = "empty") { KnowledgeEmpty(state, onResetFilters, onNewPage) }
+                                else items(state.hits, key = { "hit-${it.pageId}-${it.section}" }, contentType = { "hit" }) { hit ->
                                     HitRow(hit, onOpen = { onOpen(hit.pageId) }, Modifier.arrive(ReiEnter.Fade))
                                 }
                             }
-                            rows.isEmpty() -> item { KnowledgeEmpty(state, onResetFilters, onNewPage) }
-                            else -> items(rows, key = { it.node.id }) { row ->
+                            rows.isEmpty() -> item(key = "empty", contentType = "empty") { KnowledgeEmpty(state, onResetFilters, onNewPage) }
+                            else -> items(rows, key = { "row-${it.node.id}" }, contentType = { "page" }) { row ->
                                 LaunchedEffect(row.node.id) { onEnsureTags(row.node.id) }
                                 PageRow(
                                     row = row,
@@ -204,7 +205,7 @@ private fun PageRow(
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
                 .clickable(role = Role.Button, onClick = onOpen)
-                .padding(start = (16 + 20 * row.depth).dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = (16 + 20 * row.depth.coerceAtMost(4)).dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {

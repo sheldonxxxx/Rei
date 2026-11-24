@@ -126,7 +126,7 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
         }
         composable<LibraryRoute> {
             val opener = LocalWorkspaceOpener.current
-            LibraryScreen(env.container, env.api) { opener?.openFile(it.id) }
+            LibraryScreen(env.container, env.api, onOpen = { opener?.openFile(it.id) })
         }
         composable<KnowledgeRoute> {
             val opener = LocalWorkspaceOpener.current
@@ -202,7 +202,7 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
         }
         composable<BrowserRoute> { entry ->
             val route = entry.toRoute<BrowserRoute>()
-            BrowserScreen(env.container, route.sessionId) { nav.popBackStack() }
+            BrowserScreen(env.container, route.sessionId, onBack = { nav.popBackStack() })
         }
         composable<ActivityRoute> {
             val shell = LocalShell.current

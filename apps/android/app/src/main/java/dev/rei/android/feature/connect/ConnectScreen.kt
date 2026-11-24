@@ -45,6 +45,8 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -76,6 +78,7 @@ fun ConnectScreen(
     onConnect: (String) -> Unit,
     onSignIn: (String, String, String) -> Unit,
     onChangeServer: () -> Unit,
+    modifier: Modifier = Modifier,
     onPasskey: (Activity, String) -> Unit = { _, _ -> },
 ) {
     var url by rememberSaveable { mutableStateOf(state.serverUrl) }
@@ -124,7 +127,7 @@ fun ConnectScreen(
     fun signIn() { if (canSignIn) { focus.clearFocus(); onSignIn(password, code, label) } }
 
     Box(
-        Modifier
+        modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)),
@@ -152,6 +155,7 @@ fun ConnectScreen(
                                 setup -> "Set up Rei"
                                 else -> "Sign in to Rei"
                             },
+                            Modifier.semantics { heading() },
                             style = MaterialTheme.typography.titleLarge,
                         )
                         if (!state.upgradeRequired) {

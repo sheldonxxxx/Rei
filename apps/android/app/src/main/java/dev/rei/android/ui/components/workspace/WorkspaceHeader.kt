@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -75,14 +76,19 @@ fun WorkspaceHeader(
                 keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
             )
             Box(contentAlignment = Alignment.TopEnd) {
-                ReiIconButton(ReiIcons.Filter, filterLabel, onFilter)
+                ReiIconButton(
+                    ReiIcons.Filter,
+                    if (filters.isNotEmpty()) "$filterLabel, ${filters.size} active" else filterLabel,
+                    onFilter,
+                )
                 if (filters.isNotEmpty()) {
                     Box(
                         Modifier
                             .padding(top = 10.dp, end = 10.dp)
                             .size(8.dp)
                             .clip(ReiShapes.Pill)
-                            .background(MaterialTheme.colorScheme.primary),
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clearAndSetSemantics {},
                     )
                 }
             }

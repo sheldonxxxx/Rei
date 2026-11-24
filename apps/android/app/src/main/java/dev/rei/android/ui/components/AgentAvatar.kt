@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -72,11 +73,13 @@ fun AgentAvatar(avatar: String, modifier: Modifier = Modifier, size: Dp = 36.dp,
                     Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerLowest),
                     contentAlignment = Alignment.Center,
                 ) {
+                    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+                    val clampedSp = (size.value * (if (text.length > 1) 0.42f else 0.5f)) / (fontScale / fontScale.coerceAtMost(1.25f))
                     Text(
                         text,
                         color = MaterialTheme.colorScheme.primary,
-                        fontSize = (size.value * (if (text.length > 1) 0.42f else 0.5f)).sp,
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = (size.value * (if (text.length > 1) 0.42f else 0.5f)).sp),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = clampedSp.sp),
+                        maxLines = 1,
                     )
                 }
             }

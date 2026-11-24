@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -51,6 +52,7 @@ import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.SettingsGroup
 import dev.rei.android.ui.components.SettingsRow
+import dev.rei.android.ui.components.SettingsSwitchRow
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.ZoomableImage
 import dev.rei.android.ui.components.markdown.ReiMarkdown
@@ -61,7 +63,7 @@ import java.util.Date
 
 /** The full-screen viewer for one Library file. [versionId] pins a version (a chat attachment); [onClose] leaves it. */
 @Composable
-fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versionId: String?, onClose: () -> Unit) {
+fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versionId: String?, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val vm: FileViewerViewModel = viewModel(factory = FileViewerViewModel.factory(fileId, versionId, container))
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -92,6 +94,7 @@ fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versi
         onRetry = { if (state.detail == null) vm.retry() else vm.reload() },
         onCompatibility = vm::toggleCompatibility,
         onShowLatest = vm::showLatest,
+        modifier = modifier,
     )
     if (info) {
         state.detail?.let { InfoSheet(it, state.shown, onFavorite = vm::toggleFavorite, onDismiss = { info = false }) }
@@ -218,7 +221,7 @@ private fun ViewerBody(content: ViewerContent, api: ReiApi?, name: String, onRet
                     val lines = remember(content.text) { content.text.lines() }
                     SelectionContainer(Modifier.weight(1f)) {
                         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
-                            items(lines) { line ->
+                            itemsIndexed(lines, key = { index, _ -> "line-$index" }, contentType = { _, _ -> "line" }) { _, line ->
                                 Text(line.ifEmpty { " " }, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                             }
                         }
@@ -236,12 +239,12 @@ private fun InfoSheet(detail: LibraryDetail, shown: LibraryVersion?, onFavorite:
     ReiSheet(onDismiss = onDismiss, title = file.name) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsGroup {
-                SettingsRow(
+                SettingsSwitchRow(
                     "Favorite",
+                    file.favorite,
+                    { onFavorite() },
                     icon = ReiIcons.Star,
                     dividerBelow = true,
-                    onClick = onFavorite,
-                    trailing = { Switch(file.favorite, onCheckedChange = null) },
                 )
                 SettingsRow("Type", summary = version.mediaType.ifBlank { "Unknown" }, dividerBelow = true)
                 SettingsRow("Size", summary = fileBytes(version.size), dividerBelow = true)

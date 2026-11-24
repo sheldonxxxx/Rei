@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.icons.ReiIcons
 
 /** What a long press on a message can do. A null action is not offered. */
+@Immutable
 data class MessageSheetActions(
     val onCopy: () -> Unit,
     val onSelectText: () -> Unit,

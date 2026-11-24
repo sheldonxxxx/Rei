@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -19,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,7 +73,7 @@ private val FilterOrigins = listOf("upload" to "Uploaded", "agent" to "Agent-cre
 
 /** The Library destination: loads through [LibraryViewModel], opens files through [onOpen] (the shell's viewer). */
 @Composable
-fun LibraryScreen(container: AppContainer, api: ReiApi, onOpen: (LibraryFile) -> Unit) {
+fun LibraryScreen(container: AppContainer, api: ReiApi, onOpen: (LibraryFile) -> Unit, modifier: Modifier = Modifier) {
     val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -93,6 +95,7 @@ fun LibraryScreen(container: AppContainer, api: ReiApi, onOpen: (LibraryFile) ->
         onRetry = vm::retry,
         onUpload = { picker.launch(arrayOf("*/*")) },
         onDismissError = vm::dismissError,
+        modifier = modifier,
     )
 }
 
@@ -142,7 +145,7 @@ fun LibraryContent(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
+                        item(key = "header", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 WorkspaceHeader(
                                     title = "Library",
@@ -151,7 +154,7 @@ fun LibraryContent(
                                     searchLabel = "Search library",
                                     onFilter = { sheet = true },
                                     filters = filters,
-                                                                    )
+                                )
                                 state.upload?.let { upload ->
                                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         StatusBanner("Uploading ${upload.name} (${upload.index} of ${upload.total})…")
@@ -164,17 +167,17 @@ fun LibraryContent(
                             }
                         }
                         if (!state.loaded) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
+                            item(key = "loading", span = { GridItemSpan(maxLineSpan) }, contentType = "loading") {
                                 Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp) }
                             }
                         } else if (state.files.isEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) { LibraryEmpty(state, onResetFilters, onRetry, onUpload) }
+                            item(key = "empty", span = { GridItemSpan(maxLineSpan) }, contentType = "empty") { LibraryEmpty(state, onResetFilters, onRetry, onUpload) }
                         }
-                        items(state.files, key = { it.id }) { file ->
+                        items(state.files, key = { "file-${it.id}" }, contentType = { "file" }) { file ->
                             FileCard(file, api, onOpen = { onOpen(file) }, modifier = Modifier.arrive(ReiEnter.Fade))
                         }
                         if (state.loadingMore) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
+                            item(key = "more", span = { GridItemSpan(maxLineSpan) }, contentType = "more") {
                                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
                             }
                         }
@@ -240,10 +243,10 @@ private fun LibraryFilterSheet(
                 FilterOrigins.forEach { (value, label) -> FilterChip(query.origin == value, { onOrigin(if (query.origin == value) "" else value) }, { Text(label) }) }
             }
             Text("Sort by", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Column {
+            Column(Modifier.selectableGroup()) {
                 LibrarySort.entries.forEach { sort ->
                     Row(
-                        Modifier.fillMaxWidth().selectable(query.sort == sort, role = Role.RadioButton) { onSort(sort) }.padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(query.sort == sort, role = Role.RadioButton) { onSort(sort) }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(query.sort == sort, onClick = null)

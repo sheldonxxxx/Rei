@@ -32,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -64,6 +65,7 @@ import dev.rei.android.ui.theme.tabular
 import kotlinx.coroutines.delay
 
 /** What the screen asks of its host: the live data, and how to decide an approval and open a chat. */
+@Stable
 class ActivityActions(
     val onRefresh: () -> Unit,
     val onRetry: (FailureRow) -> Unit,
@@ -79,6 +81,7 @@ fun ActivityScreen(
     store: ActivityStore,
     onDecide: suspend (ReiApproval, Boolean, String, Int?) -> ReiApproval,
     onOpenChat: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val state by store.state.collectAsStateWithLifecycle()
     val notices = LocalNotices.current
@@ -97,6 +100,7 @@ fun ActivityScreen(
             onOpenChat = onOpenChat,
             onDismissError = store::dismissError,
         ),
+        modifier = modifier,
     )
 }
 
@@ -118,7 +122,7 @@ fun ActivityContent(state: ActivityUiState, actions: ActivityActions, modifier: 
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                item(key = "header") {
+                item(key = "header", contentType = "header") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             "Background Activity",
@@ -130,9 +134,9 @@ fun ActivityContent(state: ActivityUiState, actions: ActivityActions, modifier: 
                     }
                 }
                 if (rows.isEmpty()) {
-                    item(key = "empty") { if (state.loaded) EmptySegment(segment) else LoadingLine() }
+                    item(key = "empty", contentType = "empty") { if (state.loaded) EmptySegment(segment) else LoadingLine() }
                 } else {
-                    items(rows, key = { it.key }) { row -> ActivityRowView(row, state, actions) }
+                    items(rows, key = { it.key }, contentType = { it::class }) { row -> ActivityRowView(row, state, actions) }
                 }
             }
             }

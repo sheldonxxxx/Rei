@@ -98,7 +98,8 @@ private fun mermaidAvailable(context: Context): Boolean = webViewUsable ?: try {
 internal fun MermaidBlock(source: String) {
     val context = LocalContext.current
     if (!remember { mermaidAvailable(context) }) return CodeBlock("mermaid", source)
-    val theme = mermaidTheme(MaterialTheme.colorScheme)
+    val colorScheme = MaterialTheme.colorScheme
+    val theme = remember(colorScheme) { mermaidTheme(colorScheme) }
     val key = "$theme\n$source"
     var result by remember(key) { mutableStateOf(results.get(key)) }
     when (result) {

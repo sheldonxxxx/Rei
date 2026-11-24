@@ -3,8 +3,7 @@ package dev.rei.android.ui.components.chat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +17,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,11 +27,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,6 @@ import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.components.markdown.ReiMarkdown
-import dev.rei.android.ui.components.markdown.spokenText
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiEnter
@@ -52,7 +53,6 @@ import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.arrive
 
 /** Your message: right-aligned in `surfaceContainerHigh`, up to 85 % of the width. No arrival animation: you just wrote it. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UserBubble(
     message: Message,
@@ -72,11 +72,15 @@ fun UserBubble(
                 color = lerp(colors.surfaceContainerHigh, colors.tertiaryContainer, flash),
                 contentColor = colors.onSurface,
                 modifier = Modifier
-                    .semantics(mergeDescendants = true) { contentDescription = "You: ${message.text}" }
-                    .combinedClickable(onClick = {}, onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLongPress()
-                    }),
+                    .semantics {
+                        customActions = listOf(CustomAccessibilityAction("Message options") { onLongPress(); true })
+                    }
+                    .pointerInput(onLongPress) {
+                        detectTapGestures(onLongPress = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLongPress()
+                        })
+                    },
             ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (message.text.isNotBlank()) Text(message.text, style = MaterialTheme.typography.bodyLarge)
@@ -139,6 +143,7 @@ fun PendingBubble(
 }
 
 /** The assistant's quiet icon row under a finished reply: Copy (with brief check) and Inspect; Fork/Retry live in the message sheet. */
+@Immutable
 data class ReplyActions(
     val onCopy: () -> Unit,
     val onInspect: (() -> Unit)? = null,
@@ -148,7 +153,6 @@ data class ReplyActions(
  * The assistant's reply: left-aligned in `surfaceContainerLow`, up to 92 % of the width, Markdown inside. Text appears in
  * place while [streaming], with a caret. Content arrives with `rise`; [actions] shows once the reply is finished.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AssistantBubble(
     message: Message?,
@@ -177,14 +181,23 @@ fun AssistantBubble(
                 color = lerp(colors.surfaceContainerLow, colors.tertiaryContainer, flash),
                 contentColor = colors.onSurface,
                 modifier = Modifier
-                    .semantics(mergeDescendants = true) { contentDescription = "$agentName: ${spokenText(text)}" }
-                    .then(
-                        if (streaming) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
-                    )
-                    .combinedClickable(onClick = {}, onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLongPress()
-                    }),
+                    .semantics {
+                        customActions = buildList {
+                            add(CustomAccessibilityAction("Message options") { onLongPress(); true })
+                            if (!streaming && actions != null) {
+                                add(CustomAccessibilityAction("Copy") { actions.onCopy(); true })
+                                actions.onInspect?.let { inspect ->
+                                    add(CustomAccessibilityAction("Inspect") { inspect(); true })
+                                }
+                            }
+                        }
+                    }
+                    .pointerInput(onLongPress) {
+                        detectTapGestures(onLongPress = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onLongPress()
+                        })
+                    },
             ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (parts.isEmpty()) {

@@ -35,6 +35,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -81,6 +83,7 @@ internal fun parseSlashQuery(text: String, cursor: Int): SlashMatch? {
 }
 
 /** What the composer shows. Everything it needs is here, so it previews and tests without a view model. */
+@Immutable
 data class ComposerState(
     val draft: String = "",
     /** Bumped when the draft is replaced from outside (cleared by Send, restored after a failure), never while you type. */
@@ -254,7 +257,14 @@ fun Composer(
                 ReiIconButton(ReiIcons.Plus, "Attach", onAttach, enabled = state.enabled && !state.uploading)
                 Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
                     if (textState.text.isEmpty()) {
-                        Text(state.placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            state.placeholder,
+                            Modifier.clearAndSetSemantics {},
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     BasicTextField(
                         state = textState,
@@ -359,32 +369,32 @@ private fun SlashPopupRow(command: String, summary: String?, onClick: () -> Unit
 @Composable
 private fun SendButton(running: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    CompositionLocalProviderNoMinimum {
+    val label = if (running) "Stop reply" else "Send message"
+    Box(
+        Modifier
+            .size(48.dp)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
         Surface(
-            onClick = onClick,
-            enabled = enabled,
             shape = CircleShape,
             color = colors.primary,
             contentColor = colors.onPrimary,
             modifier = Modifier
                 .size(40.dp)
-                .alpha(if (enabled) 1f else 0.38f)
-                .semantics { role = Role.Button },
+                .alpha(if (enabled) 1f else 0.38f),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     if (running) ReiIcons.Stop else ReiIcons.Send,
-                    contentDescription = if (running) "Stop reply" else "Send message",
+                    contentDescription = null,
                     Modifier.size(20.dp),
                 )
             }
         }
     }
 }
-
-@Composable
-private fun CompositionLocalProviderNoMinimum(content: @Composable () -> Unit) =
-    androidx.compose.runtime.CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp, content = content)
 
 @Composable
 private fun RemovableChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, removeDescription: String, onRemove: () -> Unit) {

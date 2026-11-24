@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,8 +98,9 @@ internal fun SettingsIndex(
     androidx.compose.runtime.LaunchedEffect(updates, notices) {
         updates.messages.collect { notices?.show(it) }
     }
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     Column(Modifier.fillMaxSize()) {
-        ReiTopBar("", scrolledTitle = "Settings", scrolled = scroll.value > 0)
+        ReiTopBar("", scrolledTitle = "Settings", scrolled = scrolled)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Column(
                 Modifier

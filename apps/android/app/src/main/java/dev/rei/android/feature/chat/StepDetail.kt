@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.runtime.produceState
@@ -30,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -90,6 +92,8 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 
+private val WhitespaceRegex = Regex("\\s+")
+
 private enum class LlmTab(val label: String) { Context("Context"), Response("Response"), Raw("Raw"), Stats("Stats") }
 
 private fun JsonElement?.obj() = this as? JsonObject
@@ -145,15 +149,30 @@ fun StepDetail(
         }
         when {
             step.type == "llm.call" -> {
-                PrimaryTabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
+                val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
+                val tabsContent: @Composable () -> Unit = {
                     LlmTab.entries.forEach { entry ->
                         Tab(
                             selected = tab == entry,
                             onClick = { tab = entry },
-                            text = { Text(entry.label, style = MaterialTheme.typography.labelLarge) },
+                            text = { Text(entry.label, style = MaterialTheme.typography.labelLarge, maxLines = 1) },
                             modifier = Modifier.heightIn(min = 48.dp),
                         )
                     }
+                }
+                if (largeFont) {
+                    PrimaryScrollableTabRow(
+                        selectedTabIndex = tab.ordinal,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        edgePadding = 0.dp,
+                        tabs = tabsContent,
+                    )
+                } else {
+                    PrimaryTabRow(
+                        selectedTabIndex = tab.ordinal,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        tabs = tabsContent,
+                    )
                 }
                 when {
                     tab == LlmTab.Stats -> Stats(step, data)
@@ -179,7 +198,7 @@ fun StepDetail(
 
 @Composable
 private fun ContextView(request: JsonElement?, truncated: Boolean) {
-    val view = describeRequest(request)
+    val view = remember(request) { describeRequest(request) }
     if (!view.recognised) {
         Quiet("This request has a shape the inspector can’t lay out. The Raw tab shows it as recorded.")
         return
@@ -235,7 +254,7 @@ private fun MessageItem(m: ContextMessage) {
         return
     }
     val peek = m.text.ifEmpty { m.calls.firstOrNull() ?: if (m.other > 0) "${m.other} attachment${if (m.other == 1) "" else "s"}" else "" }
-    Collapsible({ RolePill(m.role); Peek(peek.replace(Regex("\\s+"), " ").take(90)) }) {
+    Collapsible({ RolePill(m.role); Peek(peek.replace(WhitespaceRegex, " ").take(90)) }) {
         if (m.reasoning.isNotEmpty()) {
             Note("Reasoning")
             LongText(m.reasoning)
@@ -248,7 +267,7 @@ private fun MessageItem(m: ContextMessage) {
 
 @Composable
 private fun ResponseView(response: JsonElement?) {
-    val view = describeResponse(response)
+    val view = remember(response) { describeResponse(response) }
     if (!view.recognised) {
         Quiet("No readable answer was recorded. The Raw tab shows what was.")
         return
@@ -317,12 +336,16 @@ private fun OfferedTools(tools: JsonObject, onOpenStep: (String) -> Unit) {
                             Text(a["name"].text().orEmpty(), style = MaterialTheme.typography.bodySmall.mono())
                             if (loadedBy != null) {
                                 val why = a["reason"].text()?.let(::loadReason)?.let { r -> " ($r${a["group"].text()?.let { g -> ": $g" } ?: ""})" }.orEmpty()
-                                Text(
-                                    "loaded by a search$why",
-                                    Modifier.clickable(role = Role.Button) { onOpenStep(loadedBy) },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
+                                Box(
+                                    Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { onOpenStep(loadedBy) },
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    Text(
+                                        "loaded by a search$why",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             } else {
                                 Text("offered again or added by a capability change", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -560,14 +583,14 @@ private fun StepImage(api: ReiApi, stepId: String, index: Int, description: Stri
 @Composable
 internal fun Facts(rows: List<Pair<String, String>>, modifier: Modifier = Modifier, links: Map<String, FactLink> = emptyMap()) {
     if (rows.isEmpty()) return
+    val stacked = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
     SelectionContainer {
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (stacked) 10.dp else 6.dp)) {
             rows.forEach { (label, value) ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(label, Modifier.width(112.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val link = links[label]
+                val link = links[label]
+                val valueContent: @Composable (Modifier) -> Unit = { valueMod ->
                     if (link == null) {
-                        Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.tabular())
+                        Text(value, valueMod, style = MaterialTheme.typography.bodyMedium.tabular())
                     } else {
                         val linkStyle = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
                         Text(
@@ -575,9 +598,20 @@ internal fun Facts(rows: List<Pair<String, String>>, modifier: Modifier = Modifi
                                 append("$value · ")
                                 withLink(LinkAnnotation.Clickable("fact", linkStyle) { link.onClick() }) { append(link.text) }
                             },
-                            Modifier.weight(1f),
+                            valueMod,
                             style = MaterialTheme.typography.bodyMedium.tabular(),
                         )
+                    }
+                }
+                if (stacked) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        valueContent(Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(label, Modifier.width(112.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        valueContent(Modifier.weight(1f))
                     }
                 }
             }
@@ -653,7 +687,7 @@ private fun Collapsible(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 44.dp)
+                    .heightIn(min = 48.dp)
                     .clickable(onClickLabel = if (open) "Collapse" else "Expand", role = Role.Button) { open = !open }
                     .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
                     .padding(horizontal = 12.dp, vertical = 6.dp),

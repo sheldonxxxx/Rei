@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +75,7 @@ fun KnowledgePageScreen(
     target: String,
     onOpenPage: (String) -> Unit,
     onClose: () -> Unit,
+    modifier: Modifier = Modifier,
     onDirtyChanged: (Boolean) -> Unit = {},
     showBack: Boolean = true,
 ) {
@@ -121,6 +124,7 @@ fun KnowledgePageScreen(
         onFavorite = vm::togglePinned,
         onTrash = vm::trash,
         onRestore = vm::restore,
+        modifier = modifier,
     )
     if (discard) {
         ConfirmDialog(
@@ -220,19 +224,23 @@ private fun PageReader(page: KnowledgePageData, api: ReiApi?, onOpenPage: (Strin
         if (page.trashed) StatusBanner("This page is in Trash.", actionLabel = "Restore", onAction = onRestore)
         if (page.locked) StatusBanner("This page is locked. Open it in Rei web to change it.")
         if (page.ancestors.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 page.ancestors.forEachIndexed { index, ancestor ->
-                    Text(
-                        ancestor.title,
-                        Modifier.clickable(role = Role.Button) { onOpenPage(ancestor.id) },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.primary,
-                    )
+                    Box(
+                        Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { onOpenPage(ancestor.id) }.padding(horizontal = 2.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            ancestor.title,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.primary,
+                        )
+                    }
                     if (index != page.ancestors.lastIndex) Text("/", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                 }
             }
         }
-        Text(page.title, style = MaterialTheme.typography.headlineMedium)
+        Text(page.title, Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium)
         if (page.description.isNotBlank()) Text(page.description, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
         if (page.tags.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

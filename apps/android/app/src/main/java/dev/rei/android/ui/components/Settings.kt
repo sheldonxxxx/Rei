@@ -72,9 +72,9 @@ fun SettingsRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    Column {
+    Column(modifier) {
         Row(
-            modifier
+            Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
                 .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)

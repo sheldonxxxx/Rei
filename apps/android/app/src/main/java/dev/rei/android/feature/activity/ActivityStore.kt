@@ -1,5 +1,6 @@
 package dev.rei.android.feature.activity
 
+import androidx.compose.runtime.Immutable
 import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApproval
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
+@Immutable
 data class ActivityUiState(
     val feed: ActivityFeed = ActivityFeed(),
     /** The first fetch has finished (or failed); until then the list shows a quiet loading line. */

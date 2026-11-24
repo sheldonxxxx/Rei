@@ -14,8 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.currentCompositeKeyHashCode
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -175,9 +177,10 @@ fun SubScreen(
     content: @Composable () -> Unit,
 ) {
     val scroll = rememberScrollState()
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val hideBack = LocalSubScreenHideBack.current
     Column(modifier.fillMaxSize()) {
-        ReiTopBar(title, scrolled = scroll.value > 0, onBack = if (hideBack) null else onBack, actions = actions)
+        ReiTopBar(title, scrolled = scrolled, onBack = if (hideBack) null else onBack, actions = actions)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 4.dp))
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Column(

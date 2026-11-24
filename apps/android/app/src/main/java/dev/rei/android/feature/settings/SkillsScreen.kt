@@ -4,7 +4,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,6 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.ReiApiException
@@ -242,9 +247,19 @@ private fun AgentAllow(agents: List<AgentOption>, saved: List<String>?, enabled:
     FormGroup(title = "Who can use it") {
         ChoiceRowInline(only, enabled) { only = it }
         if (only) agents.forEach { agent ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(agent.id in picked, { on -> picked = if (on) picked + agent.id else picked - agent.id }, enabled = enabled)
-                Text(agent.name)
+            val checked = agent.id in picked
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(value = checked, enabled = enabled, role = Role.Checkbox) { on ->
+                        picked = if (on) picked + agent.id else picked - agent.id
+                    }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked, onCheckedChange = null, enabled = enabled, modifier = Modifier.clearAndSetSemantics {})
+                Text(agent.name, Modifier.padding(start = 8.dp))
             }
         }
         FormButton("Save", primary = false, enabled = enabled && agentsChanged(saved, only, picked), onClick = { onSave(agentsBody(only, picked, agents)) })

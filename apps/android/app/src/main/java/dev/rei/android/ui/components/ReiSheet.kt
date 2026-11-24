@@ -14,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.rei.android.ui.theme.ReiShapes
 
@@ -42,7 +44,7 @@ fun ReiSheet(
             if (title != null) {
                 Text(
                     title,
-                    Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                 )

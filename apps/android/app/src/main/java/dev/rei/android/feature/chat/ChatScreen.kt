@@ -423,12 +423,18 @@ private fun Conversation(
         chatContent(modifier)
     }
 
+    LaunchedEffect(messageSheet, state.messages) {
+        val id = messageSheet ?: return@LaunchedEffect
+        if (state.messages.none { it.id == id }) messageSheet = null
+    }
+    LaunchedEffect(modelSheet, state.models) {
+        if (modelSheet && state.models == null) modelSheet = false
+    }
+
     // ---- sheets --------------------------------------------------------------------------------------------------
     messageSheet?.let { id ->
         val message = state.messages.firstOrNull { it.id == id }
-        if (message == null) {
-            messageSheet = null
-        } else {
+        if (message != null) {
             val user = message.role == "user"
             val retryTarget = if (user) message else items.filterIsInstance<TranscriptItem.Reply>().firstOrNull { it.message.id == id }?.retryOf
             val canRewrite = retryTarget?.editable == true && !state.busy
@@ -438,7 +444,7 @@ private fun Conversation(
                     onCopy = { copy(message.text); messageSheet = null },
                     onSelectText = { selecting = message.text; messageSheet = null },
                     onEdit = if (user && canRewrite) ({ editing = message; messageSheet = null }) else null,
-                    onRetry = if (canRewrite) ({ confirmRetry = retryTarget!!; messageSheet = null }) else null,
+                    onRetry = if (canRewrite) ({ confirmRetry = retryTarget; messageSheet = null }) else null,
                     onFork = if (message.forkable) ({ confirmFork = message; messageSheet = null }) else null,
                     onSwitchVersion = if (user && (message.versions?.count ?: 0) > 1 && !state.busy) ({ next -> chat.switchVersion(message, next) }) else null,
                 ),
@@ -495,8 +501,9 @@ private fun Conversation(
     if (skills) SkillSheet(state.skills, loaded = state.skillsLoaded, onDismiss = { skills = false }, onSelect = { chat.selectSkill(it); skills = false })
     if (modelSheet) {
         val catalog = state.models
-        if (catalog == null) modelSheet = false
-        else ModelSheet(catalog, state.agent?.model, onDismiss = { modelSheet = false }, onSelect = { chat.setModel(it); modelSheet = false })
+        if (catalog != null) {
+            ModelSheet(catalog, state.agent?.model, onDismiss = { modelSheet = false }, onSelect = { chat.setModel(it); modelSheet = false })
+        }
     }
     if (permissionsSheet) {
         PermissionsSheet(

@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.tabular
 
 /** What the drawer can ask for. The shell wires these to navigation and to [ShellViewModel]. */
+@Stable
 class DrawerActions(
     val onSearch: () -> Unit,
     val onNewChat: () -> Unit,
@@ -82,7 +84,7 @@ fun ReiDrawerContent(
 ) {
     Column(modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)) {
-            item(key = "header") {
+            item(key = "header", contentType = "header") {
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -91,7 +93,7 @@ fun ReiDrawerContent(
                     ReiIconButton(ReiIcons.Search, "Search chats", actions.onSearch)
                 }
             }
-            item(key = "new-chat") {
+            item(key = "new-chat", contentType = "new-chat") {
                 FilledTonalButton(
                     onClick = actions.onNewChat,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(bottom = 4.dp),
@@ -101,7 +103,7 @@ fun ReiDrawerContent(
                     Text("New chat", Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.labelLarge)
                 }
             }
-            item(key = "nav") {
+            item(key = "nav", contentType = "nav") {
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     NavRow("Library", ReiIcons.Library, current == Destination.Library) { actions.onNavigate(Destination.Library) }
                     NavRow("Knowledge", ReiIcons.Knowledge, current == Destination.Knowledge) { actions.onNavigate(Destination.Knowledge) }
@@ -111,10 +113,10 @@ fun ReiDrawerContent(
                 }
             }
             if (state.agents.isNotEmpty()) {
-                item(key = "agents-head") {
+                item(key = "agents-head", contentType = "agents-head") {
                     SectionHeader("Agents", action = { ReiIconButton(ReiIcons.Plus, "New agent", actions.onNewAgent) })
                 }
-                items(state.agents, key = { "agent-${it.id}" }) { agent ->
+                items(state.agents, key = { "agent-${it.id}" }, contentType = { "agent" }) { agent ->
                     AgentRow(
                         agent = agent,
                         selected = current == Destination.Chat && agent.id == state.selectedAgentId,
@@ -123,7 +125,7 @@ fun ReiDrawerContent(
                     )
                 }
             }
-            item(key = "chats-head") {
+            item(key = "chats-head", contentType = "chats-head") {
                 var menu by remember { mutableStateOf(false) }
                 SectionHeader(
                     "Chats",
@@ -143,7 +145,7 @@ fun ReiDrawerContent(
                 )
             }
             if (state.loaded && state.groups.isEmpty()) {
-                item(key = "empty") {
+                item(key = "empty", contentType = "empty") {
                     Text(
                         "No chats yet. Start a chat to begin.",
                         Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
@@ -153,8 +155,8 @@ fun ReiDrawerContent(
                 }
             }
             state.groups.forEach { group ->
-                item(key = "group-${group.label}") { SectionHeader(group.label) }
-                items(group.sessions, key = { "chat-${it.id}" }) { session ->
+                item(key = "group-${group.label}", contentType = "group-header") { SectionHeader(group.label) }
+                items(group.sessions, key = { "chat-${it.id}" }, contentType = { "chat" }) { session ->
                     ChatRow(
                         session = session,
                         selected = session.id == state.openSessionId && current == Destination.Chat,
@@ -165,7 +167,7 @@ fun ReiDrawerContent(
                 }
             }
             if (state.hasMore) {
-                item(key = "more") {
+                item(key = "more", contentType = "more") {
                     LaunchedEffect(state.groups.sumOf { it.sessions.size }) { actions.onLoadMore() }
                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -214,7 +216,7 @@ private fun AgentRow(agent: ChatAgent, selected: Boolean, attention: Boolean, on
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (attention) AttentionDot()
+        if (attention) AttentionDot("Needs attention")
     }
 }
 
@@ -224,17 +226,16 @@ private fun ChatRow(session: Session, selected: Boolean, attention: Boolean, onC
     val haptics = LocalHapticFeedback.current
     val unread = session.unread > 0 && !selected
     val title = session.title.ifBlank { "Untitled chat" }
+    val status = listOfNotNull(
+        if (attention) "Approval needed" else null,
+        if (unread) "Unread" else null,
+        if (session.pinned) "Pinned" else null,
+    ).joinToString(", ")
     SelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .semantics {
-                stateDescription = listOfNotNull(
-                    if (attention) "Approval needed" else null,
-                    if (unread) "Unread" else null,
-                ).joinToString(", ")
-            },
+        modifier = Modifier.heightIn(min = 48.dp),
+        stateDescriptionText = status.ifEmpty { null },
         onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
     ) {
         Text(
@@ -245,18 +246,21 @@ private fun ChatRow(session: Session, selected: Boolean, attention: Boolean, onC
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (session.pinned) Icon(ReiIcons.Pin, contentDescription = "Pinned", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (session.pinned) Icon(ReiIcons.Pin, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (unread) Dot(MaterialTheme.colorScheme.primary)
         if (attention) AttentionDot()
     }
 }
 
 @Composable
-private fun AttentionDot() = Dot(MaterialTheme.colorScheme.tertiary)
+private fun AttentionDot(description: String? = null) = Dot(
+    MaterialTheme.colorScheme.tertiary,
+    if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
+)
 
 @Composable
-private fun Dot(color: androidx.compose.ui.graphics.Color) {
-    Box(Modifier.size(8.dp).background(color, CircleShape))
+private fun Dot(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(8.dp).background(color, CircleShape))
 }
 
 /** A drawer row: the selected one gets the selected background and a visible outline. */
@@ -266,11 +270,12 @@ private fun SelectableRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    stateDescriptionText: String? = null,
     onLongClick: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth().semantics { this.selected = selected },
+        modifier = modifier.fillMaxWidth(),
         shape = ReiShapes.Pill,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -279,6 +284,10 @@ private fun SelectableRow(
         Row(
             Modifier
                 .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
+                .semantics(mergeDescendants = true) {
+                    this.selected = selected
+                    if (stateDescriptionText != null) stateDescription = stateDescriptionText
+                }
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),

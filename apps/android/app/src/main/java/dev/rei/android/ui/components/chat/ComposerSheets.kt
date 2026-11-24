@@ -149,7 +149,7 @@ fun SkillSheet(skills: List<SkillOption>, loaded: Boolean, onDismiss: () -> Unit
 @Composable
 fun ModelSheet(catalog: ModelCatalog, current: String?, onDismiss: () -> Unit, onSelect: (String?) -> Unit) {
     ReiSheet(onDismiss = onDismiss, title = "Model") {
-        Column(Modifier.heightIn(max = 480.dp)) {
+        Column(Modifier.heightIn(max = 480.dp).selectableGroup()) {
             Choice("Default (${catalog.label(null)})", selected = current == null, onClick = { onSelect(null) })
             LazyColumn {
                 items(catalog.models, key = { it }) { model ->
@@ -166,7 +166,9 @@ fun EffortSheet(levels: List<String>, current: String, onDismiss: () -> Unit, on
         if (levels.isEmpty()) {
             Text("This model has no reasoning effort to choose.", Modifier.padding(horizontal = 24.dp, vertical = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        levels.forEach { level -> Choice(effortLabel(level), selected = current == level, onClick = { onSelect(level) }) }
+        Column(Modifier.selectableGroup()) {
+            levels.forEach { level -> Choice(effortLabel(level), selected = current == level, onClick = { onSelect(level) }) }
+        }
     }
 }
 
@@ -260,6 +262,6 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit, icon: 
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (selected) Icon(icon ?: ReiIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+        if (selected) Icon(icon ?: ReiIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
     }
 }

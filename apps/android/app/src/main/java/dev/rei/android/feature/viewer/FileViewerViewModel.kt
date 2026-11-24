@@ -3,6 +3,7 @@ package dev.rei.android.feature.viewer
 import android.content.ContentResolver
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.SavedStateHandle
@@ -47,6 +48,7 @@ sealed interface ViewerContent {
     class Unavailable(val message: String, val retry: Boolean = false) : ViewerContent
 }
 
+@Immutable
 data class ViewerUiState(
     val fileId: String? = null,
     val detail: LibraryDetail? = null,

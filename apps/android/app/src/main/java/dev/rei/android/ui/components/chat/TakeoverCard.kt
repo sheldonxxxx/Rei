@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.rei.android.data.TakeoverInfo
 import dev.rei.android.ui.icons.ReiIcons
@@ -59,7 +60,7 @@ fun TakeoverCard(takeover: TakeoverInfo, agentName: String, onOpen: () -> Unit, 
                 Text(it, style = MaterialTheme.typography.bodyLarge, color = colors.onTertiaryContainer)
             }
             (takeover.title ?: takeover.url)?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer, maxLines = 1)
+                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Button(onClick = onOpen, modifier = Modifier.heightIn(min = 48.dp)) { Text("Open") }
         }

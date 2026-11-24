@@ -21,6 +21,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.rei.android.ui.components.ReiIconButton
@@ -59,7 +61,13 @@ fun ReiTopBar(
                         Column(Modifier.weight(1f, fill = false)) {
                             Crossfade(targetState = shownTitle, label = "top bar title") { text ->
                                 if (text.isNotEmpty()) {
-                                    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleLarge)
+                                    Text(
+                                        text,
+                                        Modifier.semantics { heading() },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.titleLarge,
+                                    )
                                 }
                             }
                             if (subtitle != null) {

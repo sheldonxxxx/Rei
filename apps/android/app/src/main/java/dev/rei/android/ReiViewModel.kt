@@ -3,6 +3,7 @@ package dev.rei.android
 import android.app.Activity
 import android.app.Application
 import android.content.Intent
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.rei.android.data.AuthState
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
+@Immutable
 data class ReiUiState(
     val serverUrl: String = "",
     val auth: AuthState? = null,
