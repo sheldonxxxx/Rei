@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import dev.rei.android.BuildConfig
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
@@ -246,4 +247,4 @@ private fun AccountCard(host: String, device: String?) {
     }
 }
 
-internal fun hostOf(serverUrl: String): String = Uri.parse(serverUrl).let { it.authority ?: serverUrl }
+internal fun hostOf(serverUrl: String): String = serverUrl.toUri().let { it.authority ?: serverUrl }

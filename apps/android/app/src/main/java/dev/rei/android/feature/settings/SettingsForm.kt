@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
@@ -154,7 +155,7 @@ internal fun SecretField(
  * consent page. Returns false when nothing could open it. The address is never logged.
  */
 internal fun openInBrowser(context: android.content.Context, address: String): Boolean {
-    val uri = android.net.Uri.parse(address)
+    val uri = address.toUri()
     if (uri.scheme != "https" && uri.scheme != "http") return false
     return try {
         androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)

@@ -2,6 +2,7 @@ package dev.rei.android.ui.theme
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +24,7 @@ class ThemePreferenceStore private constructor(private val preferences: SharedPr
     val preference: StateFlow<ThemePreference> = mutable.asStateFlow()
 
     fun set(value: ThemePreference) {
-        preferences.edit().putString(Key, value.name).apply()
+        preferences.edit { putString(Key, value.name) }
         mutable.value = value
     }
 

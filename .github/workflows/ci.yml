@@ -144,6 +144,14 @@ jobs:
       - if: steps.filter.outputs.android == 'true'
         working-directory: apps/android
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
+      # The Firebase push integration is compiled only when configured, so prove it still compiles without a project.
+      - if: steps.filter.outputs.android == 'true'
+        working-directory: apps/android
+        run: ./gradlew -PreiCompileFirebase=true :app:compileDebugKotlin --console=plain
+      # The unsigned release build runs R8 and resource shrinking, which the debug build never does.
+      - if: steps.filter.outputs.android == 'true'
+        working-directory: apps/android
+        run: ./gradlew assembleRelease --console=plain
 
   # Builds every Compose image to prove the Dockerfiles still work. Nothing is pushed or published.
   images:

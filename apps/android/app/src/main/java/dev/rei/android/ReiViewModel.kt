@@ -3,6 +3,7 @@ package dev.rei.android
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.rei.android.data.AttachmentRef
@@ -188,6 +189,8 @@ class ReiViewModel(application: Application) : AndroidViewModel(application) {
         listOf(globalJob).filter { it != caller }.forEach { it?.cancel() }
         messageTargetState.value = null
         withContext(Dispatchers.IO) { credentials.clear() }
+        // Drafts, attachments and last-chat pointers belong to the signed-in account, so they go with it.
+        local.edit { clear() }
         ReiNotifications.signedOut(getApplication<Application>())
         mutableState.value = ReiUiState(serverUrl = serverUrl, error = error, upgradeRequired = upgrade)
     }
@@ -304,7 +307,7 @@ class ReiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectAgent(agent: ChatAgent) {
         val api = current.api ?: return
-        local.edit().putString(agentKey(api), agent.id).apply()
+        local.edit { putString(agentKey(api), agent.id) }
         mutableState.update { it.copy(selectedAgentId = agent.id, nextCursor = null) }
         agent.homeSessionId.takeIf(String::isNotBlank)?.let(::openChat)
     }
@@ -337,8 +340,9 @@ class ReiViewModel(application: Application) : AndroidViewModel(application) {
         api.deleteChat(id, deleteForks)
         if (current.sessionId == id) closeChat()
         val key = chatDraftKey(api.serverUrl, id)
-        local.edit().remove(key).remove("$key:attachments").remove("$key:request").remove("$key:request:text")
-            .remove("$key:request:attachments").apply()
+        local.edit {
+            remove(key).remove("$key:attachments").remove("$key:request").remove("$key:request:text").remove("$key:request:attachments")
+        }
         mutableState.update { state -> state.copy(sessions = state.sessions.filterNot { it.id == id }) }
     }
 
@@ -356,14 +360,14 @@ class ReiViewModel(application: Application) : AndroidViewModel(application) {
     fun openChat(id: String) {
         val api = current.api ?: return
         if (current.sessionId == id) return
-        local.edit().putString(lastKey(api), id).apply()
+        local.edit { putString(lastKey(api), id) }
         current.sessions.firstOrNull { it.id == id }?.agentId?.let { rememberAgent(api, it) }
         mutableState.update { it.copy(sessionId = id, error = null) }
     }
 
     fun closeChat() {
         val api = current.api ?: return
-        local.edit().remove(lastKey(api)).apply()
+        local.edit { remove(lastKey(api)) }
         mutableState.update { it.copy(sessionId = null, error = null) }
     }
 
@@ -406,7 +410,7 @@ class ReiViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun rememberAgent(api: ReiApi, id: String) {
         if (current.selectedAgentId == id) return
-        local.edit().putString(agentKey(api), id).apply()
+        local.edit { putString(agentKey(api), id) }
         mutableState.update { it.copy(selectedAgentId = id, nextCursor = null) }
     }
 

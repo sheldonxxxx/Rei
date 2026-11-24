@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,7 +78,7 @@ fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (Attach
     var paging by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var reload by remember { mutableStateOf(0) }
+    var reload by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(query, reload, paging) {
         loading = true

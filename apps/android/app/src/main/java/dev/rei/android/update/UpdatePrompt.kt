@@ -66,7 +66,13 @@ fun UpdatePrompt(modifier: Modifier = Modifier) {
     }
     if (progress != null) {
         Box(modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
-            StatusBanner(progress, kind = if ((state as? UpdateState.Installing)?.confirming == true) StatusKind.Attention else StatusKind.Info)
+            val installing = state is UpdateState.Installing
+            StatusBanner(
+                progress,
+                kind = if ((state as? UpdateState.Installing)?.confirming == true) StatusKind.Attention else StatusKind.Info,
+                actionLabel = if (installing) "Cancel" else null,
+                onAction = if (installing) manager::cancelInstall else null,
+            )
         }
     }
 }

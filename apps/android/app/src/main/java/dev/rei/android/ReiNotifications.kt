@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.edit
 import dev.rei.android.data.CredentialStore
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.optionalString
@@ -22,11 +23,24 @@ import kotlinx.serialization.json.put
 class ReiApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        ReiNotifications.ensureChannel(this)
         ReiFirebase.initialize(this)
     }
 }
 
 internal data class NotificationTarget(val sessionId: String, val messageId: String?)
+
+/** What a push message shows. The title falls back to the app name; the body can be empty when previews are off. */
+internal data class NotificationContent(val id: Int, val title: String, val body: String) {
+    companion object {
+        /** One notification per session, message and event, so a repeat of the same push replaces rather than stacks. */
+        fun from(data: Map<String, String>) = NotificationContent(
+            id = (data["sessionId"].orEmpty() + (data["messageId"] ?: "") + data["event"]).hashCode(),
+            title = data["title"].orEmpty().ifBlank { "Rei" },
+            body = data["body"].orEmpty(),
+        )
+    }
+}
 
 internal object ReiNotifications {
     private const val Channel = "rei_activity"
@@ -45,16 +59,25 @@ internal object ReiNotifications {
         (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
             context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
 
+    /** Creates the notification channel if it is missing. Android 13+ lists it in the app's notification settings only once it exists. */
+    fun ensureChannel(context: Context) {
+        context.getSystemService(NotificationManager::class.java)
+            .createNotificationChannel(NotificationChannel(Channel, "Rei activity", NotificationManager.IMPORTANCE_DEFAULT))
+    }
+
     fun setEnabled(context: Context, enabled: Boolean) {
-        preferences(context).edit().putBoolean(Enabled, enabled).apply()
-        if (enabled) ReiFirebase.sync(context) else {
+        preferences(context).edit { putBoolean(Enabled, enabled) }
+        if (enabled) {
+            ensureChannel(context)
+            ReiFirebase.sync(context)
+        } else {
             context.getSystemService(NotificationManager::class.java).cancelAll()
             ReiFirebase.disable(context)
         }
     }
 
     fun signedOut(context: Context) {
-        preferences(context).edit().remove(Device).remove(Server).remove(ChannelId).apply()
+        preferences(context).edit { remove(Device).remove(Server).remove(ChannelId) }
         context.getSystemService(NotificationManager::class.java).cancelAll()
     }
 
@@ -71,8 +94,9 @@ internal object ReiNotifications {
         })["channel"] as? JsonObject ?: return@withLock
         val current = CredentialStore(context).load()
         if (current?.token != credential || current.serverUrl != saved.serverUrl) return@withLock
-        preferences(context).edit().putString(Device, device).putString(Server, saved.serverUrl)
-            .putString(ChannelId, reply.optionalString("id")).apply()
+        preferences(context).edit {
+            putString(Device, device).putString(Server, saved.serverUrl).putString(ChannelId, reply.optionalString("id"))
+        }
     }
 
     suspend fun unregister(context: Context) = updates.withLock {
@@ -81,7 +105,7 @@ internal object ReiNotifications {
         val saved = CredentialStore(context).load() ?: return@withLock
         if (saved.token == null || saved.serverUrl != prefs.getString(Server, null)) return@withLock
         ReiApi(saved.serverUrl, saved.token).request("DELETE", listOf("api", "devices", "current", "channels", id))
-        prefs.edit().remove(ChannelId).apply()
+        prefs.edit { remove(ChannelId) }
     }
 
     private fun matchesDevice(context: Context, device: String?): Boolean =
@@ -97,10 +121,11 @@ internal object ReiNotifications {
     fun show(context: Context, data: Map<String, String>) {
         if (!enabled(context) || !hasPermission(context) || !matchesDevice(context, data["deviceId"])) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(Channel, "Rei activity", NotificationManager.IMPORTANCE_DEFAULT))
+        ensureChannel(context)
         val session = data["sessionId"].orEmpty()
         val message = data["messageId"]
-        val id = (session + (message ?: "") + data["event"]).hashCode()
+        val content = NotificationContent.from(data)
+        val id = content.id
         val destination = Intent(context, MainActivity::class.java).apply {
             action = Open
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -109,8 +134,8 @@ internal object ReiNotifications {
             putExtra(Message, message)
         }
         val action = PendingIntent.getActivity(context, id, destination, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val title = data["title"].orEmpty().ifBlank { "Rei" }
-        val body = data["body"].orEmpty()
+        val title = content.title
+        val body = content.body
         manager.notify(id, Notification.Builder(context, Channel)
             .setSmallIcon(dev.rei.android.R.drawable.ic_rei_notification)
             .setContentTitle(title)

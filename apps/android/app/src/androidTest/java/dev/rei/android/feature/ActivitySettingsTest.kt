@@ -151,7 +151,8 @@ class ActivitySettingsTest {
             "Session", "Sign out of this device", "Disconnect server",
         ).forEach { compose.onNodeWithText(it).performScrollTo().assertExists() }
         compose.onNodeWithText("Providers").performScrollTo()
-        compose.onAllNodesWithOpensInWeb().assertCountEquals(8)
+        // Every settings page is native now, so no row hands off to the web app.
+        compose.onAllNodesWithOpensInWeb().assertCountEquals(0)
     }
 
     @Test

@@ -19,9 +19,12 @@
 #   ANDROID_KEY_PASSWORD        key password (defaults to the keystore password)
 #
 # Optional: REI_RELEASE_NOTES (the feed's notes text), ANDROID_HOME or ANDROID_SDK_ROOT (otherwise sdk.dir from
-# local.properties), JAVA_HOME (JDK 21 or newer).
+# local.properties), JAVA_HOME (JDK 21 or newer), REI_ALLOW_LOCAL_FIREBASE=1 (see below).
 #
-# Needs Node.js (to write the feed) and Android SDK Build-Tools 36 (zipalign, apksigner). Run `npm ci` at the
+# A local, git-ignored app/src/firebase/assets/rei-firebase.json would be bundled into the public APK, so the script
+# refuses to run while that file exists unless REI_ALLOW_LOCAL_FIREBASE=1 says the bundle is intended.
+#
+# Needs Node.js (to write the feed) and Android SDK Build-Tools 36 or newer (zipalign, apksigner). Run `npm ci` at the
 # repository root first, because the app packages the web client's viewer from node_modules.
 set -euo pipefail
 
@@ -80,6 +83,12 @@ command -v node >/dev/null || die "Node.js not found."
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+# --- Firebase guard --------------------------------------------------------------------------------------------
+FIREBASE_CONFIG="$ANDROID_DIR/app/src/firebase/assets/rei-firebase.json"
+if [ -f "$FIREBASE_CONFIG" ] && [ "${REI_ALLOW_LOCAL_FIREBASE:-}" != 1 ]; then
+  die "$FIREBASE_CONFIG exists and would be bundled into the release APK. Move it away, or set REI_ALLOW_LOCAL_FIREBASE=1 if that is intended."
+fi
+
 # --- Build -----------------------------------------------------------------------------------------------------
 say "Building the unsigned release APK $VERSION (versionCode $VERSION_CODE)"
 cd "$ANDROID_DIR"
@@ -90,21 +99,29 @@ env -u ANDROID_KEYSTORE_PASSWORD -u ANDROID_KEY_PASSWORD -u ANDROID_KEY_ALIAS -u
 UNSIGNED="$ANDROID_DIR/app/build/outputs/apk/release/app-release-unsigned.apk"
 [ -f "$UNSIGNED" ] || die "Gradle did not produce $UNSIGNED."
 
-# Build-Tools 36 can be installed by Gradle during the build, so look for it only now.
+# Build-Tools can be installed by Gradle during the build, so look for them only now. Take the highest installed version
+# from 36 up (36 is the first with zipalign -P 16, which 16 KB page-size devices need) that has both tools.
 BUILD_TOOLS=
-for dir in "$ANDROID_HOME"/build-tools/36.*; do
-  [ -x "$dir/apksigner" ] && BUILD_TOOLS=$dir
+BEST=
+for dir in "$ANDROID_HOME"/build-tools/[0-9]*; do
+  [ -x "$dir/apksigner" ] && [ -x "$dir/zipalign" ] || continue
+  version=$(basename "$dir")
+  [ "${version%%.*}" -ge 36 ] 2>/dev/null || continue
+  if [ -z "$BEST" ] || [ "$(printf '%s\n%s\n' "$BEST" "$version" | sort -V | tail -n 1)" = "$version" ]; then
+    BEST=$version BUILD_TOOLS=$dir
+  fi
 done
-[ -n "$BUILD_TOOLS" ] || die "Android SDK Build-Tools 36 not found under $ANDROID_HOME/build-tools (sdkmanager \"build-tools;36.0.0\")."
+[ -n "$BUILD_TOOLS" ] || die "Android SDK Build-Tools 36 or newer not found under $ANDROID_HOME/build-tools (sdkmanager \"build-tools;36.0.0\")."
 
 # The app's own minSdk, read from the Gradle file so that the signature check and the feed cannot drift from it.
 MIN_SDK=$(sed -n 's/^[[:space:]]*minSdk = \([0-9][0-9]*\)$/\1/p' "$ANDROID_DIR/app/build.gradle.kts" | head -n 1)
 [ -n "$MIN_SDK" ] || die "could not read minSdk from app/build.gradle.kts."
 
 # --- Align, sign, verify ---------------------------------------------------------------------------------------
+# -P 16 aligns uncompressed .so files to 16 KiB pages (Android 15+), and every other uncompressed entry to 4 KiB.
 say "Aligning and signing with $(basename "$BUILD_TOOLS")"
-"$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$WORK_DIR/aligned.apk"
-"$BUILD_TOOLS/zipalign" -c -p 4 "$WORK_DIR/aligned.apk"
+"$BUILD_TOOLS/zipalign" -P 16 -f 4 "$UNSIGNED" "$WORK_DIR/aligned.apk"
+"$BUILD_TOOLS/zipalign" -c -P 16 4 "$WORK_DIR/aligned.apk"
 mkdir -p "$OUT_DIR"
 APK="$OUT_DIR/rei-${VERSION}.apk"
 FEED="$OUT_DIR/android-update.json"

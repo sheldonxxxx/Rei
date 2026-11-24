@@ -7,6 +7,8 @@ import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import dev.rei.android.BuildConfig
 import java.io.File
 import kotlinx.coroutines.CancellationException
@@ -66,6 +68,7 @@ class UpdateManager private constructor(
     private val mutableState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     private val mutableMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     private var job: Job? = null
+    private val confirmations = ConfirmationGate<Intent> { confirm -> app.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     private val apkDirectory get() = File(app.cacheDir, "updates")
 
     val state: StateFlow<UpdateState> = mutableState.asStateFlow()
@@ -103,7 +106,7 @@ class UpdateManager private constructor(
             is UpdateState.Downloading, is UpdateState.Installing, is UpdateState.AwaitingPermission -> return
             else -> Unit
         }
-        preferences.edit().putLong(LastCheck, System.currentTimeMillis()).apply()
+        preferences.edit { putLong(LastCheck, System.currentTimeMillis()) }
         job = scope.launch {
             mutableState.value = UpdateState.Checking
             try {
@@ -137,7 +140,7 @@ class UpdateManager private constructor(
     /** Opens Android's "install unknown apps" page for Rei. The flow continues in [onForeground]. */
     fun openInstallSettings() {
         val feed = (mutableState.value as? UpdateState.NeedsPermission)?.feed ?: return
-        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}"))
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${app.packageName}".toUri())
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         mutableState.value = UpdateState.AwaitingPermission(feed)
         try {
@@ -147,11 +150,31 @@ class UpdateManager private constructor(
         }
     }
 
-    /** The app came back to the foreground, maybe from the permission page. */
+    /** The app came back to the foreground, maybe from the permission page or with an installer confirmation waiting. */
     fun onForeground() {
+        when (confirmations.onForeground()) {
+            ConfirmationGate.Outcome.Launched -> onInstallWaitingForUser()
+            ConfirmationGate.Outcome.Blocked -> onInstallResult(PackageInstaller.STATUS_FAILURE_BLOCKED, null)
+            else -> Unit
+        }
         val feed = (mutableState.value as? UpdateState.AwaitingPermission)?.feed ?: return
         if (canInstall()) download(feed)
         else mutableState.value = UpdateState.Failed("Rei is still not allowed to install apps, so the update was not installed.", feed)
+    }
+
+    fun onBackground() = confirmations.onBackground()
+
+    /**
+     * Gives up on an install that is with the system installer, including one whose confirmation screen was dismissed
+     * or never shown. The person lands on "Try again" instead of being stuck behind a banner.
+     */
+    fun cancelInstall() {
+        val feed = (mutableState.value as? UpdateState.Installing)?.feed ?: return
+        confirmations.clear()
+        val installer = app.packageManager.packageInstaller
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
+        apkDirectory.deleteRecursively()
+        mutableState.value = UpdateState.Failed(installFailureMessage(PackageInstaller.STATUS_FAILURE_ABORTED, null), feed)
     }
 
     /** "Later" or "Close": leaves the flow without changing anything. */
@@ -177,7 +200,11 @@ class UpdateManager private constructor(
                     mutableState.value = UpdateState.Downloading(feed, received, total)
                 }
                 mutableState.value = UpdateState.Installing(feed)
-                withContext(Dispatchers.IO) { UpdateInstaller.install(app, file) }
+                withContext(Dispatchers.IO) {
+                    UpdateInstaller.install(app, file)
+                    // The session holds its own copy once committed, so the cached download is no longer needed.
+                    file.delete()
+                }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
@@ -187,12 +214,22 @@ class UpdateManager private constructor(
         }
     }
 
-    internal fun onInstallWaitingForUser() {
+    /** Android needs the person to confirm: show its screen now if Rei is visible, otherwise when Rei comes back. */
+    internal fun onInstallNeedsConfirmation(confirm: Intent) {
+        when (confirmations.offer(confirm)) {
+            ConfirmationGate.Outcome.Launched -> onInstallWaitingForUser()
+            ConfirmationGate.Outcome.Blocked -> onInstallResult(PackageInstaller.STATUS_FAILURE_BLOCKED, null)
+            ConfirmationGate.Outcome.Deferred -> Unit
+        }
+    }
+
+    private fun onInstallWaitingForUser() {
         val current = mutableState.value
         if (current is UpdateState.Installing) mutableState.value = current.copy(confirming = true)
     }
 
     internal fun onInstallResult(status: Int, detail: String?) {
+        confirmations.clear()
         val feed = when (val current = mutableState.value) {
             is UpdateState.Installing -> current.feed
             is UpdateState.Failed -> current.feed

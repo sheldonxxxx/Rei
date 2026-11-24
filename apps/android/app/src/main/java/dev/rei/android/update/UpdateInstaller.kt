@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.os.Build
 import java.io.File
 import java.io.IOException
@@ -19,6 +20,9 @@ internal object UpdateInstaller {
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
             setSize(apk.length())
+            setInstallReason(PackageManager.INSTALL_REASON_USER)
+            // Only takes effect on a first install; harmless when updating, and keeps Rei the owner if it is ever installed fresh.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) setRequestUpdateOwnership(true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }

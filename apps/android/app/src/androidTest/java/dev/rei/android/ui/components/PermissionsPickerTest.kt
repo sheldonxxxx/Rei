@@ -102,10 +102,11 @@ class PermissionsPickerTest {
     }
 
     @Test
-    fun theAgentDefaultOpensItsSettingsInWeb() {
+    fun theAgentDefaultOpensItsSettings() {
         show(ChatProfile.Standard)
         compose.onNodeWithContentDescription("Permissions: Standard. Change").performClick()
-        compose.onNodeWithContentDescription("Opens in web").assertExists()
+        // The Permissions settings page is native, so the row must not claim to open the web app.
+        compose.onNodeWithContentDescription("Opens in web").assertDoesNotExist()
         compose.onNodeWithText("Settings → Permissions").assertIsEnabled().performClick()
         assertEquals(1, settingsOpened)
     }

@@ -1,5 +1,6 @@
 package dev.rei.android.update
 
+import dev.rei.android.BuildConfig
 import dev.rei.android.data.ReiApi
 import dev.rei.android.readUpTo
 import java.io.File
@@ -36,11 +37,14 @@ internal const val CheckInterval = 24L * 60 * 60 * 1000
 
 private const val MaxFeedBytes = 64 * 1024
 
+/** The largest update APK that is downloaded. Rei's own APK is a fraction of this; the cap stops a hostile or broken server filling the disk. */
+internal const val MaxApkBytes = 256L * 1024 * 1024
+
 /**
  * Reads the update feed and downloads the APK it points to. It has no Android dependencies beyond the app's OkHttp, so the
  * logic runs in plain unit tests. An empty [feedUrl] means checks are off ([check] returns [UpdateCheck.Disabled]).
  *
- * The feed and the APK are fetched over HTTPS (loopback HTTP is allowed for tests). The digest in the feed catches a
+ * The feed and the APK are fetched over HTTPS (loopback HTTP is allowed only when [allowLoopbackHttp] is set, for debug builds and tests). The digest in the feed catches a
  * truncated or swapped download; Android itself decides whether the APK is signed with this app's key.
  */
 class UpdateChecker(
@@ -48,7 +52,10 @@ class UpdateChecker(
     private val currentVersionCode: Int,
     private val sdkInt: Int,
     // GitHub serves release assets through a redirect, which the API client does not follow. The pool and timeouts are shared.
-    private val client: OkHttpClient = ReiApi.http.newBuilder().followRedirects(true).build(),
+    // Redirects are followed, but never from HTTPS to HTTP (followSslRedirects(false)).
+    private val client: OkHttpClient = ReiApi.http.newBuilder().followRedirects(true).followSslRedirects(false).build(),
+    private val allowLoopbackHttp: Boolean = BuildConfig.DEBUG,
+    private val maxApkBytes: Long = MaxApkBytes,
 ) {
     val enabled: Boolean get() = feedUrl.isNotBlank()
 
@@ -89,6 +96,7 @@ class UpdateChecker(
                     if (!response.isSuccessful) throw UpdateException("The update download returned HTTP ${response.code}.")
                     val responseBody = response.requireBody()
                     val total = responseBody.contentLength()
+                    if (total > maxApkBytes) throw UpdateException("The update is larger than Rei accepts, so it was not downloaded.")
                     var received = 0L
                     var reported = -1L
                     responseBody.byteStream().use { input ->
@@ -101,6 +109,7 @@ class UpdateChecker(
                                 output.write(buffer, 0, n)
                                 digest.update(buffer, 0, n)
                                 received += n
+                                if (received > maxApkBytes) throw UpdateException("The update is larger than Rei accepts, so the download was stopped.")
                                 // About a hundred updates per download keeps the UI calm.
                                 val step = if (total > 0) received * 100 / total else received / (256 * 1024)
                                 if (step != reported) { reported = step; onProgress(received, total) }
@@ -126,7 +135,7 @@ class UpdateChecker(
 
     private fun Response.requireBody(): ResponseBody = body ?: throw UpdateException("The update server sent an empty response.")
 
-    private fun secureUrl(raw: String): HttpUrl? = raw.toHttpUrlOrNull()?.takeIf { it.isHttps || it.host in Loopback }
+    private fun secureUrl(raw: String): HttpUrl? = raw.toHttpUrlOrNull()?.takeIf { it.isHttps || (allowLoopbackHttp && it.host in Loopback) }
 
     private companion object {
         val Loopback = setOf("localhost", "127.0.0.1", "::1", "[::1]")

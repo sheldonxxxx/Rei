@@ -214,7 +214,7 @@ private fun ViewerBody(content: ViewerContent, api: ReiApi?, name: String, onRet
             CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
         }
         is ViewerContent.Picture -> ZoomableImage(content.bitmap, name.ifBlank { "Image" })
-        is ViewerContent.Document -> DocumentWebView(content.bytes, content.name, content.mediaType)
+        is ViewerContent.Document -> DocumentWebView(content.bytes, content.name)
         is ViewerContent.Unavailable -> EmptyState(ReiIcons.File, "No preview", body = content.message) {
             if (content.retry) OutlinedButton(onRetry) { Text("Try again") }
             else OutlinedButton(onDownload) { Text("Download") }

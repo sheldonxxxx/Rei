@@ -2,9 +2,9 @@ import javax.inject.Inject
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val firebaseConfigured = file("src/firebase/assets/rei-firebase.json").isFile
@@ -40,6 +40,26 @@ android {
         if (firebaseConfigured) assets.directories += "src/firebase/assets"
     }
 
+    buildTypes {
+        release {
+            // R8 full mode is the AGP 9 default. Keep rules for reflection-reached code live in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    // The signed dependency-metadata block is only useful to Play and just fingerprints the build.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+    }
+
     buildFeatures {
         buildConfig = true
         compose = true
@@ -58,38 +78,38 @@ kotlin {
 }
 
 dependencies {
-    if (firebaseIncluded) implementation("com.google.firebase:firebase-messaging:24.1.2")
+    if (firebaseIncluded) implementation(libs.firebase.messaging)
 
-    implementation(platform("androidx.compose:compose-bom:2026.11.01"))
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material3.adaptive:adaptive:1.2.0")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.core:core-splashscreen:1.2.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
-    implementation("androidx.navigation:navigation-compose:2.10.2")
-    implementation("androidx.browser:browser:1.10.0")
-    implementation("androidx.webkit:webkit:1.14.0")
-    implementation("androidx.credentials:credentials:1.5.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
-    implementation("org.commonmark:commonmark:0.33.0")
-    implementation("org.commonmark:commonmark-ext-autolink:0.33.0")
-    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.33.0")
-    implementation("org.commonmark:commonmark-ext-gfm-tables:0.33.0")
-    implementation("org.commonmark:commonmark-ext-task-list-items:0.33.0")
-    implementation("com.squareup.okhttp3:okhttp:5.5.1")
-    implementation("com.squareup.okhttp3:okhttp-sse:5.5.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.webkit)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.autolink)
+    implementation(libs.commonmark.ext.gfm.strikethrough)
+    implementation(libs.commonmark.ext.gfm.tables)
+    implementation(libs.commonmark.ext.task.list.items)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.sse)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2026.11.01"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation("androidx.test:runner:1.7.0")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 // Package the same offline Office and PDF renderers used by the web client. viewer/build.mjs writes into

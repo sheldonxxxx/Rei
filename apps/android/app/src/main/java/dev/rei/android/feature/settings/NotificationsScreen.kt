@@ -1,6 +1,7 @@
 package dev.rei.android.feature.settings
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
@@ -97,7 +98,11 @@ fun NotificationsScreen(api: ReiApi, onBack: () -> Unit) {
                     "Android notification settings", icon = ReiIcons.Settings,
                     summary = "Notifications are off for Rei in Android.",
                     onClick = {
-                        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        try {
+                            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        } catch (_: ActivityNotFoundException) {
+                            notice = "Open Android Settings → Apps → Rei → Notifications."
+                        }
                     },
                     trailing = { SettingsChevron() },
                 )

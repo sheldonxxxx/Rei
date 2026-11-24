@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -278,7 +279,7 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var liveView by remember { mutableStateOf<RemoteViewport?>(null) }
-    var retry by remember { mutableStateOf(0) }
+    var retry by remember { mutableIntStateOf(0) }
     var busy by remember(api, sessionId) { mutableStateOf(false) }
     var error by remember(api, sessionId) { mutableStateOf<String?>(null) }
     var dragging by remember { mutableStateOf(false) }

@@ -183,7 +183,7 @@ fun ConnectScreen(
                                 error = setupCodeError,
                                 supportingText = "Printed in the server log the first time it starts.",
                                 visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Next),
                             )
                         }
                         ReiTextField(
@@ -196,6 +196,7 @@ fun ConnectScreen(
                             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
+                                autoCorrectEnabled = false,
                                 imeAction = if (needsCode && !setup) ImeAction.Next else ImeAction.Done,
                             ),
                             keyboardActions = KeyboardActions(onDone = { signIn() }),

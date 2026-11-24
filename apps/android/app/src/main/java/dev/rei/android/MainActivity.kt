@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        UpdateManager.get(this).onBackground()
         ViewModelProvider(this)[ReiViewModel::class.java].foreground(false)
         super.onStop()
     }

@@ -78,6 +78,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.optionalString
 import dev.rei.android.ui.components.ReiIconButton
@@ -276,7 +277,7 @@ internal fun linkTarget(url: String): LinkTarget = when (val reference = parseRe
 /** Opens an outside address (https or mailto) in a Custom Tab; says so when nothing can open it. */
 internal fun openExternalLink(context: android.content.Context, address: String) {
     try {
-        androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, Uri.parse(address))
+        androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, address.toUri())
     } catch (_: android.content.ActivityNotFoundException) {
         android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show()
     }
@@ -694,7 +695,7 @@ suspend fun loadPicture(api: ReiApi, destination: String, maxDimension: Int): Im
                 }
                 api.client to api.fileRequest(id, version, thumbnail = maxDimension <= 1200)
             } else {
-                val url = destination.toHttpUrlOrNull()?.takeIf { it.isHttps && it.username.isEmpty() && it.password.isEmpty() }
+                val url = destination.toHttpUrlOrNull()?.takeIf { isPublicImageUrl(it) }
                     ?: return@withContext null
                 // Model-provided external images never receive Rei credentials.
                 imageHttp to Request.Builder().url(url).build()

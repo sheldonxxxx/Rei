@@ -131,6 +131,13 @@ internal fun MermaidBlock(source: String) {
 @Composable
 private fun MermaidView(source: String, theme: String, onResult: (MermaidResult) -> Unit) {
     val latest by rememberUpdatedState(onResult)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // A device can have no WebView (disabled or being updated); creating one then throws, so the source shows instead.
+    val available = remember { runCatching { WebViewCompat.getCurrentWebViewPackage(context) != null }.getOrDefault(false) }
+    if (!available) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { latest(MermaidResult.Unavailable) }
+        return
+    }
     AndroidView(
         factory = { context -> MermaidWebView(context) { latest(it) } },
         update = { it.render(source, theme) },
@@ -205,6 +212,7 @@ private class MermaidWebView(context: Context, private val onResult: (MermaidRes
             setGeolocationEnabled(false)
             javaScriptCanOpenWindowsAutomatically = false
             setSupportMultipleWindows(false)
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
         isVerticalScrollBarEnabled = false
@@ -227,6 +235,12 @@ private class MermaidWebView(context: Context, private val onResult: (MermaidRes
                 val allowed = request.method == "GET" && url.scheme == "https" && url.host == MermaidHost
                 return (if (allowed) loader.shouldInterceptRequest(url) else null)
                     ?: WebResourceResponse("text/plain", "utf-8", 404, "Unavailable", emptyMap(), null)
+            }
+
+            // The page's renderer process died (or was killed for memory). Handling it keeps the app alive; the source shows instead.
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                onResult(MermaidResult.Unavailable)
+                return true
             }
 
             override fun onPageFinished(view: WebView, url: String) {

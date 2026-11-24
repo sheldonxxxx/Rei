@@ -2,7 +2,6 @@ package dev.rei.android.feature.settings
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
@@ -13,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,10 +20,14 @@ import androidx.compose.ui.autofill.ContentType
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.string
 import dev.rei.android.ui.components.ReiTextField
+import dev.rei.android.ui.components.SecureWindow
 import dev.rei.android.ui.components.SettingsGroup
 import dev.rei.android.ui.components.SettingsRow
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+
+/** The authenticator link is opened only when it really is an `otpauth:` URI, whatever the server sent. */
+internal fun isOtpAuthUri(uri: String): Boolean = uri.substringBefore(':', "").equals("otpauth", ignoreCase = true)
 
 /** The six digits of an authenticator code from whatever the user typed or pasted. */
 internal fun totpDigits(text: String): String = text.filter(Char::isDigit).take(6)
@@ -42,6 +46,8 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
     var code by remember { mutableStateOf("") }
     var enrol by remember { mutableStateOf<Pair<String, String>?>(null) } // otpauth URI to secret
     val enabled = state.value
+    // The authenticator key is on screen only while enrolling: keep it out of screenshots and the recent-apps thumbnail.
+    SecureWindow(enabled = enrol != null)
     fun reset() { editing = false; enrol = null; password = ""; code = "" }
     SubScreen("Two-factor authentication", onBack, busy = writes.busy || state.loading, error = writes.error ?: state.error, onRetry = state::reload) {
         if (enabled != null) {
@@ -60,7 +66,7 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
                     ReiTextField(
                         password, { password = it }, "Current password", enabled = !writes.busy,
                         visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         contentType = ContentType.Password,
                     )
                     enrol?.let { (uri, secret) ->
@@ -68,7 +74,8 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
                         SelectionContainer { Text(secret, style = MaterialTheme.typography.titleMedium) }
                         FormButton("Open in authenticator app", primary = false, onClick = {
                             try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+                                if (!isOtpAuthUri(uri)) throw ActivityNotFoundException()
+                                context.startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
                             } catch (_: ActivityNotFoundException) {
                                 Toast.makeText(context, "No authenticator app found. Enter the key by hand.", Toast.LENGTH_LONG).show()
                             }

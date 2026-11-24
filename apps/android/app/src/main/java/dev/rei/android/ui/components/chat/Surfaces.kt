@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -324,7 +326,7 @@ private class SurfaceResolver(val components: Map<String, JsonObject>, val data:
             "Gallery" -> SurfaceSpec.Stack(resolved("images").records().flatMap { image ->
                 val caption = image.optionalString("caption").orEmpty()
                 listOfNotNull(
-                    SurfaceSpec.Picture(image.optionalString("url").orEmpty(), caption),
+                    image.optionalString("url")?.takeIf { it.startsWith("https://", ignoreCase = true) }?.let { SurfaceSpec.Picture(it, caption) },
                     caption.takeIf { it.isNotBlank() }?.let { SurfaceSpec.Plain(it) },
                     image.optionalString("link")?.let { SurfaceSpec.Link(it, "Open image link") },
                 )
@@ -404,6 +406,7 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
             enabled = engine.interactive && spec.pointer != null && !engine.sending,
             singleLine = !spec.multiline,
             visualTransformation = if (spec.obscured) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = if (spec.obscured) KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false) else KeyboardOptions.Default,
         )
         is SurfaceSpec.Toggle -> Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
