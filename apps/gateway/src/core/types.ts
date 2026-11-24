@@ -3,6 +3,7 @@ import type {
   CallerBudget,
   GatewayCallRecord,
   GatewayCallsSummary,
+  GatewayUsageResponse,
   ProviderConnection,
   SaveProviderConnectionRequest,
   ScanProviderModelsRequest,
@@ -61,11 +62,16 @@ export interface CodexImagesSetup {
 
 export interface CallLog {
   insert(record: GatewayCallRecord): void;
+  recordRefusal(caller: string, code: string, at: number): void;
   /** One caller's records for a step, oldest first. */
   byStep(stepId: string, caller: string): GatewayCallRecord[];
   /** Newest first; every caller's unless one is named. */
   recent(limit: number, caller?: string): GatewayCallRecord[];
   summary(sinceMs: number): GatewayCallsSummary["rows"];
+  /** Permanent daily usage counters for an inclusive UTC date range (`YYYY-MM-DD`). */
+  usage(from: string, to: string, caller?: string): GatewayUsageResponse;
+  /** ISO UTC timestamp of the earliest tracked gateway usage. */
+  trackingSince(): string;
   /** When each caller's newest record started. */
   lastUsed(): Map<string, number>;
 }

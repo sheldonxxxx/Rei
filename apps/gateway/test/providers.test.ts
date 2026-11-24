@@ -9,6 +9,7 @@ import { createGatewayApp } from "../src/core/proxy.ts";
 import { createRedactor } from "../src/core/redact.ts";
 import { FileCredentialStore } from "../src/node/credstore.ts";
 import { FileProviderManager } from "../src/node/providers.ts";
+import { noopCallLog } from "./noop-calls.ts";
 
 let dir: string;
 let credentials: FileCredentialStore;
@@ -30,7 +31,7 @@ function providerApp() {
     standin: "test-standin",
     providers,
     tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-    calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+    calls: noopCallLog(),
     models: () => [],
     version: "test",
     upstreams: [],

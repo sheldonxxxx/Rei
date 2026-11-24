@@ -91,12 +91,13 @@ it("serves sign-in over authenticated gateway routes, and reports off when not c
     const { createGatewayApp } = await import("../src/core/proxy.ts");
     const { createRedactor } = await import("../src/core/redact.ts");
     const { nullLogger } = await import("@rei/logging");
+    const { noopCallLog } = await import("./noop-calls.ts");
     const make = (codexImagesSetup_?: ReturnType<typeof codexImagesSetup>) =>
       createGatewayApp({
         standin: "standin",
         ...(codexImagesSetup_ ? { codexImagesSetup: codexImagesSetup_ } : {}),
         tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-        calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+        calls: noopCallLog(),
         models: () => [],
         version: "test",
         upstreams: [],

@@ -408,8 +408,50 @@ describe("call log schema", () => {
       log.close();
     }
     const check = new DatabaseSync(file);
-    expect((check.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(1);
+    expect((check.prepare("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(3);
     check.close();
+  });
+
+  it("backfills daily usage on migration and keeps it forever after calls prune", () => {
+    const day1 = Date.parse("2026-10-01T12:00:00Z");
+    const day2 = Date.parse("2026-11-20T12:00:00Z");
+    const file = join(tmp, "daily-backfill.sqlite");
+    const v1 = new DatabaseSync(file);
+    v1.exec(`
+      CREATE TABLE calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, caller TEXT, provider TEXT, step_id TEXT, model TEXT,
+        started_at INTEGER NOT NULL, first_byte_ms INTEGER, total_ms INTEGER, status INTEGER NOT NULL,
+        input_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER,
+        limit_resets_s INTEGER, limit_code TEXT, limit_headers TEXT, error_code TEXT
+      );
+      PRAGMA user_version = 1;
+    `);
+    v1.prepare(
+      `INSERT INTO calls (caller, provider, model, started_at, total_ms, status, input_tokens, output_tokens, cached_tokens)
+       VALUES ('reports', 'openai', 'gpt-5', ?, 400, 200, 1000, 200, 250)`,
+    ).run(day1);
+    v1.close();
+
+    // Open at day2 (>30 days later): prune() deletes the raw row, but daily usage and lastUsed survive.
+    const log = new SqliteCallLog(file, { now: () => day2 });
+    expect(log.count()).toBe(0);
+    expect(log.trackingSince()).toBe("2026-10-01T12:00:00.000Z");
+    expect(log.lastUsed().get("reports")).toBe(day1);
+    const usage = log.usage("2026-10-01", "2026-11-20", "reports");
+    expect(usage.models.summary).toMatchObject({
+      inputTotal: 1000,
+      inputCached: 250,
+      inputUncached: 750,
+      outputTotal: 200,
+      totalProcessed: 1200,
+      cacheHitPercent: 25,
+      calls: 1,
+      callsReported: 1,
+      callsUnreported: 0,
+      ok: 1,
+      errors: 0,
+    });
+    log.close();
   });
 
   it("caps rows per caller, so one caller cannot push out another's", () => {
@@ -868,4 +910,195 @@ it("only mounts Codex Images for Rei on the internal listener when enabled", asy
       })
     ).status,
   ).toBe(400);
+});
+
+describe("gateway daily usage endpoint", () => {
+  it("reserves the id 'all' alongside 'rei'", async () => {
+    const w = world();
+    const res = await w.send("internal", "/callers", { body: { id: "all" } });
+    expect([res.status, await w.code(res)]).toEqual([409, "caller_exists"]);
+  });
+
+  it("aggregates models, services, mcp exclusion, and durable refusals for one caller and all callers", async () => {
+    const now = Date.parse("2026-11-24T10:00:00Z");
+    const w = world({ now: () => now });
+    const reports = await w.create("reports", { budget: { providers: { openai: 0 } } });
+    // Budget refusal on openai is persisted to refusals_daily.
+    const refused = await w.model(reports.token);
+    expect([refused.status, await w.code(refused)]).toEqual([403, "provider_not_allowed"]);
+
+    // Insert mixed records directly to exercise models, search, embeddings, reads, mcp, and errors.
+    w.calls.insert({
+      caller: "rei",
+      provider: "openai",
+      stepId: "s1",
+      model: "gpt-5",
+      startedAt: now,
+      firstByteMs: 50,
+      totalMs: 300,
+      status: 200,
+      usage: { inputTokens: 1000, outputTokens: 200, cachedInputTokens: 400 },
+      limit: null,
+      error: null,
+    });
+    w.calls.insert({
+      caller: "rei",
+      provider: "mcp",
+      stepId: "s2",
+      model: "mcp:con_1/list",
+      startedAt: now,
+      firstByteMs: null,
+      totalMs: 80,
+      status: 200,
+      usage: null,
+      limit: null,
+      error: null,
+    });
+    w.calls.insert({
+      caller: "reports",
+      provider: "custom-a",
+      stepId: "r1",
+      model: "fast-1",
+      startedAt: now,
+      firstByteMs: 20,
+      totalMs: 120,
+      status: 200,
+      usage: { inputTokens: 500, outputTokens: 100, cachedInputTokens: 0 },
+      limit: null,
+      error: null,
+    });
+    w.calls.insert({
+      caller: "reports",
+      provider: "custom-a",
+      stepId: "r2",
+      model: "fast-1",
+      startedAt: now,
+      firstByteMs: null,
+      totalMs: 50,
+      status: 429,
+      usage: null,
+      limit: { resetsInSeconds: 10, code: "rate_limit", headers: {} },
+      error: { code: "rate_limited" },
+    });
+    w.calls.insert({
+      caller: "reports",
+      provider: "search",
+      stepId: null,
+      model: "search:brave",
+      startedAt: now,
+      firstByteMs: null,
+      totalMs: 240,
+      status: 200,
+      usage: null,
+      limit: null,
+      error: null,
+    });
+    w.calls.insert({
+      caller: "reports",
+      provider: "embedding",
+      stepId: null,
+      model: "text-embedding-3-small",
+      startedAt: now,
+      firstByteMs: null,
+      totalMs: 90,
+      status: 200,
+      usage: { inputTokens: 320, outputTokens: 0, cachedInputTokens: 0 },
+      limit: null,
+      error: null,
+    });
+    w.calls.insert({
+      caller: "reports",
+      provider: "read",
+      stepId: null,
+      model: "read",
+      startedAt: now,
+      firstByteMs: 150,
+      totalMs: 150,
+      status: 200,
+      usage: null,
+      limit: null,
+      error: null,
+    });
+
+    // Guarded: outside callers and shared listener cannot read /usage.
+    expect((await w.send("shared", "/usage?from=2026-11-24&to=2026-11-24")).status).toBe(404);
+    expect((await w.send("internal", "/usage?from=2026-11-24&to=2026-11-24", { token: reports.token })).status).toBe(
+      403,
+    );
+    expect((await w.send("internal", "/usage?from=2026-11-25&to=2026-11-24")).status).toBe(400);
+    expect((await w.send("internal", "/usage?from=2026-02-30&to=2026-11-24")).status).toBe(400);
+
+    // Single caller view.
+    const oneRes = await w.send("internal", "/usage?from=2026-11-24&to=2026-11-24&caller=reports");
+    expect(oneRes.status).toBe(200);
+    const one = (await oneRes.json()) as import("@rei/protocol").GatewayUsageResponse;
+    expect(one.caller).toBe("reports");
+    expect(one.byCaller).toEqual([]);
+    expect(one.models.summary).toMatchObject({
+      inputTotal: 500,
+      inputCached: 0,
+      inputUncached: 500,
+      outputTotal: 100,
+      totalProcessed: 600,
+      cacheHitPercent: 0,
+      calls: 2,
+      callsReported: 1,
+      callsUnreported: 1,
+      ok: 1,
+      errors: 1,
+      upstreamLimited: 1,
+    });
+    expect(one.models.byModel).toHaveLength(1);
+    expect(one.search).toEqual({
+      calls: 1,
+      ok: 1,
+      errors: 0,
+      averageMs: 240,
+      byProvider: [{ provider: "brave", calls: 1, ok: 1, errors: 0, averageMs: 240 }],
+    });
+    expect(one.embeddings).toEqual({ calls: 1, ok: 1, errors: 0, inputTokens: 320, averageMs: 90 });
+    expect(one.reads).toEqual({ calls: 1, ok: 1, errors: 0, averageMs: 150 });
+    expect(one.refusals).toEqual([{ code: "provider_not_allowed", count: 1 }]);
+    expect(one.errorBreakdown).toEqual([{ code: "rate_limited", count: 1 }]);
+
+    // Combined All view (excludes MCP from models/byCaller).
+    const allRes = await w.send("internal", "/usage?from=2026-11-24&to=2026-11-24");
+    expect(allRes.status).toBe(200);
+    const all = (await allRes.json()) as import("@rei/protocol").GatewayUsageResponse;
+    expect(all.caller).toBeNull();
+    expect(all.models.summary).toMatchObject({
+      inputTotal: 1500,
+      inputCached: 400,
+      outputTotal: 300,
+      calls: 3,
+    });
+    expect(all.byCaller).toEqual([
+      {
+        caller: "reports",
+        inputTotal: 500,
+        inputCached: 0,
+        outputTotal: 100,
+        modelCalls: 2,
+        searchCalls: 1,
+        embeddingCalls: 1,
+        readCalls: 1,
+        errors: 1,
+        upstreamLimited: 1,
+        refusals: 1,
+      },
+      {
+        caller: "rei",
+        inputTotal: 1000,
+        inputCached: 400,
+        outputTotal: 200,
+        modelCalls: 1,
+        searchCalls: 0,
+        embeddingCalls: 0,
+        readCalls: 0,
+        errors: 0,
+        upstreamLimited: 0,
+        refusals: 0,
+      },
+    ]);
+  });
 });

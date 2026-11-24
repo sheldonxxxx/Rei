@@ -1,3 +1,14 @@
+import type {
+  GatewayCallerScope,
+  GatewayEmbeddingsUsage,
+  GatewayModelUsage,
+  GatewayReadsUsage,
+  GatewayUsageCallerRow,
+  GatewayUsageError,
+  GatewayUsageRefusal,
+  GatewayUsageServiceRow,
+} from "./gateway.ts";
+
 /** Usage contains counters only: no prompts, traces or credentials. Days and periods use UTC. */
 export const USAGE_PURPOSES = ["chat", "memory", "title", "agent_task", "other"] as const;
 export type UsagePurpose = (typeof USAGE_PURPOSES)[number];
@@ -37,6 +48,9 @@ export interface UsageResponse {
   daily: { day: string; usage: UsageTotals }[];
   search: SearchUsageResponse;
   images: ImageUsageResponse;
+  /** Gateway-recorded embedding and page read counters for Rei; omitted when the gateway is unavailable. */
+  embeddings?: GatewayEmbeddingsUsage;
+  reads?: GatewayReadsUsage;
 }
 
 /** Why an image request failed, as the server records it. */
@@ -87,6 +101,59 @@ export interface SearchUsageResponse {
   failed: number;
   searchesWithFallback: number;
   byProvider: SearchUsageProvider[];
+}
+
+/** Safe summary of an outside gateway caller for the Usage page (no tokens or fingerprints). */
+export interface UsageCallerSummary {
+  id: string;
+  note: string;
+  scopes: GatewayCallerScope[];
+  revokedAt: number | null;
+  lastUsedAt: number | null;
+}
+
+export interface UsageCallersResponse {
+  /** False when the gateway is not configured or could not be reached. */
+  available: boolean;
+  callers: UsageCallerSummary[];
+}
+
+export interface CallerUsageModelRow extends GatewayModelUsage {
+  provider: string;
+  providerName: string;
+  model: string;
+}
+
+export interface CallerUsageSearchProvider extends GatewayUsageServiceRow {
+  providerName: string;
+}
+
+/** Gateway-sourced usage for one outside caller or all callers combined (UTC). */
+export interface CallerUsageResponse {
+  period: UsagePeriod;
+  timezone: "UTC";
+  trackingSince: string;
+  from: string;
+  to: string;
+  /** Null for the combined All callers view. */
+  caller: UsageCallerSummary | null;
+  models: {
+    summary: GatewayModelUsage;
+    byModel: CallerUsageModelRow[];
+  };
+  /** Populated only for the combined All view; empty for a single caller. */
+  byCaller: GatewayUsageCallerRow[];
+  search: {
+    calls: number;
+    ok: number;
+    errors: number;
+    averageMs: number | null;
+    byProvider: CallerUsageSearchProvider[];
+  };
+  embeddings: GatewayEmbeddingsUsage;
+  reads: GatewayReadsUsage;
+  refusals: GatewayUsageRefusal[];
+  errorBreakdown: GatewayUsageError[];
 }
 
 /** Latest completed chat model call, rather than cumulative billing usage. */

@@ -34,12 +34,18 @@ export function capFor(caller: Caller, kind: BudgetKind, provider = ""): number 
   return Object.hasOwn(budget.providers, provider) ? budget.providers[provider]! : budget.defaultProvider;
 }
 
-export function createBudgets(): Budgets {
+export interface BudgetOptions {
+  /** Called whenever a budget refuses a call (for durable daily refusal counters). */
+  onRefusal?: (caller: string, code: string) => void;
+}
+
+export function createBudgets(options: BudgetOptions = {}): Budgets {
   const inFlight = new Map<string, number>();
   const refusals = new Map<string, number>();
   const refuse = (caller: Caller, status: 403 | 429, code: string, message: string, retryAfterS?: number) => {
     const key = `${caller.id}${SEP}${code}`;
     refusals.set(key, (refusals.get(key) ?? 0) + 1);
+    options.onRefusal?.(caller.id, code);
     return { ok: false as const, status, code, message, ...(retryAfterS ? { retryAfterS } : {}) };
   };
   return {

@@ -59,6 +59,7 @@ import {
   firstTimeSetupRoute,
   forkPreviewRoute,
   forkRoute,
+  gatewayUsageRoute,
   getAttachmentRoute,
   getSessionRoute,
   glanceRoute,
@@ -182,6 +183,7 @@ import {
   updateTitleSettingsRoute,
   updateTriggerRoute,
   uploadAttachmentRoute,
+  usageCallersRoute,
   usageRoute,
 } from "@rei/protocol";
 import type { Context } from "hono";
@@ -235,6 +237,7 @@ import { patchTrigger } from "../triggers/api.ts";
 import type { TriggerScheduler } from "../triggers/scheduler.ts";
 import type { TriggerStore } from "../triggers/store.ts";
 import { loadedNames, readContextBreakdown } from "../usage/context-breakdown.ts";
+import { readGatewayUsage, readReiGatewayServices, readUsageCallers } from "../usage/gateway.ts";
 import { readUsage } from "../usage/read.ts";
 import { normalizeAvatar } from "../util/avatar.ts";
 import type { Clock } from "../util/clock.ts";
@@ -607,10 +610,27 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   // ---- agents and sessions -------------------------------------------------------------------------------------------
-  mountRoute(app, usageRoute, contract, (c, { query }) => {
+  mountRoute(app, usageRoute, contract, async (c, { query }) => {
     if (c.req.query("period") === "" || (c.req.queries("period")?.length ?? 0) > 1)
       throw badRequest("bad_request", "Only one period is supported.");
-    return readUsage(store.db, query.period, deps.clock.now(), providerNames(), { from: query.from, to: query.to });
+    const usage = readUsage(store.db, query.period, deps.clock.now(), providerNames(), {
+      from: query.from,
+      to: query.to,
+    });
+    const services = await readReiGatewayServices(deps.providers, usage.from, usage.to);
+    return services ? { ...usage, ...services } : usage;
+  });
+  mountRoute(app, usageCallersRoute, contract, () => readUsageCallers(deps.providers));
+  mountRoute(app, gatewayUsageRoute, contract, (c, { query }) => {
+    if (c.req.query("period") === "" || (c.req.queries("period")?.length ?? 0) > 1)
+      throw badRequest("bad_request", "Only one period is supported.");
+    return readGatewayUsage(deps.providers, {
+      caller: query.caller,
+      period: query.period,
+      now: deps.clock.now(),
+      providerNames: providerNames(),
+      range: { from: query.from, to: query.to },
+    });
   });
 
   mountRoute(app, listAgentsRoute, contract, () => ({

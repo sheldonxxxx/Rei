@@ -1237,6 +1237,105 @@
         "additionalProperties": false,
         "title": "ForkPoint"
       },
+      "GatewayModelUsage": {
+        "type": "object",
+        "properties": {
+          "inputTotal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputCached": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputUncached": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputTotal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalProcessed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cacheHitPercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calls": {
+            "type": "integer"
+          },
+          "callsReported": {
+            "type": "integer"
+          },
+          "callsUnreported": {
+            "type": "integer"
+          },
+          "ok": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "upstreamLimited": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inputTotal",
+          "inputCached",
+          "inputUncached",
+          "outputTotal",
+          "totalProcessed",
+          "cacheHitPercent",
+          "calls",
+          "callsReported",
+          "callsUnreported",
+          "ok",
+          "errors",
+          "upstreamLimited"
+        ],
+        "additionalProperties": false,
+        "title": "GatewayModelUsage"
+      },
       "Grant": {
         "type": "object",
         "properties": {
@@ -5227,6 +5326,59 @@
           }
         ],
         "title": "TriggerStart"
+      },
+      "UsageCallerSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "models",
+                "search",
+                "embeddings",
+                "read",
+                "read-local",
+                "admin"
+              ]
+            }
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "note",
+          "scopes",
+          "revokedAt",
+          "lastUsedAt"
+        ],
+        "additionalProperties": false,
+        "title": "UsageCallerSummary"
       },
       "UsageTotals": {
         "type": "object",
@@ -33505,6 +33657,79 @@
                         "failures"
                       ],
                       "additionalProperties": false
+                    },
+                    "embeddings": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer"
+                        },
+                        "ok": {
+                          "type": "integer"
+                        },
+                        "errors": {
+                          "type": "integer"
+                        },
+                        "inputTokens": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "averageMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "ok",
+                        "errors",
+                        "inputTokens",
+                        "averageMs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "reads": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer"
+                        },
+                        "ok": {
+                          "type": "integer"
+                        },
+                        "errors": {
+                          "type": "integer"
+                        },
+                        "averageMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "ok",
+                        "errors",
+                        "averageMs"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -33520,6 +33745,694 @@
                     "daily",
                     "search",
                     "images"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/usage/callers": {
+      "get": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "Outside gateway callers available on the Usage page (no tokens or fingerprints).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "callers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UsageCallerSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "callers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/usage/gateway": {
+      "get": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "Gateway-recorded usage for one outside caller or all callers combined (UTC).",
+        "description": "Errors: \"bad_request\" (invalid period or range), \"not_found\" (unknown caller), \"gateway_unavailable\" (gateway unconfigured or unreachable).",
+        "parameters": [
+          {
+            "name": "caller",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "description": "Outside caller id; omit for all callers combined."
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "today",
+                "7d",
+                "30d",
+                "month",
+                "year",
+                "all",
+                "custom"
+              ],
+              "description": "Default 30d."
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "maxLength": 10,
+              "description": "First UTC day (YYYY-MM-DD) of a custom period."
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "maxLength": 10,
+              "description": "Last UTC day (YYYY-MM-DD) of a custom period; later days count as today."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "period": {
+                      "enum": [
+                        "today",
+                        "7d",
+                        "30d",
+                        "month",
+                        "year",
+                        "all",
+                        "custom"
+                      ]
+                    },
+                    "timezone": {
+                      "const": "UTC"
+                    },
+                    "trackingSince": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "caller": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/UsageCallerSummary"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "models": {
+                      "type": "object",
+                      "properties": {
+                        "summary": {
+                          "$ref": "#/components/schemas/GatewayModelUsage"
+                        },
+                        "byModel": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string"
+                              },
+                              "providerName": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "inputTotal": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "inputCached": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "inputUncached": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "outputTotal": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "totalProcessed": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "cacheHitPercent": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "calls": {
+                                "type": "integer"
+                              },
+                              "callsReported": {
+                                "type": "integer"
+                              },
+                              "callsUnreported": {
+                                "type": "integer"
+                              },
+                              "ok": {
+                                "type": "integer"
+                              },
+                              "errors": {
+                                "type": "integer"
+                              },
+                              "upstreamLimited": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "providerName",
+                              "model",
+                              "inputTotal",
+                              "inputCached",
+                              "inputUncached",
+                              "outputTotal",
+                              "totalProcessed",
+                              "cacheHitPercent",
+                              "calls",
+                              "callsReported",
+                              "callsUnreported",
+                              "ok",
+                              "errors",
+                              "upstreamLimited"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "summary",
+                        "byModel"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "byCaller": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "caller": {
+                            "type": "string"
+                          },
+                          "inputTotal": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "inputCached": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "outputTotal": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "modelCalls": {
+                            "type": "integer"
+                          },
+                          "searchCalls": {
+                            "type": "integer"
+                          },
+                          "embeddingCalls": {
+                            "type": "integer"
+                          },
+                          "readCalls": {
+                            "type": "integer"
+                          },
+                          "errors": {
+                            "type": "integer"
+                          },
+                          "upstreamLimited": {
+                            "type": "integer"
+                          },
+                          "refusals": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "caller",
+                          "inputTotal",
+                          "inputCached",
+                          "outputTotal",
+                          "modelCalls",
+                          "searchCalls",
+                          "embeddingCalls",
+                          "readCalls",
+                          "errors",
+                          "upstreamLimited",
+                          "refusals"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "search": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer"
+                        },
+                        "ok": {
+                          "type": "integer"
+                        },
+                        "errors": {
+                          "type": "integer"
+                        },
+                        "averageMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "byProvider": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string"
+                              },
+                              "providerName": {
+                                "type": "string"
+                              },
+                              "calls": {
+                                "type": "integer"
+                              },
+                              "ok": {
+                                "type": "integer"
+                              },
+                              "errors": {
+                                "type": "integer"
+                              },
+                              "averageMs": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "providerName",
+                              "calls",
+                              "ok",
+                              "errors",
+                              "averageMs"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "ok",
+                        "errors",
+                        "averageMs",
+                        "byProvider"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "embeddings": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer"
+                        },
+                        "ok": {
+                          "type": "integer"
+                        },
+                        "errors": {
+                          "type": "integer"
+                        },
+                        "inputTokens": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "averageMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "ok",
+                        "errors",
+                        "inputTokens",
+                        "averageMs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "reads": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer"
+                        },
+                        "ok": {
+                          "type": "integer"
+                        },
+                        "errors": {
+                          "type": "integer"
+                        },
+                        "averageMs": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "ok",
+                        "errors",
+                        "averageMs"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "refusals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "errorBreakdown": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "count"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "period",
+                    "timezone",
+                    "trackingSince",
+                    "from",
+                    "to",
+                    "caller",
+                    "models",
+                    "byCaller",
+                    "search",
+                    "embeddings",
+                    "reads",
+                    "refusals",
+                    "errorBreakdown"
                   ],
                   "additionalProperties": false
                 }

@@ -1,8 +1,10 @@
 import {
+  type CallerUsageResponse,
   type ImageUsageResponse,
   type SearchUsageResponse,
   USAGE_METRICS,
   USAGE_PURPOSES,
+  type UsageCallersResponse,
   type UsageResponse,
   type UsageTotals,
 } from "@rei/protocol";
@@ -47,11 +49,30 @@ function response(summary = totals()): UsageResponse {
     images: { requests: 0, succeeded: 0, failed: 0, generated: 0, edited: 0, averageMs: null, failures: [] },
   };
 }
+const NO_CALLERS: UsageCallersResponse = { available: true, callers: [] };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-function setup(fetchMock = vi.fn<typeof fetch>().mockResolvedValue(json(response()))) {
+
+function mockUsageFetch(
+  usageBody: UsageResponse | (() => UsageResponse | Response | Promise<Response>) = () => response(),
+  callers: UsageCallersResponse = NO_CALLERS,
+  gatewayHandler?: (url: URL) => Response | Promise<Response>,
+) {
+  return vi.fn<typeof fetch>().mockImplementation(async (input) => {
+    const url = new URL(String(input), "https://test.invalid");
+    if (url.pathname === "/api/usage/callers") return json(callers);
+    if (url.pathname === "/api/usage/gateway") {
+      if (gatewayHandler) return gatewayHandler(url);
+      return json({ error: { code: "not_found", message: "missing mock" } }, 404);
+    }
+    const res = typeof usageBody === "function" ? await usageBody() : usageBody;
+    return res instanceof Response ? res : json(res);
+  });
+}
+
+function setup(fetchMock = mockUsageFetch(), tab: string | null = null) {
   const api = createApi({ fetch: fetchMock });
-  const view = render(<UsagePage api={api} />);
+  const view = render(<UsagePage api={api} tab={tab} />);
   return { fetchMock, view };
 }
 const card = (label: string) =>
@@ -63,14 +84,83 @@ const searchCard = (label: string) => {
   return dt!.parentElement!.querySelector("dd")!.textContent;
 };
 
+function callerUsageResponse(overrides: Partial<CallerUsageResponse> = {}): CallerUsageResponse {
+  return {
+    period: "30d",
+    timezone: "UTC",
+    trackingSince: "2026-11-05T00:00:00.000Z",
+    from: "2026-11-05",
+    to: "2026-11-24",
+    caller: {
+      id: "reports",
+      note: "nightly summaries",
+      scopes: ["models", "search", "embeddings", "read"],
+      revokedAt: null,
+      lastUsedAt: Date.parse("2026-11-24T08:00:00Z"),
+    },
+    models: {
+      summary: {
+        inputTotal: 5000,
+        inputCached: 1000,
+        inputUncached: 4000,
+        outputTotal: 800,
+        totalProcessed: 5800,
+        cacheHitPercent: 20,
+        calls: 4,
+        callsReported: 3,
+        callsUnreported: 1,
+        ok: 3,
+        errors: 1,
+        upstreamLimited: 1,
+      },
+      byModel: [
+        {
+          provider: "openai",
+          providerName: "OpenAI",
+          model: "gpt-5-mini",
+          inputTotal: 5000,
+          inputCached: 1000,
+          inputUncached: 4000,
+          outputTotal: 800,
+          totalProcessed: 5800,
+          cacheHitPercent: 20,
+          calls: 4,
+          callsReported: 3,
+          callsUnreported: 1,
+          ok: 3,
+          errors: 1,
+          upstreamLimited: 1,
+        },
+      ],
+    },
+    byCaller: [],
+    search: {
+      calls: 3,
+      ok: 2,
+      errors: 1,
+      averageMs: 320,
+      byProvider: [{ provider: "brave", providerName: "Brave", calls: 3, ok: 2, errors: 1, averageMs: 320 }],
+    },
+    embeddings: { calls: 2, ok: 2, errors: 0, inputTokens: 640, averageMs: 45 },
+    reads: { calls: 5, ok: 4, errors: 1, averageMs: 1200 },
+    refusals: [{ code: "caller_concurrency", count: 2 }],
+    errorBreakdown: [
+      { code: "rate_limited", count: 1 },
+      { code: "upstream_502", count: 2 },
+    ],
+    ...overrides,
+  };
+}
+
 describe("UsagePage", () => {
   it("shows loading until the authenticated API request resolves, then renders inclusive metrics and real category/model rows", async () => {
     let resolve!: (r: Response) => void;
-    const fetchMock = vi.fn<typeof fetch>().mockReturnValue(
-      new Promise((r) => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+      if (String(input) === "/api/usage/callers") return Promise.resolve(json(NO_CALLERS));
+      return new Promise((r) => {
         resolve = r;
-      }),
-    );
+      });
+    });
     setup(fetchMock);
     expect(screen.getByRole("status", { name: "Loading usage" })).toBeTruthy();
     expect(screen.queryByText("Total input")).toBeNull();
@@ -79,6 +169,7 @@ describe("UsagePage", () => {
       expect.objectContaining({ method: "GET", credentials: "same-origin" }),
     );
     await act(async () => resolve(json(response())));
+    expect(screen.queryByRole("tablist", { name: "Usage caller" })).toBeNull();
     expect(card("Total input")).toBe("1K");
     expect(card("Cached input")).toBe("600");
     expect(card("Uncached input")).toBe("400");
@@ -114,7 +205,7 @@ describe("UsagePage", () => {
   });
 
   it("shows a truthful empty state with zero counters and an unavailable cache ratio", async () => {
-    setup(vi.fn<typeof fetch>().mockResolvedValue(json(response(totals(0)))));
+    setup(mockUsageFetch(response(totals(0))));
     await screen.findByText("No usage recorded since tracking began");
     expect(card("Total input")).toBe("0");
     expect(card("Model calls")).toBe("0");
@@ -123,9 +214,7 @@ describe("UsagePage", () => {
   });
 
   it("distinguishes a quiet selected period from all-time empty tracking", async () => {
-    setup(
-      vi.fn<typeof fetch>().mockResolvedValue(json({ ...response(totals(0)), from: "2026-12-01", to: "2026-12-07" })),
-    );
+    setup(mockUsageFetch({ ...response(totals(0)), from: "2026-12-01", to: "2026-12-07" }));
     expect(await screen.findByText("No usage recorded in this period")).toBeTruthy();
     expect(screen.queryByText("No usage recorded since tracking began")).toBeNull();
   });
@@ -147,7 +236,7 @@ describe("UsagePage", () => {
       reasoningOutput: 2,
     };
     partial.cacheHitPercent = null;
-    setup(vi.fn<typeof fetch>().mockResolvedValue(json(response(partial))));
+    setup(mockUsageFetch(response(partial)));
     await screen.findByText(/2 calls with missing/);
     expect(card("Total input")).toBe("1K");
     expect(card("Cached input")).toBe("Unavailable");
@@ -172,7 +261,7 @@ describe("UsagePage", () => {
       unknown.tokens[m] = null;
       unknown.unknown[m] = 2;
     }
-    setup(vi.fn<typeof fetch>().mockResolvedValue(json(response(unknown))));
+    setup(mockUsageFetch(response(unknown)));
     await screen.findByText(/2 calls with missing/);
     for (const name of ["Total input", "Cached input", "Uncached input", "Output", "Total processed", "Cache hit"])
       expect(card(name)).toBe("Unavailable");
@@ -181,19 +270,20 @@ describe("UsagePage", () => {
 
   it("refetches each period through the API and ignores an older response that resolves late", async () => {
     let resolveOld!: (r: Response) => void;
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockReturnValueOnce(
-        new Promise((r) => {
+    let firstUsage = true;
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      if (String(url) === "/api/usage/callers") return json(NO_CALLERS);
+      if (firstUsage) {
+        firstUsage = false;
+        return new Promise((r) => {
           resolveOld = r;
-        }),
-      )
-      .mockImplementation(async (url) =>
-        json({
-          ...response(totals(2)),
-          period: new URL(String(url), "https://test.invalid").searchParams.get("period"),
-        }),
-      );
+        });
+      }
+      return json({
+        ...response(totals(2)),
+        period: new URL(String(url), "https://test.invalid").searchParams.get("period"),
+      });
+    });
     setup(fetchMock);
     const group = screen.getByRole("radiogroup", { name: "Usage period" });
     expect(within(group).getAllByRole("radio")).toHaveLength(7);
@@ -215,7 +305,7 @@ describe("UsagePage", () => {
   });
 
   it("reads an inclusive UTC custom range from two date inputs and waits for a valid range", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => json(response(totals(4))));
+    const fetchMock = mockUsageFetch(() => response(totals(4)));
     setup(fetchMock);
     await screen.findByText("Total input");
     expect(screen.queryByLabelText("From")).toBeNull();
@@ -250,16 +340,18 @@ describe("UsagePage", () => {
   });
 
   it("offers retry after an API failure and retries the selected period", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(json({ error: { code: "unavailable", message: "test failure" } }, 503))
-      .mockResolvedValue(json(response()));
+    let usageAttempts = 0;
+    const fetchMock = mockUsageFetch(() => {
+      usageAttempts++;
+      if (usageAttempts === 1) return json({ error: { code: "unavailable", message: "test failure" } }, 503);
+      return response();
+    });
     setup(fetchMock);
     expect((await screen.findByRole("alert")).textContent).toContain("Could not load usage");
     expect(screen.queryByText("Total input")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(card("Total input")).toBe("1K"));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(usageAttempts).toBe(2);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/usage?period=30d", expect.anything());
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -305,7 +397,7 @@ describe("UsagePage", () => {
         },
       ],
     };
-    setup(vi.fn<typeof fetch>().mockResolvedValue(json({ ...response(), search })));
+    setup(mockUsageFetch({ ...response(), search }));
     await screen.findByText("Web search");
     expect(searchCard("Searches")).toBe("5");
     expect(searchCard("Answered")).toBe("4");
@@ -342,7 +434,7 @@ describe("UsagePage", () => {
         { reason: "sign_in_required", calls: 1 },
       ],
     };
-    setup(vi.fn<typeof fetch>().mockResolvedValue(json({ ...response(), images })));
+    setup(mockUsageFetch({ ...response(), images }));
     const section = await screen.findByRole("region", { name: "Image generation usage" });
     const value = (label: string) =>
       within(section).getByText(label, { selector: "dt" }).parentElement!.querySelector("dd")!.textContent;
@@ -365,5 +457,178 @@ describe("UsagePage", () => {
   it("says when no web search ran in the period", async () => {
     setup();
     expect(await screen.findByText("No web searches in this period.")).toBeTruthy();
+  });
+
+  it("shows caller tabs ordered Rei -> callers -> All, keeps period on switch, and renders caller stats", async () => {
+    const callers: UsageCallersResponse = {
+      available: true,
+      callers: [
+        {
+          id: "reports",
+          note: "nightly summaries",
+          scopes: ["models", "search", "embeddings", "read"],
+          revokedAt: null,
+          lastUsedAt: Date.parse("2026-11-24T08:00:00Z"),
+        },
+        {
+          id: "old-used",
+          note: "",
+          scopes: ["models"],
+          revokedAt: Date.parse("2026-11-10T00:00:00Z"),
+          lastUsedAt: Date.parse("2026-11-09T00:00:00Z"),
+        },
+        {
+          id: "old-unused",
+          note: "",
+          scopes: ["models"],
+          revokedAt: Date.parse("2026-11-10T00:00:00Z"),
+          lastUsedAt: null,
+        },
+      ],
+    };
+    const fetchMock = mockUsageFetch(response(), callers, (url) => {
+      expect(url.searchParams.get("caller")).toBe("reports");
+      return json(callerUsageResponse({ period: (url.searchParams.get("period") as "7d") ?? "30d" }));
+    });
+    setup(fetchMock);
+    const tablist = await screen.findByRole("tablist", { name: "Usage caller" });
+    expect(
+      within(tablist)
+        .getAllByRole("tab")
+        .map((t) => t.textContent),
+    ).toEqual(["Rei", "reports", "All"]);
+
+    // Change period to Last 7 days first, then switch to reports tab and verify period stays 7d.
+    fireEvent.click(screen.getByRole("radio", { name: "Last 7 days" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith("/api/usage?period=7d", expect.anything()));
+    await userEvent.click(within(tablist).getByRole("tab", { name: "reports" }));
+    await screen.findByText("nightly summaries");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/usage/gateway?period=7d&caller=reports", expect.anything());
+    expect(card("Total input")).toBe("5K");
+    expect(card("Model calls")).toBe("4");
+    expect(screen.getByText(/1 calls without token reports/)).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Web search usage" }).textContent).toContain("Brave");
+    expect(screen.getByRole("region", { name: "Embeddings usage" }).textContent).toContain("640");
+    expect(screen.getByRole("region", { name: "Page reads usage" }).textContent).toContain("2 s");
+    const limits = screen.getByRole("region", { name: "Limits and errors" });
+    expect(within(limits).getByRole("button", { name: "About errors" })).toBeTruthy();
+    expect(within(limits).getByText("Upstream rate limit").parentElement!.textContent).toContain("1");
+    expect(within(limits).getByText("Upstream HTTP 502").parentElement!.textContent).toContain("2");
+    expect(within(limits).getByText("Concurrency cap reached").parentElement!.textContent).toContain("2");
+  });
+
+  it("shows Rei's embeddings and page reads sections when returned by /api/usage", async () => {
+    setup(
+      mockUsageFetch({
+        ...response(),
+        embeddings: { calls: 8, ok: 8, errors: 0, inputTokens: 12_400, averageMs: 35 },
+        reads: { calls: 6, ok: 5, errors: 1, averageMs: 850 },
+      }),
+    );
+    const embeds = await screen.findByRole("region", { name: "Embeddings usage" });
+    expect(embeds.textContent).toContain("12.4K");
+    expect(embeds.textContent).toContain("35 ms");
+    const reads = screen.getByRole("region", { name: "Page reads usage" });
+    expect(reads.textContent).toContain("850 ms");
+  });
+
+  it("renders the All view with clickable By caller rows that jump to that caller's tab", async () => {
+    const callers: UsageCallersResponse = {
+      available: true,
+      callers: [
+        {
+          id: "reports",
+          note: "nightly summaries",
+          scopes: ["models"],
+          revokedAt: null,
+          lastUsedAt: Date.parse("2026-11-24T08:00:00Z"),
+        },
+      ],
+    };
+    const allRes = callerUsageResponse({
+      caller: null,
+      byCaller: [
+        {
+          caller: "reports",
+          inputTotal: 5000,
+          inputCached: 1000,
+          outputTotal: 800,
+          modelCalls: 4,
+          searchCalls: 3,
+          embeddingCalls: 2,
+          readCalls: 5,
+          errors: 3,
+          upstreamLimited: 1,
+          refusals: 2,
+        },
+        {
+          caller: "rei",
+          inputTotal: 1000,
+          inputCached: 600,
+          outputTotal: 150,
+          modelCalls: 1,
+          searchCalls: 0,
+          embeddingCalls: 0,
+          readCalls: 0,
+          errors: 0,
+          upstreamLimited: 0,
+          refusals: 0,
+        },
+      ],
+    });
+    const fetchMock = mockUsageFetch(response(), callers, (url) =>
+      url.searchParams.get("caller") === "reports" ? json(callerUsageResponse()) : json(allRes),
+    );
+    setup(fetchMock, "all");
+    const table = await screen.findByRole("region", { name: "By caller usage table" });
+    const reportsRow = within(table).getByRole("button", { name: "reports" }).closest("tr")!;
+    expect(
+      within(reportsRow)
+        .getAllByRole("cell")
+        .map((c) => c.textContent),
+    ).toEqual(["5K", "1K", "800", "4", "10", "3", "3"]);
+
+    // Clicking a caller name jumps straight to that caller's tab.
+    await userEvent.click(within(table).getByRole("button", { name: "reports" }));
+    await screen.findByText("nightly summaries");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/usage/gateway?period=30d&caller=reports", expect.anything());
+  });
+
+  it("uses a NativeSelect caller picker beside Rei and All when there are more than 5 outside callers", async () => {
+    const callers: UsageCallersResponse = {
+      available: true,
+      callers: ["c1", "c2", "c3", "c4", "c5", "c6"].map((id) => ({
+        id,
+        note: "",
+        scopes: ["models"],
+        revokedAt: null,
+        lastUsedAt: Date.now(),
+      })),
+    };
+    const fetchMock = mockUsageFetch(response(), callers, (url) =>
+      json(
+        callerUsageResponse({
+          caller: {
+            id: url.searchParams.get("caller") ?? "c1",
+            note: "",
+            scopes: ["models"],
+            revokedAt: null,
+            lastUsedAt: Date.now(),
+          },
+        }),
+      ),
+    );
+    setup(fetchMock);
+    const tablist = await screen.findByRole("tablist", { name: "Usage caller" });
+    expect(
+      within(tablist)
+        .getAllByRole("tab")
+        .map((t) => t.textContent),
+    ).toEqual(["Rei", "All"]);
+    const picker = screen.getByRole("combobox", { name: "Outside caller" });
+    fireEvent.change(picker, { target: { value: "c4" } });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/usage/gateway?period=30d&caller=c4", expect.anything()),
+    );
   });
 });

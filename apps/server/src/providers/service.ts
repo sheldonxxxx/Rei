@@ -1,6 +1,8 @@
 import type {
   CodexImagesStatus,
+  GatewayCaller,
   GatewayStatus,
+  GatewayUsageResponse,
   ProviderConnection,
   ProviderConnectionsResponse,
   SaveProviderConnectionRequest,
@@ -169,5 +171,20 @@ export class ProviderService {
   }
   async signOutCodexImages(): Promise<void> {
     return this.#call("DELETE", "/setup/codex-images");
+  }
+  hasGateway(): boolean {
+    return Boolean(this.#options.gatewayUrl);
+  }
+  async listCallers(): Promise<GatewayCaller[]> {
+    const res = await this.#call<{ callers: GatewayCaller[] }>("GET", "/callers");
+    return res.callers;
+  }
+  async gatewayUsage(query: { from?: string; to?: string; caller?: string }): Promise<GatewayUsageResponse> {
+    const params = new URLSearchParams();
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    if (query.caller) params.set("caller", query.caller);
+    const qs = params.toString();
+    return this.#call("GET", `/usage${qs ? `?${qs}` : ""}`);
   }
 }

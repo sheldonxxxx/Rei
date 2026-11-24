@@ -48,10 +48,10 @@ Restart outside callers after Rei and Dodai are healthy. Do not add `--volumes`:
 ```
 
 - `add` and `rotate` print the token once, on the last line. It cannot be read back; only its SHA-256 is stored.
-- An id is lower-case letters, digits and hyphens. `rei` is reserved.
+- An id is lower-case letters, digits and hyphens. `rei` and `all` are reserved.
 - `--scopes` takes any of `models`, `search`, `embeddings`, `read` and `read-local` (all but `read-local` by default). `read-local` lets a caller ask the reader to open addresses on the local network; only Rei holds it.
 - Changes apply at once, with no restart.
-- `usage` shows calls and tokens per caller and provider from the call log, and how often a budget refused a call since the gateway started.
+- `usage` shows calls and tokens per caller and provider from the call log, and how often a budget refused a call since the gateway started. Permanent daily counters per caller (models, search, embeddings, page reads and budget refusals) are also kept in the gateway and shown in Rei's web app under **Settings → Usage** as one tab per caller plus an **All** tab.
 
 Rei's own token is `REI_STANDIN` (it holds every scope, including `read-local`, and Rei reads all its pages through `POST /read`) in `containers/.secrets/secrets.env`. To change it, edit the file and run `./rei start`, which recreates the gateway and the control plane with the new value.
 
@@ -188,4 +188,4 @@ The first creates a throwaway caller, calls the shared listener from a container
 - Qdrant for callers. Qdrant is on `rei-storage` for Rei only; callers get Garage only. A caller that needs vectors comes with its own access design (per-caller tokens, exact collection names).
 - Storage quotas per caller, per-bucket restore, and emptying a caller's bucket for it.
 - Priority between callers, or keeping part of a subscription for Rei. Give a caller a low cap instead.
-- A page for callers in the web app, and outside callers' usage in Rei's usage pages (they show Rei's own).
+- A page for managing callers (tokens, scopes and budgets) in the web app. Outside callers' usage and combined gateway totals are shown under **Settings → Usage**.

@@ -7,6 +7,7 @@ import { createGatewayApp } from "../src/core/proxy.ts";
 import { createRedactor } from "../src/core/redact.ts";
 import { SearchSetup } from "../src/node/search-setup.ts";
 import { FileSecretStore } from "../src/node/secretstore.ts";
+import { noopCallLog } from "./noop-calls.ts";
 
 it("authenticates and validates setup, persists write-only keys, and isolates SearXNG credentials by URL", async () => {
   const dir = mkdtempSync(join(tmpdir(), "rei-search-setup-"));
@@ -26,7 +27,7 @@ it("authenticates and validates setup, persists write-only keys, and isolates Se
       setupSearch: setup,
       search: setup.config,
       tokens: { accessToken: async () => "", status: async () => ({ signedIn: false, accessExpiresInS: null }) },
-      calls: { insert() {}, byStep: () => [], recent: () => [], summary: () => [], lastUsed: () => new Map() },
+      calls: noopCallLog(),
       models: () => [],
       version: "test",
       upstreams: [],

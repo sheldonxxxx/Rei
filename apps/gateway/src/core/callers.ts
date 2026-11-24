@@ -18,6 +18,7 @@ export interface Caller {
 }
 
 export const REI_CALLER_ID = "rei";
+const RESERVED_CALLER_IDS = new Set([REI_CALLER_ID, "all"]);
 const OUTSIDE_SCOPES: readonly Scope[] = ["models", "search", "embeddings", "read", "read-local"];
 /** What a new outside caller gets: everything but `read-local`, which lets a read reach the user's local network. */
 const DEFAULT_SCOPES: readonly Scope[] = ["models", "search", "embeddings", "read"];
@@ -303,7 +304,7 @@ export class CallerRegistry {
     const budget = parseBudget(input.budget, DEFAULT_OUTSIDE_BUDGET);
     const exists = () =>
       new HttpError(409, "caller_exists", "A caller with this id exists or existed; ids are not reused.");
-    if (id === REI_CALLER_ID) throw exists();
+    if (RESERVED_CALLER_IDS.has(id)) throw exists();
     const minted = await this.#mint(id);
     const fresh: StoredCaller = {
       id,

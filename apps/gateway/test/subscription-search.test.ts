@@ -8,6 +8,7 @@ import { createRedactor } from "../src/core/redact.ts";
 import { createSearchService, parseProviderList } from "../src/core/search/service.ts";
 import { FileCredentialStore } from "../src/node/credstore.ts";
 import { subscriptionSearch } from "../src/node/subscription-search.ts";
+import { noopCallLog } from "./noop-calls.ts";
 
 const source = { url: "https://vite.dev/", title: "Vite" };
 const search = {
@@ -53,15 +54,11 @@ function rig(reply = new Response(sse(events)), timeoutMs = 1000) {
   const app = createGatewayApp({
     standin: "standin",
     tokens: { accessToken: async () => "unused", status: async () => ({ signedIn: true, accessExpiresInS: 300 }) },
-    calls: {
+    calls: noopCallLog({
       insert: (record) => {
         calls.push(record);
       },
-      byStep: () => [],
-      recent: () => [],
-      summary: () => [],
-      lastUsed: () => new Map(),
-    },
+    }),
     models: () => [],
     version: "test",
     upstreams: [],
