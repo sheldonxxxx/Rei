@@ -45,8 +45,11 @@ The gateway is in its own compose project (`compose.dodai.yaml`), so its logs ar
 `REI_LOG_LEVEL` sets the lowest level written: `debug`, `info`, `warn` or `error`. The default is `info`. Each service reads it once at startup and refuses to start if the value is not a level. With Compose, `REI_LOG_LEVEL` sets all three services, and `REI_CONTROL_LOG_LEVEL`, `REI_GATEWAY_LOG_LEVEL` or `REI_EGRESS_LOG_LEVEL` overrides one:
 
 ```sh
-REI_GATEWAY_LOG_LEVEL=debug docker compose -f containers/compose.dodai.yaml up -d gateway
+REI_GATEWAY_LOG_LEVEL=debug docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env \
+  -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml up -d gateway
 ```
+
+That is for a checkout, where `compose.dodai.build.yaml` keeps the image built from source. An npm installation keeps its compose files in `REI_HOME` (default `~/.rei`) and has no build overlay: use `-f ~/.rei/compose.dodai.yaml` and the env files there instead. Putting the setting in `.env` and running `./rei start` (or `rei start`) does the same.
 
 `debug` adds events, never content. Running at debug for a while is safe. It just makes more lines.
 

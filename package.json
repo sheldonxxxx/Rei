@@ -43,7 +43,8 @@
     "lint-staged": "17.6.0",
     "secretlint": "13.1.0",
     "typescript": "6.0.3",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "yaml": "2.9.1"
   },
   "version": "0.0.1",
   "lint-staged": {

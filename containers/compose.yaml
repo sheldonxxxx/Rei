@@ -10,10 +10,15 @@
 #   --env-file containers/.env --env-file containers/.secrets/secrets.env
 # (or export COMPOSE_ENV_FILES=containers/.env,containers/.secrets/secrets.env).
 #
-# By hand (what ./rei setup does). Build the web app first (npm run build -w @rei/web), then from the repository root:
+# Images: this file names the published ones, ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-<name>:${REI_VERSION:-dev} (an npm
+# installation ships it with the release's version and digests written in). In a checkout, compose.build.yaml is loaded
+# after it and builds them from source instead, as rei/<name>:dev; ./rei always passes both files there.
+#
+# By hand, in a checkout (what ./rei setup does). Build the web app first (npm run build -w @rei/web), then from the
+# repository root:
 #   containers/init.sh
-#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml up -d --build --wait
-#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.yaml up -d --build
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml up -d --build --wait
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.yaml -f containers/compose.build.yaml up -d --build
 #   docker compose -f containers/compose.yaml logs control | grep "setup code"
 #   then sign in to a model provider in the web app (Settings, Providers)
 #   then open http://<vm>:8787 (REI_PUBLISH, default 127.0.0.1:8787)
@@ -60,14 +65,12 @@ x-logging: &logging
 
 # One image for the sandbox and for the one-shot service that makes its ssh keys.
 x-exec-image: &exec-image
-  image: rei/exec:dev
-  build: { context: .., dockerfile: containers/exec/Dockerfile }
+  image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-exec:${REI_VERSION:-dev}
 
 services:
   control:
     logging: *logging
-    image: rei/control:dev
-    build: { context: .., dockerfile: containers/control/Dockerfile }
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-control:${REI_VERSION:-dev}
     read_only: true
     tmpfs: [/tmp]
     environment:
@@ -136,7 +139,7 @@ services:
 
   edge:
     logging: *logging
-    image: rei/control:dev
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-control:${REI_VERSION:-dev}
     read_only: true
     user: "1000:1000"
     command: ["node", "/edge/forward.mjs"]
@@ -196,8 +199,7 @@ services:
   # The sandbox's only way out. No dependencies, no secrets; asks the control plane per destination host.
   egress:
     logging: *logging
-    image: rei/egress:dev
-    build: { context: .., dockerfile: containers/egress/Dockerfile }
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-egress:${REI_VERSION:-dev}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -229,8 +231,7 @@ services:
   # (non-root, no capabilities, read-only root); the container is the sandbox. /dev/shm is bigger than the 64m default.
   browser:
     logging: *logging
-    image: rei/browser:dev
-    build: { context: ./browser }
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-browser:${REI_VERSION:-dev}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

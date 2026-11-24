@@ -8,10 +8,21 @@ import type { Clock, Guide, Host, Out, Prompter, Runner } from "./io.ts";
 import type { Publish } from "./validate.ts";
 import { appAddress, parsePublish } from "./validate.ts";
 
+/**
+ * source: a checkout, run as ./rei; images are built from the repository (the build overlays sit next to the compose files).
+ * image: an npm installation (rei-ai), run as rei; the compose files live in REI_HOME and name published images.
+ */
+export type Mode = "source" | "image";
+
 export interface Ctx {
   guide?: Guide;
+  /** The repository in source mode; REI_HOME in image mode. */
   root: string;
+  /** Where the compose files, .env and .secrets/ are: <repo>/containers, or REI_HOME. */
   containersDir: string;
+  mode: Mode;
+  /** How a person runs this CLI, for messages: ./rei or rei. */
+  cli: string;
   composeFile: string;
   /** Rei's own stack (compose.yaml). */
   compose: Compose;
@@ -31,6 +42,8 @@ export interface Ctx {
 export interface CtxParts {
   guide?: Guide;
   root: string;
+  /** REI_HOME in an npm installation; <root>/containers when it is not given. */
+  containersDir?: string;
   runner: Runner;
   out: Out;
   clock: Clock;
@@ -40,19 +53,30 @@ export interface CtxParts {
   env: Record<string, string | undefined>;
 }
 
+/** The file whose presence next to the compose files makes a checkout (source mode). */
+export const BUILD_OVERLAY = "compose.build.yaml";
+
 export function makeCtx(p: CtxParts): Ctx {
-  const containersDir = join(p.root, "containers");
+  const containersDir = p.containersDir ?? join(p.root, "containers");
+  const mode: Mode = p.host.stat(join(containersDir, BUILD_OVERLAY)) ? "source" : "image";
+  // A base file, then in a checkout its build overlay: compose.yaml + compose.build.yaml, compose.dodai.yaml + compose.dodai.build.yaml.
+  const files = (base: string): string[] =>
+    mode === "source"
+      ? [join(containersDir, `${base}.yaml`), join(containersDir, `${base}.build.yaml`)]
+      : [join(containersDir, `${base}.yaml`)];
   const composeFile = join(containersDir, "compose.yaml");
   const cache = new Map<string, Promise<unknown>>();
-  const compose = new Compose(p.runner, composeFile, p.env.REI_PROJECT);
+  const compose = new Compose(p.runner, files("compose"), p.env.REI_PROJECT);
   const shared = new Compose(
     p.runner,
-    join(containersDir, "compose.dodai.yaml"),
+    files("compose.dodai"),
     p.env.REI_PROJECT ? `${p.env.REI_PROJECT}-dodai` : undefined,
   );
   return {
     ...p,
     containersDir,
+    mode,
+    cli: mode === "source" ? "./rei" : "rei",
     composeFile,
     compose,
     shared,

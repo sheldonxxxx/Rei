@@ -2,9 +2,10 @@
 # embeddings), the reader (web pages as text), and storage: Garage (objects) and Qdrant (search indexes). It holds
 # callers' data, each caller in its own bucket, and reads none of it. It is a compose project of its own, so it keeps
 # serving while Rei is stopped or redeployed; Rei's own stack is compose.yaml. ./rei starts this project first and waits
-# for it. By hand, from the repository root (both env files, as for compose.yaml):
+# for it. The gateway and reader images are named as in compose.yaml; in a checkout, compose.dodai.build.yaml builds them
+# from source. By hand, in a checkout, from the repository root (both env files, as for compose.yaml):
 #   containers/init.sh        (also creates the external volumes below)
-#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml up -d --build --wait
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml up -d --build --wait
 #
 # Callers (docs/gateway-callers.md, docs/adr/0018). The gateway serves two listeners from one process:
 #   internal  10.89.235.2:8780 and 127.0.0.1:8780. Every route. Rei's control plane reaches it over gateway-admin with
@@ -47,8 +48,7 @@ x-logging: &logging
 services:
   gateway:
     logging: *logging
-    image: rei/gateway:dev
-    build: { context: .., dockerfile: containers/gateway/Dockerfile }
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-gateway:${REI_VERSION:-dev}
     read_only: true
     tmpfs: [/tmp]
     environment:
@@ -83,8 +83,7 @@ services:
 
   reader:
     logging: *logging
-    image: rei/reader:dev
-    build: { context: .., dockerfile: containers/reader/Dockerfile }
+    image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-reader:${REI_VERSION:-dev}
     read_only: true
     tmpfs: [/tmp]
     shm_size: 512m

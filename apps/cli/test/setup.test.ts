@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SetupOptions } from "../src/commands/setup.ts";
 import { setup } from "../src/commands/setup.ts";
 import type { Rig } from "./fakes.ts";
-import { makeRig, ROOT, SECRET, SHARED } from "./fakes.ts";
+import { makeRig, ROOT, SECRET, SHARED, SHARED_BUILD } from "./fakes.ts";
 
 const NON_INTERACTIVE: SetupOptions = { nonInteractive: true, skipBuild: false };
 const MAJOR = /^(init\.sh|npm |compose: (shared: )?(up|run|stop|rm|--profile)|smoke-exec\.sh)/;
@@ -81,7 +81,8 @@ describe("setup", () => {
     expect(await setup(rig.ctx, { ...NON_INTERACTIVE, nonInteractive: false })).toBe(1);
     expect(rig.clock.t - before).toBeGreaterThanOrEqual(180_000);
     expect(rig.out.text).toMatch(/FAIL {1}services healthy +not healthy after 180 s: gateway \(running, unhealthy\)/);
-    expect(rig.out.text).toContain(`docker compose -f ${SHARED} logs gateway`);
+    // In a checkout the fix names the build overlay too, so a command copied from it builds rather than pulls.
+    expect(rig.out.text).toContain(`docker compose -f ${SHARED} -f ${SHARED_BUILD} logs gateway`);
     expect(rig.out.text).toContain("Setup stopped");
     expect(major(rig)).not.toContain("smoke-exec.sh");
   });

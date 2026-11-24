@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { doctor } from "../src/commands/doctor.ts";
 import type { Row } from "../src/format.ts";
 import type { RigOptions } from "./fakes.ts";
-import { makeRig, ROOT, SECRET, SERVICES, SHARED } from "./fakes.ts";
+import { makeRig, ROOT, SECRET, SERVICES, SHARED, SHARED_BUILD } from "./fakes.ts";
 
 async function diagnose(o: RigOptions = {}, json = false) {
   const rig = makeRig(o);
@@ -44,7 +44,7 @@ describe("doctor", () => {
     expect(get("service:gateway")).toMatchObject({
       status: "fail",
       detail: "running, unhealthy",
-      fix: `see docker compose -f ${SHARED} logs gateway`,
+      fix: `see docker compose -f ${SHARED} -f ${SHARED_BUILD} logs gateway`,
     });
     expect(get("service:control")).toMatchObject({ status: "ok" });
   });
@@ -57,7 +57,9 @@ describe("doctor", () => {
     rig.stack.rows.delete("edge");
     expect(await doctor(rig.ctx, { json: false })).toBe(1);
     const text = rig.out.text;
-    expect(text).toMatch(/FAIL {1}egress +exited 137\n\s+→ see docker compose -f .*compose\.yaml logs egress/);
+    expect(text).toMatch(
+      /FAIL {1}egress +exited 137\n\s+→ see docker compose -f .*compose\.yaml -f .*compose\.build\.yaml logs egress/,
+    );
     expect(text).toMatch(/warn {1}searxng +running, health check still starting/);
     expect(text).toMatch(/FAIL {1}exec-keys +exited 1/);
     expect(text).toMatch(/FAIL {1}edge +not created/);

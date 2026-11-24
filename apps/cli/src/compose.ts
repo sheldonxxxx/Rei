@@ -1,6 +1,8 @@
-// `docker compose` for one of this repository's two compose projects, over a Runner: Rei's own stack (compose.yaml) and
-// Dodai (compose.dodai.yaml). The compose file decides the project name (rei, dodai); REI_PROJECT
-// overrides Rei's like containers/smoke-exec.sh does, and the shared project is then <REI_PROJECT>-dodai.
+// `docker compose` for one of the two compose projects, over a Runner: Rei's own stack (compose.yaml) and Dodai
+// (compose.dodai.yaml). In a checkout each is loaded with its build overlay (compose.build.yaml, compose.dodai.build.yaml),
+// which builds the images from source; an npm installation has the base files only, which name published images. The
+// compose file decides the project name (rei, dodai); REI_PROJECT overrides Rei's like containers/smoke-exec.sh does, and
+// the shared project is then <REI_PROJECT>-dodai.
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Runner, RunOptions, RunResult } from "./io.ts";
@@ -81,13 +83,22 @@ export function parseInspect(text: string): Inspected[] {
 
 export class Compose {
   readonly runner: Runner;
+  /** The base compose file; its directory holds the env files. */
   readonly file: string;
+  /** Every file passed with -f, in order: the base file, then any overlay. */
+  readonly files: readonly string[];
   readonly project: string | undefined;
 
-  constructor(runner: Runner, file: string, project?: string) {
+  constructor(runner: Runner, files: string | readonly string[], project?: string) {
     this.runner = runner;
-    this.file = file;
+    this.files = typeof files === "string" ? [files] : [...files];
+    if (this.files.length === 0) throw new Error("a compose project needs a file");
+    this.file = this.files[0]!;
     this.project = project || undefined;
+  }
+
+  private fileArgs(): string[] {
+    return this.files.flatMap((file) => ["-f", file]);
   }
 
   /**
@@ -102,12 +113,18 @@ export class Compose {
   }
 
   args(rest: string[]): string[] {
-    return ["compose", ...this.envFileArgs(), "-f", this.file, ...(this.project ? ["-p", this.project] : []), ...rest];
+    return [
+      "compose",
+      ...this.envFileArgs(),
+      ...this.fileArgs(),
+      ...(this.project ? ["-p", this.project] : []),
+      ...rest,
+    ];
   }
 
   /** The command as a user would type it, for a `fix` line. */
   command(rest: string): string {
-    return `docker compose ${this.envFileArgs().join(" ")}${this.envFileArgs().length ? " " : ""}-f ${this.file}${this.project ? ` -p ${this.project}` : ""} ${rest}`;
+    return `docker compose ${[...this.envFileArgs(), ...this.fileArgs()].join(" ")}${this.project ? ` -p ${this.project}` : ""} ${rest}`;
   }
 
   run(rest: string[], opts?: RunOptions): Promise<RunResult> {

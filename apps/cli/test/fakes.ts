@@ -9,6 +9,9 @@ export const ROOT = "/repo";
 export const COMPOSE = `${ROOT}/containers/compose.yaml`;
 /** The shared services' compose file: the gateway and the reader. */
 export const SHARED = `${ROOT}/containers/compose.dodai.yaml`;
+/** The build overlays a checkout loads after each base file. */
+export const COMPOSE_BUILD = `${ROOT}/containers/compose.build.yaml`;
+export const SHARED_BUILD = `${ROOT}/containers/compose.dodai.build.yaml`;
 const SHARED_SERVICES = new Set(["gateway", "reader", "garage", "qdrant"]);
 export const KEY = "brave-key-AAAA1111BBBB2222"; // what the user types at a hidden prompt
 /** A credential that the fake docker puts in output the CLI must not echo (container env, extra lines of a command). */
@@ -123,10 +126,10 @@ export class FakeStack implements Runner {
     return this.calls.filter((c) => c.startsWith("compose: ")).map((c) => c.slice(9));
   }
 
-  /** Splits a `docker compose` argument list into the project it names and the subcommand. */
+  /** Splits a `docker compose` argument list into the project it names and the subcommand (after the last -f file). */
   private parse(args: string[]): { shared: boolean; rest: string[] } {
     const shared = args.includes(SHARED);
-    const rest = args.slice(args.indexOf(shared ? SHARED : COMPOSE) + 1);
+    const rest = args.slice(args.lastIndexOf("-f") + 2);
     if (rest[0] === "-p") rest.splice(0, 2);
     this.calls.push(`compose: ${shared ? "shared: " : ""}${rest.join(" ")}`);
     return { shared, rest };
@@ -417,6 +420,9 @@ export interface RigOptions extends StackOptions {
 export function makeRig(o: RigOptions = {}): Rig {
   const stack = new FakeStack(o);
   const host = new FakeHost();
+  // A checkout: the build overlays are part of the repository.
+  host.files.set(COMPOSE_BUILD, { text: "services: {}\n", mode: 0o644 });
+  host.files.set(SHARED_BUILD, { text: "services: {}\n", mode: 0o644 });
   if (o.checkout !== false) {
     host.files.set(`${ROOT}/node_modules/.package-lock.json`, { text: "{}", mode: 0o644 });
     host.files.set(`${ROOT}/node_modules`, { text: "", mode: 0o755 });

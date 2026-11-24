@@ -1,0 +1,12 @@
+# Source mode: Dodai's Rei-built images (the gateway and the reader) built from this checkout, the way compose.build.yaml
+# does it for Rei's own stack. ./rei always loads it after compose.dodai.yaml in a checkout; an npm installation ships
+# without it. Garage and Qdrant are upstream images and are pulled in both modes. By hand, from the repository root:
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env \
+#     -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml up -d --build --wait
+services:
+  gateway:
+    image: rei/gateway:dev
+    build: { context: .., dockerfile: containers/gateway/Dockerfile }
+  reader:
+    image: rei/reader:dev
+    build: { context: .., dockerfile: containers/reader/Dockerfile }
