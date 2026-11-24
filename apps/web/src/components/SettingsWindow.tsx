@@ -30,6 +30,7 @@ import { MODES, parseMode, useTheme } from "../lib/theme.tsx";
 import { UnsavedChangesProvider, useAnyUnsaved } from "../lib/unsaved.tsx";
 import type { MemoryRev, PageRev } from "../stream/hooks.ts";
 import { AccountSecurity } from "./AccountSecurity.tsx";
+import { BackupSettingsPage } from "./BackupSettingsPage.tsx";
 import { CapabilitiesPage } from "./CapabilitiesPage.tsx";
 import { CompanionSetting } from "./CompanionSetting.tsx";
 import { DevicesSettings } from "./DevicesSettings.tsx";
@@ -61,6 +62,7 @@ const SECTIONS: Record<SettingsSection, { label: string; icon: IconName }> = {
   models: { label: "Models", icon: "brain" },
   runtime: { label: "Runtime", icon: "sparkle" },
   permissions: { label: "Permissions", icon: "shield" },
+  backups: { label: "Backups", icon: "archive" },
 };
 
 interface Props {
@@ -250,6 +252,8 @@ function SettingsWindowBody({
       <RuntimeSettingsPage api={api} />
     ) : section === "permissions" ? (
       <PermissionsPage api={api} agents={agents} sessions={sessions} />
+    ) : section === "backups" ? (
+      <BackupSettingsPage api={api} />
     ) : null;
 
   const shell = wide ? (

@@ -4,6 +4,7 @@
 
 - [Install Rei](installation.md): requirements, setup, upgrades, backup and restore.
 - [Use Rei](user-guide.md): the main workflows.
+- [Backups](backup-user.md): daily backups to a folder, and restoring them.
 - [Architecture](architecture.md): the services and how they fit together.
 
 ## Features

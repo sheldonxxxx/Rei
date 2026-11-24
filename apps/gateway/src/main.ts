@@ -13,6 +13,7 @@ import { createGatewayApps } from "./core/proxy.ts";
 import { createRedactor } from "./core/redact.ts";
 import { DEFAULT_PROVIDER_ORDER } from "./core/search/service.ts";
 import { PiTokenSource } from "./node/auth.ts";
+import { gatewayBackup } from "./node/backup.ts";
 import { SqliteCallLog } from "./node/calllog.ts";
 import { codexAccess } from "./node/codex-auth.ts";
 import { codexImages } from "./node/codex-images.ts";
@@ -78,6 +79,13 @@ const apps = createGatewayApps({
   connectTimeoutMs: config.connectTimeoutMs,
   idleTimeoutMs: config.idleTimeoutMs,
   secrets,
+  backup: gatewayBackup({
+    dataDir: config.dataDir,
+    secretDir: config.secretDir,
+    modelsFile: config.modelsFile,
+    calls,
+    version: config.version,
+  }),
   ...(config.readerUrl ? { reader: { url: config.readerUrl } } : {}),
   mcp: { devHosts: config.mcpDevHosts },
   vapidSubject: config.vapidSubject,

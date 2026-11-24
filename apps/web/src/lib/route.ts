@@ -38,7 +38,8 @@ export type SettingsSection =
   | "models"
   | "runtime"
   | "providers"
-  | "permissions";
+  | "permissions"
+  | "backups";
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "general",
   "providers",
@@ -48,6 +49,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "plugins",
   "triggers",
   "permissions",
+  "backups",
   "usage",
 ];
 

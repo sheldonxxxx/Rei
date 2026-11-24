@@ -975,7 +975,24 @@ export function ensureEventsSchema(db: Db): void {
   ensureTriggerStartColumns(db);
 }
 
-const SCHEMA_VERSION = 20;
+/** Backup runs (docs/backup-user.md): one row per run, scheduled or manual. Added to a database of any upgradable version. */
+export const BACKUP_SCHEMA = `
+CREATE TABLE IF NOT EXISTS backup_runs (
+  id TEXT PRIMARY KEY,
+  trigger TEXT NOT NULL CHECK (trigger IN ('schedule', 'manual')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'ok', 'failed')),
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  snapshot_id TEXT,
+  bytes_added INTEGER,
+  counts TEXT,
+  error TEXT,
+  maintenance TEXT
+);
+CREATE INDEX IF NOT EXISTS backup_runs_started ON backup_runs (started_at);
+`;
+
+export const SCHEMA_VERSION = 20;
 /**
  * The oldest schema this release upgrades in place. Each release upgrades a database from at least the previous minor
  * release (docs/versioning.md#database-upgrades); anything older, or newer than SCHEMA_VERSION, is refused untouched.
@@ -1165,6 +1182,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
       ensureHistoryBranchColumns(db);
       ensureApprovalCheckpointColumns(db);
       db.exec(SESSION_IMPORTS_SCHEMA);
+      db.exec(BACKUP_SCHEMA);
       return false;
     }
     if (version !== 0) throw new Error(refusal(version));
@@ -1188,6 +1206,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
     ensureHistoryBranchColumns(db);
     ensureApprovalCheckpointColumns(db);
     db.exec(SESSION_IMPORTS_SCHEMA);
+    db.exec(BACKUP_SCHEMA);
     db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     return true;
   });

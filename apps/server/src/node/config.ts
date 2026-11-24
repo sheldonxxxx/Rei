@@ -25,7 +25,25 @@ export interface NodeConfig {
   garage: GarageConfig | undefined;
   /** The retrieval service (BM25 + dense vectors). Absent only in faux mode. */
   qdrant: QdrantConfig | undefined;
+  /**
+   * Backups (docs/backup-user.md). `repositoryDir` is where the deployment mounted the backup folder (REI_BACKUP_PATH, which
+   * the Compose file sets only when REI_BACKUP_DIR is); `stagingDir` is the scratch volume for the bundle and restic's cache.
+   * Without a repository folder Settings > Backups says backups are not set up for this stack.
+   */
+  backup: { repositoryDir: string | undefined; stagingDir: string | undefined; version: string };
   control: ControlPlaneConfig;
+}
+
+/** The version in this workspace's package.json (the release the image was built from). */
+function serverVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+      version?: string;
+    };
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 function int(env: NodeJS.ProcessEnv, name: string): number | undefined {
@@ -368,6 +386,11 @@ function readStorage(
     standinFile: env.REI_STANDIN_FILE && env.REI_STANDIN_FILE !== "" ? env.REI_STANDIN_FILE : undefined,
     garage: storage.garage,
     qdrant: storage.qdrant,
+    backup: {
+      repositoryDir: text(env, "REI_BACKUP_PATH"),
+      stagingDir: text(env, "REI_BACKUP_STAGING"),
+      version: serverVersion(),
+    },
     ...(gatewayUrl ? { codexImageGateway: gatewayUrl } : {}),
     control: {
       ...DEFAULT_CONFIG,

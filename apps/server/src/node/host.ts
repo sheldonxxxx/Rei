@@ -12,6 +12,8 @@ import type { RetrievalStore } from "../retrieval/retrieval-store.ts";
 import type { FileObjectStore } from "../storage/file-object-store.ts";
 import { type Clock, systemClock } from "../util/clock.ts";
 import { createLogger, type Logger } from "../util/log.ts";
+import { BundleWriter } from "./backup-bundle.ts";
+import { backupFolder } from "./backup-folder.ts";
 import { FolderBlobStore } from "./blob-store.ts";
 import { CdpBrowserDriver } from "./browser-cdp.ts";
 import { CodexImages } from "./codex-images.ts";
@@ -24,6 +26,7 @@ import { GarageFileObjectStore } from "./garage-object-store.ts";
 import { openPiStorage } from "./pi-storage.ts";
 import { NodePrivateSnapshots } from "./private-snapshots.ts";
 import { QdrantStore } from "./qdrant-store.ts";
+import { ProcessRestic } from "./restic.ts";
 import { openSqliteDb } from "./sqlite-db.ts";
 import { NodeTreeFiles } from "./tree-files.ts";
 import { FolderUploadSpool } from "./upload-spool.ts";
@@ -185,6 +188,8 @@ export interface NodeHostOptions {
   memory?: ControlPlaneDeps["memory"];
   /** Tests: the file store, instead of the one the config asks for (a fake that can be made to fail mid-upload). */
   fileObjects?: FileObjectStore;
+  /** Tests: backup settings over the config's (a folder to back up to, a fake restic, a faster tick). */
+  backup?: Partial<NonNullable<ControlPlaneDeps["backup"]>>;
   /** Tests: the search service (a fake), instead of the one `config.qdrant` asks for. */
   retrieval?: RetrievalStore;
 }
@@ -237,6 +242,16 @@ export async function createNodeHost(config: NodeConfig, options: NodeHostOption
         `Rei setup code: ${code}  (also in ${join(config.dataDir, "setup-code.txt")})`,
       ),
     config: config.control,
+    backup: {
+      repositoryDir: config.backup.repositoryDir,
+      stagingDir: config.backup.stagingDir,
+      dataDir: config.dataDir,
+      appVersion: config.backup.version,
+      restic: (options) => new ProcessRestic(options),
+      bundle: (deps) => new BundleWriter(deps),
+      folder: backupFolder,
+      ...options.backup,
+    },
     ...(config.codexImageGateway
       ? { images: new CodexImages(config.codexImageGateway, () => standin.read(), options.fetchImpl) }
       : {}),

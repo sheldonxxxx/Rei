@@ -1,4 +1,4 @@
-import { DatabaseSync, type StatementSync } from "node:sqlite";
+import { backup, DatabaseSync, type StatementSync } from "node:sqlite";
 import type { Db, SqlValue } from "../db/db.ts";
 
 export function openSqliteDb(path: string): Db {
@@ -54,6 +54,9 @@ export function openSqliteDb(path: string): Db {
     },
     checkpoint: () => {
       db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    },
+    backupTo: async (target) => {
+      await backup(db, target);
     },
     close: () => {
       cache.clear();

@@ -184,6 +184,11 @@ export class FakeStack implements Runner {
       this.createdVolumes.add(name);
       return done(`${name}\n`);
     }
+    if (args[0] === "volume" && args[1] === "rm") {
+      this.calls.push(`volume rm ${args.slice(2).join(" ")}`);
+      this.createdVolumes.delete(args[2] ?? "");
+      return done(`${args[2] ?? ""}\n`);
+    }
     if (args[0] === "volume" && args[1] === "inspect") {
       const name = args[args.length - 1] ?? "";
       if (this.o.missingVolumes?.includes(name) && !this.createdVolumes.has(name))

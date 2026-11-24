@@ -522,7 +522,8 @@ export type NotifyEvent =
   | "trigger_report"
   | "trigger_failed"
   | "trigger_paused"
-  | "session_done";
+  | "session_done"
+  | "backup_failed";
 /**
  * What a notification carries, on every delivery channel: the event, where it points (`sessionId`, and `messageId` when it
  * is about one message; `sessionId` is "" for a test) and its plain text. A client builds its own route from the ids; the

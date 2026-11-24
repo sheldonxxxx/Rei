@@ -74,6 +74,8 @@ export interface CallLog {
   trackingSince(): string;
   /** When each caller's newest record started. */
   lastUsed(): Map<string, number>;
+  /** An online copy of the database into `file`. Absent from stores that are not files (tests). */
+  backupTo?(file: string): Promise<void>;
 }
 
 export interface GatewayDeps {
@@ -105,6 +107,8 @@ export interface GatewayDeps {
   search?: SearchDeps;
   /** The shared reader (POST /read is handed to it, with the caller's id). Without it the endpoint answers 503 read_unavailable. */
   reader?: { url: string; timeoutMs?: number };
+  /** What `GET /backup` returns: the gateway's own state as files. Without it the endpoint answers 503 backup_unavailable. */
+  backup?: () => Promise<import("./backup.ts").GatewayBackup>;
   /** Where MCP connectors and the VAPID key are kept. Without it /mcp/* and /notify/* answer 503. */
   secrets?: SecretStore;
   /** MCP connectors and the notification senders. */

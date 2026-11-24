@@ -5,6 +5,9 @@ import type {
   ApprovalsResponse,
   Attachment,
   AuthStateResponse,
+  BackupPasswordResponse,
+  BackupRepositoryRequest,
+  BackupSettings,
   BehaviorSettingsResponse,
   CallerUsageResponse,
   CancelResponse,
@@ -111,6 +114,7 @@ import type {
   UndoMemoryChangeResponse,
   UpdateAgentRequest,
   UpdateAgentResponse,
+  UpdateBackupSettingsRequest,
   UpdateBehaviorSettingsRequest,
   UpdateCompanionRequest,
   UpdateConnectorRequest,
@@ -317,6 +321,15 @@ export function createApi(options: ApiOptions = {}) {
     /** The user's time zone; null until the browser saves its own on first open. */
     getTimeZone: () => request<TimeZoneSettings>("GET", "/api/settings/time-zone"),
     updateTimeZone: (req: UpdateTimeZoneRequest) => request<TimeZoneSettings>("PUT", "/api/settings/time-zone", req),
+    /** Backups: the schedule, the repository and the last runs; every change answers the new state. */
+    getBackups: () => request<BackupSettings>("GET", "/api/settings/backups"),
+    updateBackups: (req: UpdateBackupSettingsRequest) => request<BackupSettings>("PUT", "/api/settings/backups", req),
+    /** A password for a repository to be created; it comes back here once. */
+    generateBackupPassword: () => post<BackupPasswordResponse>("/api/settings/backups/password"),
+    setBackupRepository: (req: BackupRepositoryRequest) =>
+      post<BackupSettings>("/api/settings/backups/repository", req),
+    forgetBackupRepository: () => request<BackupSettings>("DELETE", "/api/settings/backups/repository"),
+    runBackup: () => post<BackupSettings>("/api/settings/backups/run"),
     /** Picks the companion agent: the one companion clients (widgets, quick-send) talk to. */
     updateCompanion: (req: UpdateCompanionRequest) => request<CompanionResponse>("PUT", "/api/settings/companion", req),
     /** The sandbox whitelist that restricted agents reach without asking, and the defaults a reset restores. */

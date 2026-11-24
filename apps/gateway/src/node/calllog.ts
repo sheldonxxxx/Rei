@@ -2,7 +2,7 @@
 // one busy caller cannot push another's rows out.
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { backup, DatabaseSync } from "node:sqlite";
 import type {
   GatewayCallRecord,
   GatewayCallsSummary,
@@ -732,6 +732,11 @@ export class SqliteCallLog implements CallLog {
         )
         .run(caller, caller, this.#maxRows);
     }
+  }
+
+  /** An online, consistent copy of the database in `file` (SQLite's backup API), while the gateway keeps writing. */
+  async backupTo(file: string): Promise<void> {
+    await backup(this.#db, file);
   }
 
   close(): void {

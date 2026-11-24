@@ -4,6 +4,8 @@ import { AttachmentService } from "./attachments/service.ts";
 import { AuthService, type SetupCodeStore } from "./auth/service.ts";
 import type { WebAuthnEngine } from "./auth/webauthn.ts";
 import { BackgroundTaskService } from "./background/service.ts";
+import { gatewayBackupState } from "./backup/gateway.ts";
+import { BackupService, type BackupServiceDeps } from "./backup/service.ts";
 import type { BlobStore } from "./blobs/blob-store.ts";
 import type { BrowserDriver } from "./browser/driver.ts";
 import { LiveHub } from "./browser/live.ts";
@@ -12,7 +14,7 @@ import { TakeoverService } from "./browser/takeover-service.ts";
 import type { Db } from "./db/db.ts";
 import { initializeDatabase } from "./db/schema.ts";
 import { EventReceiver } from "./events/receive.ts";
-import { EventSources } from "./events/sources.ts";
+import { EventSources, SecretBox } from "./events/sources.ts";
 import type { ExecBackend } from "./exec/backend.ts";
 import { type EgressListener, EgressService } from "./exec/egress.ts";
 import { WorkspaceManager } from "./exec/workspaces.ts";
@@ -32,6 +34,7 @@ import { PiAdapter } from "./pi/adapter.ts";
 import { AgentDesigner } from "./pi/agent-designer.ts";
 import { type BehaviorDefaults, behaviorSettings } from "./pi/behavior-settings.ts";
 import { ModelCatalog } from "./pi/catalog.ts";
+import { savedTimeZone } from "./pi/clock-context.ts";
 import { type CodemodeLimits, CodemodeRuntime, DEFAULT_CODEMODE_LIMITS } from "./pi/codemode.ts";
 import { type ModelsConfigSource, parseModelsConfig } from "./pi/model-config.ts";
 import { createModelRuntime, type StandinSource } from "./pi/models.ts";
@@ -58,6 +61,7 @@ import { AppStore } from "./store/store.ts";
 import { TakeoverStore } from "./store/takeovers.ts";
 import { TriggerRunner } from "./triggers/runner.ts";
 import { TriggerScheduler } from "./triggers/scheduler.ts";
+import { processZone } from "./triggers/spec.ts";
 import { TriggerStore } from "./triggers/store.ts";
 import type { Clock } from "./util/clock.ts";
 import type { Logger } from "./util/log.ts";
@@ -204,6 +208,11 @@ export interface ControlPlaneDeps {
   eventsKey?: Uint8Array<ArrayBuffer>;
   /** Test hook: the fetch the gateway client uses. */
   fetchImpl?: typeof fetch;
+  /** Backups: the data directory, where the repository folder and the staging volume are, and how restic is run (tests pass a fake). */
+  backup?: Pick<
+    BackupServiceDeps,
+    "repositoryDir" | "stagingDir" | "dataDir" | "restic" | "appVersion" | "extraSkip" | "tickMs" | "bundle" | "folder"
+  >;
   /** Where the sandbox tools run; set when `config.exec.mode` is not `off` (the Node host builds it). */
   exec?: ExecBackend;
   /** Where the egress proxy's questions arrive (a unix socket in the Node host). */
@@ -250,6 +259,8 @@ export interface ControlPlane {
   triggers: { store: TriggerStore; scheduler: TriggerScheduler; runner: TriggerRunner };
   /** Outside events: the sources and the receiver of their signed requests; undefined without an events key. */
   events: { sources: EventSources; receiver: EventReceiver } | undefined;
+  /** Scheduled and manual backups of the database, the files and the gateway's state. */
+  backup: BackupService;
   /** Skills. */
   skills: SkillStore;
   plugins: PluginService;
@@ -605,7 +616,38 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
         afterAccepted: () => triggerScheduler.tick(),
       })
     : undefined;
+  const backup = new BackupService({
+    store,
+    db,
+    clock,
+    log,
+    repositoryDir: deps.backup?.repositoryDir,
+    stagingDir: deps.backup?.stagingDir,
+    dataDir: deps.backup?.dataDir ?? "/data",
+    ...(deps.backup?.extraSkip ? { extraSkip: deps.backup.extraSkip } : {}),
+    objects: deps.fileObjects,
+    ...(config.gatewayUrl
+      ? { gatewayState: () => gatewayBackupState(config.gatewayUrl!, () => deps.standin.read(), deps.fetchImpl) }
+      : {}),
+    secrets: deps.eventsKey ? new SecretBox(deps.eventsKey) : undefined,
+    appVersion: deps.backup?.appVersion ?? "unknown",
+    host: "rei",
+    timeZone: () => savedTimeZone(store) ?? processZone(),
+    restic:
+      deps.backup?.restic ??
+      (() => {
+        throw new Error("restic is not available.");
+      }),
+    bundle:
+      deps.backup?.bundle ??
+      (() => {
+        throw new Error("This host cannot write backups.");
+      }),
+    folder: deps.backup?.folder ?? { exists: () => false, bytes: () => null },
+    ...(deps.backup?.tickMs ? { tickMs: deps.backup.tickMs } : {}),
+  });
   const app = createApp({
+    backup,
     ...(eventReceiver ? { events: eventReceiver } : {}),
     ...(eventSources ? { eventSources } : {}),
     plugins,
@@ -665,6 +707,7 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
     retrieval: deps.retrieval,
     triggers: { store: triggerStore, scheduler: triggerScheduler, runner: triggerRunner },
     events: eventSources && eventReceiver ? { sources: eventSources, receiver: eventReceiver } : undefined,
+    backup,
     skills: skillStore,
     notifications,
     mcp,
@@ -712,11 +755,13 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
       // After the trees are recovered: the first tick catches up on triggers missed while the process was down.
       triggerScheduler.start();
       notifications.start();
+      backup.begin();
       log.info("control_plane.started", { mode: config.mode, exec: config.exec.mode, browser: config.browser.mode });
     },
     async stop() {
       await deps.egressListener?.stop();
       triggerScheduler.stop();
+      await backup.end();
       if (knowledgeSweep) clearInterval(knowledgeSweep);
       knowledge.meaning?.stop();
       await notifications.stop();

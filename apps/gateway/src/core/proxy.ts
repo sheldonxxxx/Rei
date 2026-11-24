@@ -779,6 +779,17 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
       return c.body(null, 204);
     });
   }
+  // Admin only (the scope of every unlisted path): the state a backup needs and nothing else can read.
+  app.get("/backup", async (c) => {
+    if (!deps.backup)
+      return errorResponse(503, { code: "backup_unavailable", message: "Backups are not configured on the gateway." });
+    try {
+      return c.json(await deps.backup());
+    } catch (cause) {
+      log.error("backup.failed", classifyError(cause));
+      return errorResponse(500, { code: "backup_failed", message: "The gateway could not read its state." });
+    }
+  });
   app.get("/status", async (c) => {
     const state = await deps.tokens.status().catch(() => ({ signedIn: false, accessExpiresInS: null }));
     const searchStatus = { providers: (await search?.status()) ?? [], searxngUrl: deps.search?.searxngUrl ?? null };
