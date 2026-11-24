@@ -5,7 +5,7 @@
 # Build from the repository root:  docker build -f containers/browser/Dockerfile -t rei/browser:dev containers/browser
 # compose runs it hardened on the browser-net network: the egress proxy's browser listener is its only way out.
 
-FROM debian:trixie-slim@sha256:89c1ea91e897f0fe0a3731595330bc45b8bdef4047464a07116f891a94054b31
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 # fonts: Latin, CJK (Cantonese, Mandarin and Japanese pages) and colour emoji, or the page picture is full of boxes.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends chromium xvfb socat tini ca-certificates procps \
