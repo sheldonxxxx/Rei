@@ -16,6 +16,7 @@ import { sources } from "./commands/sources.ts";
 import { status } from "./commands/status.ts";
 import { makeCtx } from "./ctx.ts";
 import { loadGuide, useGuide } from "./guide.ts";
+import { initSecrets } from "./init.ts";
 import { realClock, realHost, realOut, realPrompter } from "./real.ts";
 import { realRunner } from "./runner.ts";
 
@@ -63,6 +64,8 @@ function help(command?: string): string {
       return "./rei sources <add|list|rotate|disable|enable|remove> [options]\n\nManage the senders that may tell Rei something happened so a trigger can start: their secrets and whether they are accepted. Run ./rei sources with no command to see every option. See docs/events.md.";
     case "import":
       return IMPORT_HELP;
+    case "init":
+      return "./rei init\n\nCreate what the stack needs once: containers/.env, the shared secrets in containers/.secrets/secrets.env and the external storage volumes. Existing values are never replaced. Setup runs it; containers/init.sh is the same command.";
     case "redeploy":
       return "./rei redeploy [--no-cache]\n\nRebuild the web app and all Rei-built Compose images, then recreate services. Docker's build cache is reused, so unchanged layers are fast; --no-cache forces a full rebuild. Docker data volumes and secrets are preserved.";
     default:
@@ -80,6 +83,7 @@ const FLAGS: Record<string, string[]> = {
   doctor: ["--json"],
   status: ["--json"],
   "reset-password": [],
+  init: [],
 };
 
 async function main(argv: string[]): Promise<number> {
@@ -175,6 +179,8 @@ async function main(argv: string[]): Promise<number> {
       return doctor(ctx, { json: has("--json") });
     case "reset-password":
       return resetPassword(ctx);
+    case "init":
+      return initSecrets(ctx);
     default:
       return status(ctx, { json: has("--json") });
   }

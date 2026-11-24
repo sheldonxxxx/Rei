@@ -95,6 +95,8 @@ export class FakeStack implements Runner {
   readonly handlers: ((cmd: string, args: string[], opts?: RunOptions) => RunResult | undefined)[] = [];
   /** Every non-docker program the CLI ran, with its exact paths and arguments. */
   readonly execs: { cmd: string; args: string[] }[] = [];
+  /** Volumes made with `docker volume create`; they exist from then on. */
+  readonly createdVolumes = new Set<string>();
 
   constructor(o: StackOptions = {}) {
     this.o = o;
@@ -172,9 +174,16 @@ export class FakeStack implements Runner {
       this.calls.push(`rm ${args.slice(1).join(" ")}`);
       return done();
     }
+    if (args[0] === "volume" && args[1] === "create") {
+      const name = args[2] ?? "";
+      this.calls.push(`volume create ${name}`);
+      this.createdVolumes.add(name);
+      return done(`${name}\n`);
+    }
     if (args[0] === "volume" && args[1] === "inspect") {
       const name = args[args.length - 1] ?? "";
-      if (this.o.missingVolumes?.includes(name)) return done("", 1, `Error: No such volume: ${name}`);
+      if (this.o.missingVolumes?.includes(name) && !this.createdVolumes.has(name))
+        return done("", 1, `Error: No such volume: ${name}`);
       return done(this.o.dodaiOwnedVolumes?.includes(name) ? "dodai\n" : "rei\n");
     }
     if (args[0] === "network" && args[1] === "inspect")
@@ -319,7 +328,16 @@ export class FakeHost implements Host {
     const names = [...this.files.keys()]
       .filter((p) => p.startsWith(prefix))
       .map((p) => p.slice(prefix.length).split("/")[0]!);
-    return names.length ? [...new Set(names)].sort() : undefined;
+    if (names.length === 0) return this.dirs.includes(dir) ? [] : undefined;
+    return [...new Set(names)].sort();
+  }
+  removeDir(path: string) {
+    const prefix = `${path.replace(/\/$/, "")}/`;
+    if ([...this.files.keys()].some((p) => p.startsWith(prefix))) return false;
+    const at = this.dirs.indexOf(path);
+    if (at < 0) return false;
+    this.dirs.splice(at, 1);
+    return true;
   }
   writeText(path: string, text: string, mode?: number) {
     this.writes.push({ path, text, mode });
@@ -394,6 +412,17 @@ export class FakePrompter implements Prompter {
   }
 }
 
+/** secrets.env of a set-up installation: every variable rei init makes (fixed, made-up values). */
+export const SET_UP_SECRETS = `REI_STANDIN=${SECRET}
+GARAGE_RPC_SECRET=${"1".repeat(64)}
+GARAGE_ADMIN_TOKEN=${"2".repeat(32)}
+GARAGE_DEFAULT_BUCKET=rei-files
+GARAGE_DEFAULT_ACCESS_KEY=GK${"3".repeat(32)}
+GARAGE_DEFAULT_SECRET_KEY=${"4".repeat(64)}
+QDRANT__SERVICE__API_KEY=${"5".repeat(64)}
+REI_EVENTS_KEY=${"6".repeat(64)}
+`;
+
 export interface Rig {
   ctx: Ctx;
   stack: FakeStack;
@@ -426,7 +455,7 @@ export function makeRig(o: RigOptions = {}): Rig {
   if (o.checkout !== false) {
     host.files.set(`${ROOT}/node_modules/.package-lock.json`, { text: "{}", mode: 0o644 });
     host.files.set(`${ROOT}/node_modules`, { text: "", mode: 0o755 });
-    host.files.set(`${ROOT}/containers/.secrets/secrets.env`, { text: `REI_STANDIN=${SECRET}\n`, mode: 0o600 });
+    host.files.set(`${ROOT}/containers/.secrets/secrets.env`, { text: SET_UP_SECRETS, mode: 0o600 });
     host.files.set(`${ROOT}/containers/.env`, { text: "COMPOSE_PROFILES=searxng\nREI_TZ=Asia/Macau\n", mode: 0o644 });
   }
   const out = new FakeOut();

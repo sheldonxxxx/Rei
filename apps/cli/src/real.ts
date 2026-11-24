@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statfsSync,
   statSync,
@@ -76,6 +77,14 @@ export function realHost(): Host {
     },
     remove(path) {
       rmSync(path, { force: true });
+    },
+    removeDir(path) {
+      try {
+        rmdirSync(path);
+        return true;
+      } catch {
+        return false;
+      }
     },
     freeBytes(path) {
       try {

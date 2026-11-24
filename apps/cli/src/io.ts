@@ -71,6 +71,8 @@ export interface Host {
   /** Move `from` onto `to` on the same filesystem: a config write becomes all-or-nothing. */
   rename(from: string, to: string): void;
   remove(path: string): void;
+  /** Removes an empty directory; false when it is not empty or not there. */
+  removeDir(path: string): boolean;
   freeBytes(path: string): number | undefined;
   /** False only when something else holds the port. */
   portFree(host: string, port: number): Promise<boolean>;

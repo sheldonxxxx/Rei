@@ -19,6 +19,7 @@ import { envKeys, parseDotenv, setDotenv } from "../dotenv.ts";
 import { writeEnvText } from "../env-file.ts";
 import type { CheckResult } from "../format.ts";
 import { fail, ok, printRow, row, skip, warn } from "../format.ts";
+import { initSecrets } from "../init.ts";
 import { restrictReiStorageKey } from "../storage/garage.ts";
 import { showSetupCode } from "./setup-code.ts";
 
@@ -64,14 +65,7 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
 
   ctx.guide?.message("2 of 3 · Preparing Rei. The first run can take a few minutes.");
   // 2. Secrets
-  if (
-    !report(
-      "secrets",
-      "secrets",
-      await run(ctx, join(ctx.containersDir, "init.sh"), [], "containers/init.sh failed", "read its output above"),
-    )
-  )
-    return stop();
+  if (!report("secrets", "secrets", await secrets(ctx))) return stop();
 
   report("tz", "time zone", timeZoneStep(ctx));
 
@@ -145,7 +139,20 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
   return 0;
 }
 
-/** Runs a program with the terminal handed over; ok when it exits 0. */
+/**
+ * .env, secrets.env and the external volumes (rei init). The basic interface prints what it made; the guided one keeps
+ * those lines unless something failed.
+ */
+async function secrets(ctx: Ctx): Promise<CheckResult> {
+  const lines: string[] = [];
+  const log = ctx.guide ? (line: string) => lines.push(line) : (line: string) => ctx.out.line(line);
+  const work = () => initSecrets(ctx, log);
+  const code = ctx.guide ? await ctx.guide.task("Preparing local settings…", work) : await work();
+  if (code === 0) return ok("done");
+  if (lines.length) ctx.guide?.message(lines.join("\n"), "error");
+  return fail("the storage volumes could not all be created", "read the lines above; check `docker volume ls`");
+}
+
 /** The server dates what it writes (forget markers, dates in the agent's memory) in REI_TZ: this machine's zone unless one is set. */
 function timeZoneStep(ctx: Ctx): CheckResult {
   const envFile = dotenvPath(ctx);
@@ -156,6 +163,7 @@ function timeZoneStep(ctx: Ctx): CheckResult {
   return ok(`${ctx.host.timeZone} set in containers/.env`);
 }
 
+/** Runs a program with the terminal handed over; ok when it exits 0. */
 async function run(
   ctx: Ctx,
   cmd: string,
@@ -164,13 +172,7 @@ async function run(
   fix: string,
   cwd?: string,
 ): Promise<CheckResult> {
-  const code = await setupCommand(
-    ctx,
-    cmd === "npm" ? "Preparing the app…" : "Preparing local settings…",
-    cmd,
-    args,
-    cwd,
-  );
+  const code = await setupCommand(ctx, "Preparing the app…", cmd, args, cwd);
   return code === 0 ? ok("done") : fail(`${failure} (exit ${code})`, fix);
 }
 

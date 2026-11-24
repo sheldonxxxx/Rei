@@ -5,7 +5,7 @@ import type { Rig } from "./fakes.ts";
 import { makeRig, ROOT, SECRET, SHARED, SHARED_BUILD } from "./fakes.ts";
 
 const NON_INTERACTIVE: SetupOptions = { nonInteractive: true, skipBuild: false };
-const MAJOR = /^(init\.sh|npm |compose: (shared: )?(up|run|stop|rm|--profile)|smoke-exec\.sh)/;
+const MAJOR = /^(npm |compose: (shared: )?(up|run|stop|rm|--profile)|smoke-exec\.sh)/;
 const major = (rig: Rig) => rig.stack.calls.filter((c) => MAJOR.test(c));
 const ENV = `${ROOT}/containers/.env`;
 
@@ -14,7 +14,6 @@ describe("setup", () => {
     const rig = makeRig({ fresh: true, checkout: false, setupRequired: true, setupCode: "ABCD-1234", answers: [] });
     expect(await setup(rig.ctx, { ...NON_INTERACTIVE, nonInteractive: false })).toBe(0);
     expect(major(rig)).toEqual([
-      "init.sh",
       "npm ci",
       "npm run build -w @rei/web",
       "compose: shared: up -d --build --wait",
@@ -24,6 +23,9 @@ describe("setup", () => {
     expect(rig.out.text).toContain("http://localhost:8787");
     expect(rig.out.text).toContain("ABCD-1234");
     expect(rig.prompter.asked).toEqual([]);
+    // rei init ran first, in-process: the secrets exist before anything is started.
+    expect(rig.host.files.get(`${ROOT}/containers/.secrets/secrets.env`)?.mode).toBe(0o600);
+    expect(rig.out.text).toContain(`created ${ROOT}/containers/.secrets/secrets.env`);
   });
 
   it("polls until the services are healthy (a starting health check is waited for)", async () => {
