@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { ASSET_FILES } from "../asset-files.ts";
 import { composeVersion, dockerDaemon } from "../checks/preflight.ts";
 import type { Ctx } from "../ctx.ts";
-import { dropLegacyStorageNetwork, retireLegacyGateway, retireLegacyStorage } from "../ctx.ts";
+import { dropLegacyStorageNetwork, retireLegacyGateway, retireLegacyStorage, secretsPath } from "../ctx.ts";
 import { initSecrets } from "../init.ts";
 import { installAssets, installedVersion, isInstalled, MARKER, markInstalled } from "../install.ts";
 import { restrictReiStorageKey } from "../storage/garage.ts";
@@ -25,7 +25,7 @@ export async function upgrade(ctx: Ctx, o: UpgradeOptions): Promise<number> {
     ctx.out.line("./rei upgrade is for npm installations. In a checkout, update it with git, then run ./rei redeploy.");
     return 2;
   }
-  if (!isInstalled(ctx) || !ctx.host.stat(join(ctx.containersDir, ".secrets", "secrets.env"))) {
+  if (!isInstalled(ctx) || !ctx.host.stat(secretsPath(ctx))) {
     ctx.out.line(`Rei is not set up in ${ctx.containersDir} yet. Run rei setup.`);
     return 1;
   }
@@ -131,8 +131,10 @@ function backupConfig(ctx: Ctx, from: string): string {
   const stamp = new Date(ctx.clock.now()).toISOString().replace(/[:.]/g, "-");
   const dir = join(ctx.containersDir, "backups", `${stamp}-${from.replace(/[^\w.-]/g, "_")}`);
   ctx.host.mkdirp(dir, 0o700);
-  for (const path of [...ASSET_FILES.map((f) => f.path), ".env", ".secrets/secrets.env", MARKER]) {
-    const source = join(ctx.containersDir, path);
+  const envFiles = [".env", ".secrets/secrets.env"];
+  for (const path of [...ASSET_FILES.map((f) => f.path), ...envFiles, MARKER]) {
+    // .env and secrets.env are the stack's own (REI_ENV_DIR); the rest is REI_HOME's.
+    const source = join(envFiles.includes(path) ? ctx.envDir : ctx.containersDir, path);
     const text = ctx.host.readText(source);
     if (text === undefined) continue;
     const target = join(dir, path);

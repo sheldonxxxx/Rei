@@ -42,10 +42,22 @@ export function locate(
  * The CLI's messages are written for a checkout: `./rei setup`, `containers/.env`. In image mode they are said the way
  * that installation works: `rei setup`, `~/.rei/.env`, and `rei init` for containers/init.sh (which it does not have).
  */
-export function phrase(text: string, mode: "source" | "image", home: string, homeDir: string): string {
-  if (mode === "source") return text;
-  const shown = home.startsWith(`${homeDir}/`) ? `~/${home.slice(homeDir.length + 1)}` : home;
-  return text
+export function phrase(
+  text: string,
+  mode: "source" | "image",
+  home: string,
+  homeDir: string,
+  envDir: string = home,
+): string {
+  const short = (dir: string): string => (dir.startsWith(`${homeDir}/`) ? `~/${dir.slice(homeDir.length + 1)}` : dir);
+  // The stack's .env and .secrets/ are in REI_ENV_DIR when it is set.
+  const said =
+    envDir === home
+      ? text
+      : text.replace(/(?<![\w/.-])containers\/(\.env|\.secrets)\b/g, (_, name: string) => `${short(envDir)}/${name}`);
+  if (mode === "source") return said;
+  const shown = short(home);
+  return said
     .replace(/(?<![\w/.-])(?:\.\/)?containers\/init\.sh/g, "rei init")
     .replace(/(?<![\w/.-])\.\/rei\b/g, "rei")
     .replace(/(?<![\w/.-])containers\//g, `${shown}/`);

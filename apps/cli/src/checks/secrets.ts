@@ -6,7 +6,7 @@ import type { Row } from "../format.ts";
 import { fail, ok, row, warn } from "../format.ts";
 
 export function secretRows(ctx: Ctx): Row[] {
-  const secrets = join(ctx.containersDir, ".secrets");
+  const secrets = join(ctx.envDir, ".secrets");
   const missing = ["secrets.env"].filter((name) => !(ctx.host.stat(join(secrets, name))?.size ?? 0));
   const rows: Row[] = [
     row(

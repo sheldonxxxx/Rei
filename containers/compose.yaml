@@ -5,14 +5,14 @@
 #   ./rei doctor     what is wrong and how to fix it (changes nothing)
 #   ./rei status     a quick summary
 #
-# Secrets: containers/.secrets/secrets.env is interpolated into each service's own environment (a service gets only the
+# Secrets: containers/.secrets/secrets.env (or $REI_ENV_DIR/.secrets/secrets.env) is interpolated into each service's own environment (a service gets only the
 # variables it uses), so every compose call needs both env files: ./rei and the smoke scripts pass them; by hand add
 #   --env-file containers/.env --env-file containers/.secrets/secrets.env
 # (or export COMPOSE_ENV_FILES=containers/.env,containers/.secrets/secrets.env).
 #
 # Images: this file names the published ones, ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-<name>:${REI_VERSION:-dev} (an npm
 # installation ships it with the release's version and digests written in). In a checkout, compose.build.yaml is loaded
-# after it and builds them from source instead, as rei/<name>:dev; ./rei always passes both files there.
+# after it and builds them from source instead, as <REI_PROJECT or rei>/<name>:dev; ./rei always passes both files there.
 #
 # By hand, in a checkout (what ./rei setup does). Build the web app first (npm run build -w @rei/web), then from the
 # repository root:
@@ -32,18 +32,18 @@
 # Networks (D30): the gateway (compose.dodai.yaml) and the egress proxy are the only containers that reach the internet.
 # The edge forwards the published port to the control plane and holds nothing.
 #   internal   control, edge. No route out.
-#   gateway-admin  control, and the gateway in the shared project, which owns this network (rei-gateway-admin). No route
+#   gateway-admin  control, and the gateway in the shared project, which owns this network (<REI_PROJECT>-gateway-admin). No route
 #              out. The control plane's only path to the gateway; its HTTP server does not listen here (REI_HOST).
-#   storage    control, and Garage and Qdrant in Dodai, which owns this network (rei-storage). No route out, and nothing
+#   storage    control, and Garage and Qdrant in Dodai, which owns this network (<REI_PROJECT>-storage). No route out, and nothing
 #              published. Rei's file bytes and its search indexes live there, and the control plane is the only container
 #              of Rei's that can reach them: the sandbox (exec-net), the agent browser (browser-net) and the gateway have
-#              no path to them at all. Outside callers reach Garage on a second network, rei-storage-shared, never this one.
+#              no path to them at all. Outside callers reach Garage on a second network, <REI_PROJECT>-storage-shared, never this one.
 #   front      edge. The published port.
 #   exec-net   control, exec, egress. No route out. The agent's shell runs in exec; its only way out is the proxy, which
 #              asks the control plane (over a unix socket in the egress-sock volume, never on a network) for every host.
 #   egress-out egress. The internet, for hosts the user has allowed.
 #   browser-net control, browser, egress. No route out. The agent computer's Chromium; its only way out is the egress
-#              proxy's browser listener (EGRESS_BROWSER_LISTEN, 10.89.232.3:3129), which asks the control plane for every
+#              proxy's browser listener (EGRESS_BROWSER_LISTEN, <net>.232.3:3129), which asks the control plane for every
 #              host like the sandbox's does, and only while the browser is in use (a running run, a takeover, recent work).
 #              The control plane drives Chromium over the DevTools port (browser:9223), which starts Chromium on demand;
 #              nothing else listens anywhere.
@@ -51,6 +51,11 @@
 # loopback, link-local (cloud metadata), reserved ranges, OrbStack's 198.18.0.0/15 and the stack's own subnets.
 # The sandbox shares exec-net with the control plane, so the control plane's HTTP server listens on its internal address
 # only (REI_HOST); on exec-net nothing listens on control.
+#
+# Addresses: every fixed subnet and address below is <net>.231.x ... <net>.238.x, where <net> is REI_NET (two octets,
+# default 10.89), and Dodai's named networks are <REI_PROJECT>-gateway-admin and so on (default rei-…). A second stack on
+# the same machine sets REI_PROJECT, REI_NET and REI_PUBLISH in its own .env (docs/installation.md, "A second stack on one
+# machine"); the defaults are the first stack's.
 #
 # Service logs: REI_LOG_LEVEL (debug, info, warn, error; default info) sets all three Rei services; REI_CONTROL_LOG_LEVEL,
 # REI_GATEWAY_LOG_LEVEL and REI_EGRESS_LOG_LEVEL override one. debug adds events (every request, call and allowed host),
@@ -95,7 +100,7 @@ services:
       REI_EGRESS_SOCKET: /run/egress/decide.sock
       REI_EGRESS_PROXY: egress:3128
       # Must match control's fixed address on internal below: listening there only keeps the HTTP server off exec-net.
-      REI_HOST: 10.89.231.10
+      REI_HOST: "${REI_NET:-10.89}.231.10"
       # The agent computer: the control plane drives Chromium over CDP on browser-net. "off" turns the tools off.
       REI_BROWSER: ${REI_BROWSER:-cdp}
       REI_BROWSER_CDP: http://browser:9223
@@ -108,7 +113,7 @@ services:
       REI_EMBEDDER_API_MODEL: ${REI_EMBEDDER_API_MODEL-}
       REI_EMBEDDER_PROFILE: ${REI_EMBEDDER_PROFILE-}
       REI_EMBEDDER_REMOTE: ${REI_EMBEDDER_REMOTE-}
-      # The object store and the retrieval service, in Dodai (compose.dodai.yaml), reached over rei-storage by their
+      # The object store and the retrieval service, in Dodai (compose.dodai.yaml), reached over <REI_PROJECT>-storage by their
       # aliases. The control plane talks to both directly; the Gateway is not in this path, and the keys it reads here
       # never reach the sandbox, the browser or a model.
       REI_GARAGE_ENDPOINT: http://rei-garage:3900
@@ -126,10 +131,10 @@ services:
       - exec-client:/run/exec-keys:ro
       - egress-sock:/run/egress
     networks:
-      internal: { ipv4_address: 10.89.231.10 }
+      internal: { ipv4_address: "${REI_NET:-10.89}.231.10" }
       gateway-admin: {}
       exec-net: {}
-      browser-net: { ipv4_address: 10.89.232.10 }
+      browser-net: { ipv4_address: "${REI_NET:-10.89}.232.10" }
       storage: {}
     # The gateway is in the shared project (compose.dodai.yaml), which must be up first: compose cannot wait on a
     # service of another project, so ./rei starts that project and waits for it before this one.
@@ -208,18 +213,18 @@ services:
     environment:
       REI_LOG_LEVEL: ${REI_EGRESS_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
       # The browser's way out: no auth, the source network is the identity. Fixed address on browser-net below.
-      EGRESS_BROWSER_LISTEN: 10.89.232.3:3129
+      EGRESS_BROWSER_LISTEN: "${REI_NET:-10.89}.232.3:3129"
       # The listeners reach the user's own network (LAN, Tailscale) but never loopback, link-local or the stack itself:
       # the subnets of the proxy's own interfaces (exec-net, egress-out, browser-net) are refused automatically, and these
-      # are the stack's fixed ones (internal, browser-net), so a page cannot reach DevTools (10.89.232.2:9223) or control,
+      # are the stack's fixed ones (internal, browser-net), so a page cannot reach DevTools (<net>.232.2:9223) or control,
       # and Dodai's internal networks (compose.dodai.yaml: gateway, reader, storage), so nothing an agent drives can reach the
       # gateway, the reader, Garage or Qdrant.
-      EGRESS_REFUSE_CIDRS: 10.89.231.0/24,10.89.232.0/24,10.89.234.0/24,10.89.235.0/24,10.89.236.0/24,10.89.237.0/24,10.89.238.0/24
+      EGRESS_REFUSE_CIDRS: "${REI_NET:-10.89}.231.0/24,${REI_NET:-10.89}.232.0/24,${REI_NET:-10.89}.234.0/24,${REI_NET:-10.89}.235.0/24,${REI_NET:-10.89}.236.0/24,${REI_NET:-10.89}.237.0/24,${REI_NET:-10.89}.238.0/24"
     volumes: [egress-sock:/run/egress]
     networks:
       exec-net: {}
       egress-out: {}
-      browser-net: { ipv4_address: 10.89.232.3 }
+      browser-net: { ipv4_address: "${REI_NET:-10.89}.232.3" }
     restart: unless-stopped
 
   # The agent computer's browser: headed Chromium on Xvfb with your persistent profile, driven by the control plane
@@ -241,7 +246,7 @@ services:
     cpus: 3
     shm_size: 512m
     environment:
-      BROWSER_PROXY: http://10.89.232.3:3129
+      BROWSER_PROXY: "http://${REI_NET:-10.89}.232.3:3129"
       BROWSER_IDLE_STOP_S: ${BROWSER_IDLE_STOP_S:-60}
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=256m
@@ -249,7 +254,7 @@ services:
     volumes:
       - browser-profile:/profile
     networks:
-      browser-net: { ipv4_address: 10.89.232.2 }
+      browser-net: { ipv4_address: "${REI_NET:-10.89}.232.2" }
     depends_on: [egress]
     restart: unless-stopped
 
@@ -257,22 +262,22 @@ networks:
   internal:
     internal: true
     # Fixed so that the control plane can have a fixed address (see its REI_HOST).
-    ipam: { config: [{ subnet: 10.89.231.0/24, ip_range: 10.89.231.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.231.0/24", ip_range: "${REI_NET:-10.89}.231.128/25" }] }
   # Owned by the shared project (compose.dodai.yaml), which must exist before this one starts.
   gateway-admin:
     external: true
-    name: rei-gateway-admin
+    name: "${REI_PROJECT:-rei}-gateway-admin"
   front: {}
   exec-net: { internal: true }
   egress-out: {}
-  # control 10.89.232.10, browser .2, egress .3 (the proxy's browser listener).
+  # control <net>.232.10, browser .2, egress .3 (the proxy's browser listener). <net> is REI_NET (default 10.89).
   browser-net:
     internal: true
-    ipam: { config: [{ subnet: 10.89.232.0/24, ip_range: 10.89.232.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.232.0/24", ip_range: "${REI_NET:-10.89}.232.128/25" }] }
   # Owned by Dodai (compose.dodai.yaml), which must exist before this one starts.
   storage:
     external: true
-    name: rei-storage
+    name: "${REI_PROJECT:-rei}-storage"
 
 volumes:
   control-data: {}

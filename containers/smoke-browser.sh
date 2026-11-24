@@ -4,12 +4,11 @@
 # Chromium runs on demand: the container is healthy while it is asleep, a DevTools request starts it, and it stops after
 # BROWSER_IDLE_STOP_S with no client (the last check waits for that, so the run takes over a minute). Chromium is hardened; the control plane reaches its DevTools port and the sandbox does not; the browser has no
 # direct way out, and its one way out (the egress proxy's browser listener) answers with a decision, never a hang. It
-# changes nothing and prints PASS/FAIL lines only. Exit status 1 if anything failed. REI_PROJECT=<name> targets
-# another compose project.
+# changes nothing and prints PASS/FAIL lines only. Exit status 1 if anything failed. REI_ENV_DIR, REI_PROJECT
+# and REI_NET pick the stack the way ./rei does (stack-env.sh).
 set -uo pipefail
+source "$(dirname "$0")/stack-env.sh"
 cd "$(dirname "$0")"
-compose=(docker compose --env-file .env --env-file .secrets/secrets.env -f compose.yaml)
-[[ -n ${REI_PROJECT:-} ]] && compose+=(-p "$REI_PROJECT")
 failures=0
 report() { # description, "ok" or anything else
   if [[ $2 == ok ]]; then echo "PASS  $1"; else echo "FAIL  $1"; failures=$((failures + 1)); fi
@@ -60,26 +59,26 @@ out=$("${compose[@]}" exec -T exec bash -c "timeout 6 bash -c 'exec 3<>/dev/tcp/
 report "the sandbox cannot reach the DevTools port" "$([[ $out == blocked ]] && echo ok)"
 
 # No direct way out: nothing but the proxy listener is reachable, and Chromium itself has the proxy configured.
-for destination in example.com:443 1.1.1.1:443 gateway:8780 10.89.235.2:8780 10.89.234.2:8781; do
+for destination in example.com:443 1.1.1.1:443 gateway:8780 $net.235.2:8780 $net.234.2:8781; do
   out=$(in_browser "timeout 6 bash -c 'exec 3<>/dev/tcp/${destination%:*}/${destination#*:}' >/dev/null 2>&1 && echo reached || echo blocked")
   report "the browser cannot reach $destination directly" "$([[ $out == blocked ]] && echo ok)"
 done
 out=$(in_browser 'tr "\0" " " < /proc/$(pgrep -o -f "remote-debugging-port=9222")/cmdline')
-report "chromium is started with the egress listener as its proxy" "$([[ $out == *"--proxy-server=http://10.89.232.3:3129"* ]] && echo ok)"
+report "chromium is started with the egress listener as its proxy" "$([[ $out == *"--proxy-server=http://$net.232.3:3129"* ]] && echo ok)"
 
 # The listener decides every host with the control plane (an unknown or idle browser is refused: a 403 reply, not a hang).
 # A CONNECT answered 200 means the browser is in use and the host was allowed; both are decisions.
-out=$(in_browser "exec 3<>/dev/tcp/10.89.232.3/3129 && printf 'CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n' >&3 && timeout 8 head -n1 <&3")
+out=$(in_browser "exec 3<>/dev/tcp/$net.232.3/3129 && printf 'CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n' >&3 && timeout 8 head -n1 <&3")
 report "the egress browser listener answers a CONNECT with a decision (got: ${out%%$'\r'*})" "$([[ $out == HTTP/1.1\ 200* || $out == HTTP/1.1\ 403* || $out == HTTP/1.1\ 407* || $out == HTTP/1.1\ 502* ]] && echo ok)"
 # The user's own network is reachable through the listener, but the stack's own networks are not: a page must not reach
-# Chromium's DevTools (10.89.232.2) or another container through the proxy. A literal address is refused before the control
+# Chromium's DevTools ($net.232.2) or another container through the proxy. A literal address is refused before the control
 # plane is asked, so the reply names the address rule whether or not the browser is in use (an idle refusal doesn't count).
-for destination in 169.254.169.254:80 10.89.232.2:443 10.89.232.10:443 10.89.231.10:443; do
-  out=$(in_browser "exec 3<>/dev/tcp/10.89.232.3/3129 && printf 'CONNECT $destination HTTP/1.1\r\nHost: $destination\r\n\r\n' >&3 && timeout 4 cat <&3")
+for destination in 169.254.169.254:80 $net.232.2:443 $net.232.10:443 $net.231.10:443; do
+  out=$(in_browser "exec 3<>/dev/tcp/$net.232.3/3129 && printf 'CONNECT $destination HTTP/1.1\r\nHost: $destination\r\n\r\n' >&3 && timeout 4 cat <&3")
   report "the egress browser listener refuses the address $destination" "$([[ $out == HTTP/1.1\ 403* && $out == *"own networks and to special addresses"* ]] && echo ok)"
 done
 # The sandbox's token proxy also listens on this address; without a token it is a 407, never a tunnel.
-out=$(in_browser "exec 3<>/dev/tcp/10.89.232.3/3128 && printf 'CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n' >&3 && timeout 8 head -n1 <&3")
+out=$(in_browser "exec 3<>/dev/tcp/$net.232.3/3128 && printf 'CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n' >&3 && timeout 8 head -n1 <&3")
 report "the token proxy gives the browser no tunnel without a token" "$([[ $out == HTTP/1.1\ 407* ]] && echo ok)"
 
 # Idle stop and persistence: set a cookie over DevTools, close the connection, wait out the idle stop, wake Chromium

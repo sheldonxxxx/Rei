@@ -6,15 +6,12 @@
 # Rei's; Qdrant is on no network outside rei-storage, and Garage's S3 port is the only thing on rei-storage-shared;
 # then Rei's own Garage and Qdrant clients are run, from a container on rei-storage, against the live services. It
 # creates its own objects and collections, deletes what it made, and prints no secrets. Exit status 1 if anything
-# failed. REI_PROJECT=<name> targets another compose project. containers/smoke-storage/run.sh adds the caller checks.
+# failed. REI_ENV_DIR, REI_PROJECT and REI_NET pick the stack the way ./rei does (stack-env.sh). containers/smoke-storage/run.sh adds the caller checks.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
+# compose (Rei's project) and shared (Dodai's: the gateway, the reader, Garage and Qdrant).
+source "$here/stack-env.sh"
 cd "$here"
-compose=(docker compose --env-file .env --env-file .secrets/secrets.env -f compose.yaml)
-[[ -n ${REI_PROJECT:-} ]] && compose+=(-p "$REI_PROJECT")
-# The gateway is in the shared services' project (compose.dodai.yaml).
-shared=(docker compose --env-file .env --env-file .secrets/secrets.env -f compose.dodai.yaml)
-[[ -n ${REI_PROJECT:-} ]] && shared+=(-p "$REI_PROJECT-dodai")
 failures=0
 report() { # description, "ok" or anything else
   if [[ $2 == ok ]]; then echo "PASS  $1"; else echo "FAIL  $1"; failures=$((failures + 1)); fi
@@ -52,11 +49,11 @@ done
 report "the control plane reaches rei-garage:3900" "$([[ $(reach control rei-garage 3900) == yes ]] && echo ok)"
 report "the control plane reaches rei-qdrant:6333" "$([[ $(reach control rei-qdrant 6333) == yes ]] && echo ok)"
 # Garage's admin and RPC ports are not on the callers' network, and Qdrant is not on it at all.
-shared_net=rei-storage-shared
+shared_net=$project-storage-shared
 report "qdrant is not on $shared_net" "$([[ $(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "$shared_net" 2>/dev/null) != *qdrant* ]] && echo ok)"
 
 # Rei's own clients, against the live services, from inside the storage network.
-network=rei-storage
+network=$project-storage
 repo=$(cd .. && pwd)
 echo "---- Rei's Garage and Qdrant clients against the live services (on $network) ----"
 docker run --rm --network "$network" \
@@ -65,7 +62,7 @@ docker run --rm --network "$network" \
   -e REI_GARAGE_REGION=garage \
   -e REI_GARAGE_BUCKET=rei-files \
   -e REI_QDRANT_URL=http://rei-qdrant:6333 \
-  --env-file "$repo/containers/.secrets/secrets.env" \
+  --env-file "$env_dir/.secrets/secrets.env" \
   node:26-alpine node --experimental-strip-types /app/containers/live-storage-check.ts
 check=$?
 report "Rei's own clients work against the live Garage and Qdrant" "$([[ $check == 0 ]] && echo ok)"

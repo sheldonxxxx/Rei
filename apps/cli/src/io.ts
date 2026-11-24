@@ -17,7 +17,11 @@ export interface Runner {
   /** Captures the output. Never throws: a missing program is code 127, a timeout 124. No shell. */
   run(cmd: string, args: string[], opts?: RunOptions): Promise<RunResult>;
   /** Hands the terminal to the child (output goes straight there, not through this process). Resolves with its exit code. */
-  interactive(cmd: string, args: string[], opts?: { cwd?: string }): Promise<number>;
+  interactive(
+    cmd: string,
+    args: string[],
+    opts?: { cwd?: string; env?: Record<string, string | undefined> },
+  ): Promise<number>;
 }
 
 export interface Out {

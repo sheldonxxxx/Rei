@@ -6,6 +6,7 @@ import { Compose } from "./compose.ts";
 import { parseDotenv } from "./dotenv.ts";
 import type { Clock, Guide, Host, Out, Prompter, Runner } from "./io.ts";
 import { phrase } from "./layout.ts";
+import { dodaiProject, projectPrefix, reiProject, STACK_VARS, withStackVars } from "./stack.ts";
 import type { Publish } from "./validate.ts";
 import { appAddress, parsePublish } from "./validate.ts";
 
@@ -19,8 +20,13 @@ export interface Ctx {
   guide?: Guide;
   /** The repository in source mode; REI_HOME in image mode. */
   root: string;
-  /** Where the compose files, .env and .secrets/ are: <repo>/containers, or REI_HOME. */
+  /** Where the compose files are: <repo>/containers, or REI_HOME. */
   containersDir: string;
+  /** Where .env and .secrets/ are: REI_ENV_DIR, else containersDir. */
+  envDir: string;
+  /** REI_ENV_DIR, and REI_PROJECT and REI_NET as this CLI resolved them: every process it starts gets them (`runner`), so
+   * compose's interpolation and the smoke scripts mean the same stack as the CLI. */
+  stackEnv: Record<string, string>;
   mode: Mode;
   /** How a person runs this CLI, for messages: ./rei or rei. */
   cli: string;
@@ -49,6 +55,8 @@ export interface CtxParts {
   root: string;
   /** REI_HOME in an npm installation; <root>/containers when it is not given. */
   containersDir?: string;
+  /** REI_ENV_DIR, already expanded; containersDir when it is not given. */
+  envDir?: string;
   assetsDir?: string;
   version?: string;
   runner: Runner;
@@ -73,18 +81,22 @@ export function makeCtx(p: CtxParts): Ctx {
       : [join(containersDir, `${base}.yaml`)];
   const composeFile = join(containersDir, "compose.yaml");
   const cache = new Map<string, Promise<unknown>>();
-  const compose = new Compose(p.runner, files("compose"), p.env.REI_PROJECT);
-  const shared = new Compose(
-    p.runner,
-    files("compose.dodai"),
-    p.env.REI_PROJECT ? `${p.env.REI_PROJECT}-dodai` : undefined,
-  );
+  // REI_PROJECT and REI_NET: the environment, else the stack's .env. Compose is handed the same values, so
+  // its interpolation and this CLI always mean the same stack.
+  const envDir = p.envDir ?? containersDir;
+  const env = withStackVars(p.env, parseDotenv(p.host.readText(join(envDir, ".env")) ?? ""));
+  const vars = Object.fromEntries(STACK_VARS.flatMap((name) => (env[name] ? [[name, env[name]]] : [])));
+  const stackEnv: Record<string, string> = { REI_ENV_DIR: envDir, ...vars };
+  const runner = withEnv(p.runner, stackEnv);
+  const composeOptions = { envDir, exists: (path: string) => p.host.stat(path) !== undefined };
+  const compose = new Compose(runner, files("compose"), reiProject(env), composeOptions);
+  const shared = new Compose(runner, files("compose.dodai"), dodaiProject(env), composeOptions);
   // Messages are written for a checkout (./rei, containers/…); an npm installation says them its own way.
-  const say = (text: string): string => phrase(text, mode, containersDir, p.host.homeDir);
-  const out: Out =
-    mode === "source" ? p.out : { line: (text?: string) => p.out.line(text && say(text)), color: p.out.color };
+  const say = (text: string): string => phrase(text, mode, containersDir, p.host.homeDir, envDir);
+  const plain = mode === "source" && envDir === containersDir;
+  const out: Out = plain ? p.out : { line: (text?: string) => p.out.line(text && say(text)), color: p.out.color };
   const guide: Guide | undefined =
-    mode === "source" || !p.guide
+    plain || !p.guide
       ? p.guide
       : {
           intro: (title) => p.guide?.intro(say(title)),
@@ -95,9 +107,13 @@ export function makeCtx(p: CtxParts): Ctx {
   return {
     ...p,
     ...(guide ? { guide } : {}),
+    env,
+    runner,
     out,
     version: p.version ?? "0.0.0",
     containersDir,
+    envDir,
+    stackEnv,
     mode,
     cli: mode === "source" ? "./rei" : "rei",
     composeFile,
@@ -109,6 +125,14 @@ export function makeCtx(p: CtxParts): Ctx {
       return hit;
     },
     reset: () => cache.clear(),
+  };
+}
+
+/** A Runner whose processes also get `vars`, over whatever the caller passes. */
+function withEnv(runner: Runner, vars: Record<string, string>): Runner {
+  return {
+    run: (cmd, args, opts) => runner.run(cmd, args, { ...opts, env: { ...opts?.env, ...vars } }),
+    interactive: (cmd, args, opts) => runner.interactive(cmd, args, { ...opts, env: { ...opts?.env, ...vars } }),
   };
 }
 
@@ -126,7 +150,10 @@ export const EXTERNAL_VOLUMES = [
 ] as const;
 
 /** The volume's real name: <REI_PROJECT or rei>_<name>, the prefix Rei's own project gave them. */
-export const volumeName = (ctx: Ctx, name: string): string => `${ctx.env.REI_PROJECT || "rei"}_${name}`;
+export const volumeName = (ctx: Ctx, name: string): string => `${projectPrefix(ctx.env)}_${name}`;
+
+/** One of Dodai's named networks: <REI_PROJECT or rei>-<name> (gateway-shared, storage-shared, …). */
+export const networkName = (ctx: Ctx, name: string): string => `${projectPrefix(ctx.env)}-${name}`;
 
 /** The external volumes that do not exist yet (init.sh makes them). */
 export async function missingVolumes(ctx: Ctx): Promise<string[]> {
@@ -190,7 +217,7 @@ export async function retireLegacyStorage(ctx: Ctx): Promise<void> {
 }
 
 /**
- * Removes Rei's old private storage network (<project>_storage, 10.89.233.0/24) once nothing is attached to it. Control
+ * Removes Rei's old private storage network (<project>_storage, <REI_NET>.233.0/24) once nothing is attached to it. Control
  * leaves it when Rei's stack is recreated on rei-storage, so run it after that. A failure (still attached, or already
  * gone) is fine: it is only housekeeping.
  */
@@ -207,7 +234,10 @@ export async function retireLegacyGateway(ctx: Ctx): Promise<void> {
   if (ids.length > 0) await ctx.runner.run("docker", ["rm", "-f", ...ids], { timeoutMs: 60_000 });
 }
 
-export const dotenvPath = (ctx: Ctx): string => join(ctx.containersDir, ".env");
+export const dotenvPath = (ctx: Ctx): string => join(ctx.envDir, ".env");
+
+/** The stack's shared secrets: .secrets/secrets.env in the env directory. */
+export const secretsPath = (ctx: Ctx): string => join(ctx.envDir, ".secrets", "secrets.env");
 
 /** The service names to check: the compose file's (active profiles), else whatever docker lists. */
 export const expectedServices = (ctx: Ctx): Promise<string[]> =>
@@ -216,10 +246,13 @@ export const expectedServices = (ctx: Ctx): Promise<string[]> =>
     return fromFile.length > 0 ? fromFile : [...new Set((await ps(ctx)).map((r) => r.service))];
   });
 
-/** REI_PUBLISH the way compose resolves it: the environment, else containers/.env, else the default. */
+/** REI_PUBLISH the way compose resolves it: the environment, else containers/.env (read now: setup may have just written
+ * it), else the default. */
 export function publishSetting(ctx: Ctx): string {
   return (
-    ctx.env.REI_PUBLISH || parseDotenv(ctx.host.readText(dotenvPath(ctx)) ?? "").get("REI_PUBLISH") || "127.0.0.1:8787"
+    ctx.env.REI_PUBLISH?.trim() ||
+    parseDotenv(ctx.host.readText(dotenvPath(ctx)) ?? "").get("REI_PUBLISH") ||
+    "127.0.0.1:8787"
   );
 }
 

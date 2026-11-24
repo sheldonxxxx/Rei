@@ -20,5 +20,8 @@ root_domain = ".s3.rei.invalid"
 # S3 answers on both networks Garage is on: rei-storage (Rei) and rei-storage-shared (outside callers, each with a key
 # limited to its own bucket). The admin API answers on rei-storage only, at Garage's fixed address there, so it is never on
 # the callers' network. ./rei callers --storage does not use it: it runs `garage json-api` inside the container.
+# The address is the default stack's (REI_NET 10.89). Garage cannot read it from the environment and the container is
+# read-only, so a second stack with another REI_NET keeps this line: its admin API then has no reachable address, which
+# nothing needs (the health check and ./rei callers use the local RPC port).
 [admin]
 api_bind_addr = "10.89.237.2:3903"
