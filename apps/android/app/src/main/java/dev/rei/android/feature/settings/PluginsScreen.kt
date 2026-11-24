@@ -73,7 +73,7 @@ private fun PluginList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit
     SubScreen("Plugins", onBack, busy = writes.busy || list.loading, error = problem ?: writes.error ?: list.error, onRetry = list::reload) {
         val items = list.value
         if (items != null) {
-            FormGroup(note = "Add skills, MCP tools, or both. You can also ask an agent to create a plugin.") {
+            FormGroup(note = "Add skills, connectors, or both. You can also ask an agent to create a plugin.") {
                 FormButton("New plugin", enabled = !writes.busy, onClick = { onOpen(NewPlugin) })
                 FormButton("Import a plugin (.zip)", primary = false, enabled = !writes.busy, onClick = { picker.launch("*/*") })
             }
@@ -178,7 +178,7 @@ fun PluginDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onEdit: (Str
                 SettingsGroup(title = "Revision history") {
                     ChoiceRow(
                         "Look at a revision", history?.selectedRevision?.toString(),
-                        data.revisions.map { Choice(it.revision.toString(), "Revision ${it.revision} · ${if (it.author == "agent") "assistant" else "you"}" + (dateTime(it.createdAt)?.let { d -> " · $d" } ?: "")) },
+                        data.revisions.map { Choice(it.revision.toString(), "Revision ${it.revision} · ${if (it.author == "agent") "agent" else "you"}" + (dateTime(it.createdAt)?.let { d -> " · $d" } ?: "")) },
                         placeholder = "Choose a revision", enabled = !writes.busy,
                         onSelect = { value -> writes.run { history = pluginDetail(api.request("GET", listOf("api", "plugins", id), query = mapOf("revision" to value))) } },
                     )

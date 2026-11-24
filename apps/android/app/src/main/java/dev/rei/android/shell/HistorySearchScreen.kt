@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -33,17 +34,18 @@ import dev.rei.android.ui.icons.ReiIcons
 fun HistorySearchScreen(shell: ShellViewModel, onOpened: () -> Unit, modifier: Modifier = Modifier) {
     val state by shell.search.collectAsStateWithLifecycle()
     val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { focus.requestFocus() }
     Column(modifier.fillMaxSize()) {
         ReiTopBar("Search chats", onBack = LocalShell.current::back)
         PillField(
             value = state.query,
             onValueChange = shell::setQuery,
-            placeholder = "Search conversations",
-            description = "Search conversations",
+            placeholder = "Search chats",
+            description = "Search chats",
             leadingIcon = ReiIcons.Search,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus),
-            keyboardActions = KeyboardActions(onSearch = { shell.setQuery(state.query) }),
+            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); shell.setQuery(state.query) }),
         )
         when {
             state.query.isBlank() -> EmptyState(

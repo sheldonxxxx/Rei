@@ -53,7 +53,6 @@ enum class Destination(val label: String, val icon: ImageVector? = null) {
                 chain.any {
                     it.hasRoute<SettingsRoute>() ||
                         it.hasRoute<SettingsDetailRoute>() ||
-                        it.hasRoute<SettingsTwoFactorRoute>() ||
                         it.hasRoute<SettingsSandboxNetworkRoute>() ||
                         it.hasRoute<SettingsProviderSectionRoute>() ||
                         it.hasRoute<SettingsProviderFormRoute>() ||
@@ -83,7 +82,6 @@ enum class Destination(val label: String, val icon: ImageVector? = null) {
 
 @Serializable data object SettingsRoute
 @Serializable data class SettingsDetailRoute(val page: SettingsPage)
-@Serializable data object SettingsTwoFactorRoute
 @Serializable data object SettingsSandboxNetworkRoute
 @Serializable data class SettingsProviderSectionRoute(val section: ProviderSection)
 @Serializable data class SettingsProviderFormRoute(val kind: String, val editingId: String? = null)
@@ -110,6 +108,8 @@ class ShellController(
     private var onNavigate: (Destination) -> Unit,
     private var onBack: () -> Unit,
     private var onOpenSettings: (SettingsPage) -> Unit = {},
+    private var onNewChat: () -> Unit = {},
+    attentionCount: Int = 0,
 ) {
     var current by mutableStateOf(current)
         internal set
@@ -117,16 +117,21 @@ class ShellController(
     var drawerMode by mutableStateOf(drawerMode)
         internal set
 
+    var attentionCount by mutableStateOf(attentionCount)
+        internal set
+
     internal fun updateCallbacks(
         onOpenDrawer: () -> Unit,
         onNavigate: (Destination) -> Unit,
         onBack: () -> Unit,
         onOpenSettings: (SettingsPage) -> Unit,
+        onNewChat: () -> Unit,
     ) {
         this.onOpenDrawer = onOpenDrawer
         this.onNavigate = onNavigate
         this.onBack = onBack
         this.onOpenSettings = onOpenSettings
+        this.onNewChat = onNewChat
     }
 
     /** A permanent drawer needs no menu button. */
@@ -139,6 +144,9 @@ class ShellController(
 
     /** Back to the chat, the home destination. */
     fun showChat() = onNavigate(Destination.Chat)
+
+    /** Starts a new chat in the active agent. */
+    fun newChat() = onNewChat()
 
     /** Opens Settings on one of its native pages (the chat's permissions sheet opens Permissions). */
     fun openSettings(page: SettingsPage) = onOpenSettings(page)
@@ -157,12 +165,15 @@ fun rememberShellController(
     onNavigate: (Destination) -> Unit,
     onBack: () -> Unit,
     onOpenSettings: (SettingsPage) -> Unit = {},
+    onNewChat: () -> Unit = {},
+    attentionCount: Int = 0,
 ): ShellController {
     val controller = remember {
-        ShellController(current, drawerMode, onOpenDrawer, onNavigate, onBack, onOpenSettings)
+        ShellController(current, drawerMode, onOpenDrawer, onNavigate, onBack, onOpenSettings, onNewChat, attentionCount)
     }
     controller.current = current
     controller.drawerMode = drawerMode
-    controller.updateCallbacks(onOpenDrawer, onNavigate, onBack, onOpenSettings)
+    controller.attentionCount = attentionCount
+    controller.updateCallbacks(onOpenDrawer, onNavigate, onBack, onOpenSettings, onNewChat)
     return controller
 }

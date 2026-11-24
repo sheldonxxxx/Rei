@@ -23,9 +23,9 @@ class PluginsTest {
 
     @Test fun `a plugin says what it brings`() {
         fun row(skills: Long, connections: Long) = PluginRow("p", "n", "", 1, true, null, false, skills, connections)
-        assertEquals("Skills + MCP", row(1, 1).kind)
+        assertEquals("Skills + Connectors", row(1, 1).kind)
         assertEquals("Skills", row(2, 0).kind)
-        assertEquals("MCP", row(0, 1).kind)
+        assertEquals("Connectors", row(0, 1).kind)
     }
 
     @Test fun `a package round trips through json`() {

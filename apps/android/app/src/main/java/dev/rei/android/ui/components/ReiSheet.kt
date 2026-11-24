@@ -2,6 +2,7 @@ package dev.rei.android.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BottomSheetDefaults
@@ -33,11 +34,11 @@ fun ReiSheet(
         modifier = modifier,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = ReiShapes.Sheet,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = { BottomSheetDefaults.DragHandle() },
     ) {
-        Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+        Column(Modifier.navigationBarsPadding().imePadding().padding(bottom = 12.dp)) {
             if (title != null) {
                 Text(
                     title,
@@ -58,7 +59,7 @@ private fun ReiSheetPreview() = ReiPreviewSurface {
     // The sheet itself is a window; the preview shows its rows on the card color.
     androidx.compose.material3.Surface(
         shape = ReiShapes.Sheet,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.padding(vertical = 12.dp)) {
             Text("Quarterly report", Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)

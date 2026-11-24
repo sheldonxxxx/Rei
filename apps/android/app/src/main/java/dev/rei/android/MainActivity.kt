@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // Hold the splash until the saved sign-in has been checked, so the connect screen never flashes before the chat.
         // An unreachable server must not hold it for long, so it also gives up after a moment.
@@ -84,8 +86,8 @@ class MainActivity : ComponentActivity() {
                         )
                         else -> ConnectScreen(state, model::connect, model::signIn, model::disconnect, model::signInWithPasskey)
                     }
-                    // Over both, so an update can be offered from the connect screen, where an outdated app lands.
-                    UpdatePrompt(Modifier.align(Alignment.TopCenter))
+                    // Over both, so update dialogs always work; while signed in, the progress banner docks below ReiTopBar.
+                    UpdatePrompt(Modifier.align(Alignment.TopCenter), showBanner = !(state.signedIn && api != null))
                 }
             }
         }

@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -19,8 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
@@ -62,13 +66,15 @@ internal fun ChoiceRow(
     )
     if (open) {
         ReiSheet(onDismiss = { open = false }, title = title) {
-            choices.forEach { choice ->
-                SettingsRow(
-                    choice.label,
-                    summary = choice.summary,
-                    onClick = if (choice.enabled) ({ open = false; if (choice.value != selected) onSelect(choice.value) }) else null,
-                    trailing = if (choice.value == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }) else null,
-                )
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                choices.forEach { choice ->
+                    SettingsRow(
+                        choice.label,
+                        summary = choice.summary,
+                        onClick = if (choice.enabled) ({ open = false; if (choice.value != selected) onSelect(choice.value) }) else null,
+                        trailing = if (choice.value == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }) else null,
+                    )
+                }
             }
         }
     }
@@ -137,6 +143,7 @@ internal fun SecretField(
     placeholder: String? = null,
     enabled: Boolean = true,
 ) {
+    var visible by remember { mutableStateOf(false) }
     ReiTextField(
         value = value,
         onValueChange = onValueChange,
@@ -145,8 +152,15 @@ internal fun SecretField(
         supportingText = supportingText,
         placeholder = placeholder,
         enabled = enabled,
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+        trailingContent = {
+            ReiIconButton(
+                if (visible) ReiIcons.EyeOff else ReiIcons.Eye,
+                if (visible) "Hide value" else "Show value",
+                { visible = !visible },
+            )
+        },
     )
 }
 

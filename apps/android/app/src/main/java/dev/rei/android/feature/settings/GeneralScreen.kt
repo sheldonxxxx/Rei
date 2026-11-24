@@ -106,12 +106,12 @@ private suspend fun loadGeneral(api: ReiApi): GeneralData = coroutineScope {
  * notifications, devices and passkeys have their own rows on the index.
  */
 @Composable
-fun GeneralScreen(api: ReiApi, onOpenTwoFactor: () -> Unit, onBack: () -> Unit) {
-    GeneralMain(api, onBack, onOpenTwoFactor)
+fun GeneralScreen(api: ReiApi, onBack: () -> Unit) {
+    GeneralMain(api, onBack)
 }
 
 @Composable
-private fun GeneralMain(api: ReiApi, onBack: () -> Unit, onTwoFactor: () -> Unit) {
+private fun GeneralMain(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
     val data = rememberResource(api) { loadGeneral(api) }
     var zones by remember { mutableStateOf(false) }
@@ -122,7 +122,7 @@ private fun GeneralMain(api: ReiApi, onBack: () -> Unit, onTwoFactor: () -> Unit
         if (loaded != null) {
             SettingsGroup(title = "Date and time") {
                 SettingsRow(
-                    "Time zone", icon = ReiIcons.Clock, summary = (loaded.timeZone ?: "Not set") + "\nSets today’s date and clock times for the assistant.",
+                    "Time zone", icon = ReiIcons.Clock, summary = (loaded.timeZone ?: "Not set") + "\nSets today’s date and clock times for the agent.",
                     onClick = { zones = true }, trailing = { SettingsChevron() },
                 )
             }
@@ -157,7 +157,7 @@ private fun GeneralMain(api: ReiApi, onBack: () -> Unit, onTwoFactor: () -> Unit
             }
             FormGroup {
                 NumberField(
-                    cadence, { cadence = it; cadenceError = null }, "Review every N replies",
+                    cadence, { cadence = it; cadenceError = null }, "Replies between reviews",
                     supportingText = "Global setting for all agents. Each chat keeps its own count. Default 5; choose 2–100.",
                     error = cadenceError, enabled = !writes.busy,
                 )
@@ -166,9 +166,6 @@ private fun GeneralMain(api: ReiApi, onBack: () -> Unit, onTwoFactor: () -> Unit
                     if (n == null) cadenceError = "Choose a whole number from 2 to 100."
                     else writes.run(data::reload) { api.request("PUT", listOf("api", "settings", "memory-extraction"), buildJsonObject { put("everyNTurns", n) }) }
                 })
-            }
-            SettingsGroup(title = "Account") {
-                SettingsRow("Two-factor authentication", icon = ReiIcons.Lock, summary = "Add an authenticator code to sign-in.", onClick = onTwoFactor, trailing = { SettingsChevron() })
             }
         }
     }

@@ -10,18 +10,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,12 +40,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.window.core.layout.WindowSizeClass
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryVersion
 import dev.rei.android.data.ReiApi
 import dev.rei.android.di.AppContainer
 import dev.rei.android.shell.ReiTopBar
-import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
@@ -74,7 +79,6 @@ fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versi
 
     var info by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
-    var confirmTrash by remember { mutableStateOf(false) }
 
     FileViewerContent(
         state = state,
@@ -83,7 +87,7 @@ fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versi
         onInfo = { info = true },
         onHistory = { history = true },
         onDownload = { state.shown?.let(::download) },
-        onTrash = { confirmTrash = true },
+        onTrash = { vm.setTrashed(true) },
         onRestore = { vm.setTrashed(false) },
         onRetry = { if (state.detail == null) vm.retry() else vm.reload() },
         onCompatibility = vm::toggleCompatibility,
@@ -102,19 +106,6 @@ fun FileViewerScreen(container: AppContainer, api: ReiApi, fileId: String, versi
                 onDismiss = { history = false },
             )
         }
-    }
-    if (confirmTrash) {
-        ConfirmDialog(
-            title = "Move to Trash?",
-            text = "“${state.file?.name.orEmpty()}” will leave the Library. You can restore it from Trash.",
-            confirmLabel = "Move to Trash",
-            destructive = true,
-            onConfirm = {
-                confirmTrash = false
-                vm.setTrashed(true)
-            },
-            onDismiss = { confirmTrash = false },
-        )
     }
 }
 
@@ -136,6 +127,8 @@ fun FileViewerContent(
 ) {
     val ready = state.detail != null
     val trashed = state.file?.trashed == true
+    val compact = !currentWindowAdaptiveInfo().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+    var menu by remember { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
         ReiTopBar(
             title = state.file?.name ?: "File",
@@ -143,10 +136,34 @@ fun FileViewerContent(
             onBack = onBack,
             actions = {
                 ReiIconButton(ReiIcons.Info, "Info", onInfo, enabled = ready)
-                ReiIconButton(ReiIcons.History, "History", onHistory, enabled = ready)
+                if (!compact) ReiIconButton(ReiIcons.History, "History", onHistory, enabled = ready)
                 ReiIconButton(ReiIcons.Download, "Download", onDownload, enabled = ready && !state.working)
-                if (trashed) ReiIconButton(ReiIcons.Undo, "Restore", onRestore)
-                else ReiIconButton(ReiIcons.Trash, "Move to Trash", onTrash, enabled = ready)
+                if (trashed) {
+                    ReiIconButton(ReiIcons.Undo, "Restore", onRestore)
+                } else if (!compact) {
+                    ReiIconButton(ReiIcons.Trash, "Move to Trash", onTrash, enabled = ready)
+                }
+                if (compact) {
+                    Box {
+                        ReiIconButton(ReiIcons.MoreVertical, "File options", { menu = true }, enabled = ready)
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("History") },
+                                leadingIcon = { Icon(ReiIcons.History, null) },
+                                enabled = ready,
+                                onClick = { menu = false; onHistory() },
+                            )
+                            if (!trashed) {
+                                DropdownMenuItem(
+                                    text = { Text("Move to Trash", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(ReiIcons.Trash, null, tint = MaterialTheme.colorScheme.error) },
+                                    enabled = ready,
+                                    onClick = { menu = false; onTrash() },
+                                )
+                            }
+                        }
+                    }
+                }
             },
         )
         if (state.working) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -188,20 +205,22 @@ private fun ViewerBody(content: ViewerContent, api: ReiApi?, name: String, onRet
             if (content.retry) OutlinedButton(onRetry) { Text("Try again") }
             else OutlinedButton(onDownload) { Text("Download") }
         }
-        is ViewerContent.Words -> Column(Modifier.fillMaxSize()) {
-            if (content.truncated) {
-                StatusBanner("Showing the first 1 MiB. Download the file to read all of it.", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-            }
-            if (content.markdown && api != null) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
-                    ReiMarkdown(content.text, api)
+        is ViewerContent.Words -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 760.dp).fillMaxSize()) {
+                if (content.truncated) {
+                    StatusBanner("Showing the first 1 MiB. Download the file to read all of it.", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
-            } else {
-                val lines = remember(content.text) { content.text.lines() }
-                SelectionContainer(Modifier.weight(1f)) {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
-                        items(lines) { line ->
-                            Text(line.ifEmpty { " " }, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                if (content.markdown && api != null) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+                        ReiMarkdown(content.text, api)
+                    }
+                } else {
+                    val lines = remember(content.text) { content.text.lines() }
+                    SelectionContainer(Modifier.weight(1f)) {
+                        LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+                            items(lines) { line ->
+                                Text(line.ifEmpty { " " }, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }

@@ -1,10 +1,12 @@
 package dev.rei.android.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
@@ -15,6 +17,8 @@ import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -152,6 +156,9 @@ fun rememberWrites(): Writes {
     return vm.writes
 }
 
+/** Set true inside expanded two-pane detail slots so the detail pane hides a redundant Back arrow. */
+internal val LocalSubScreenHideBack = staticCompositionLocalOf { false }
+
 /**
  * The frame of a native settings sub-screen: the shell top bar with a back arrow, a progress line while something loads
  * or saves, a banner for the last error, then the scrolling [content] (groups and rows).
@@ -168,15 +175,23 @@ fun SubScreen(
     content: @Composable () -> Unit,
 ) {
     val scroll = rememberScrollState()
+    val hideBack = LocalSubScreenHideBack.current
     Column(modifier.fillMaxSize()) {
-        ReiTopBar(title, scrolled = scroll.value > 0, onBack = onBack, actions = actions)
+        ReiTopBar(title, scrolled = scroll.value > 0, onBack = if (hideBack) null else onBack, actions = actions)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 4.dp))
-        Column(
-            Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 16.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            if (error != null) StatusBanner(error, kind = StatusKind.Error, actionLabel = onRetry?.let { "Try again" }, onAction = onRetry)
-            content()
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier
+                    .widthIn(max = 760.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (error != null) StatusBanner(error, kind = StatusKind.Error, actionLabel = onRetry?.let { "Try again" }, onAction = onRetry)
+                content()
+            }
         }
     }
 }

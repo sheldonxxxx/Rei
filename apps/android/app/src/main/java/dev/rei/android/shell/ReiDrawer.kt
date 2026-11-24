@@ -117,7 +117,7 @@ fun ReiDrawerContent(
                 items(state.agents, key = { "agent-${it.id}" }) { agent ->
                     AgentRow(
                         agent = agent,
-                        selected = agent.id == state.selectedAgentId,
+                        selected = current == Destination.Chat && agent.id == state.selectedAgentId,
                         attention = state.attentionSessionIds.contains(agent.homeSessionId),
                         onClick = { actions.onSelectAgent(agent) },
                     )
@@ -133,7 +133,7 @@ fun ReiDrawerContent(
                             ReiIconButton(ReiIcons.Filter, "Filter chats", { menu = true }, toggled = if (state.showTriggers) true else null)
                             DropdownMenu(menu, { menu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text(if (state.showTriggers) "Hide trigger sessions" else "Show trigger sessions") },
+                                    text = { Text(if (state.showTriggers) "Hide trigger chats" else "Show trigger chats") },
                                     leadingIcon = { Icon(ReiIcons.Clock, contentDescription = null) },
                                     onClick = { menu = false; actions.onShowTriggers(!state.showTriggers) },
                                 )
@@ -245,6 +245,7 @@ private fun ChatRow(session: Session, selected: Boolean, attention: Boolean, onC
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        if (session.pinned) Icon(ReiIcons.Pin, contentDescription = "Pinned", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (unread) Dot(MaterialTheme.colorScheme.primary)
         if (attention) AttentionDot()
     }

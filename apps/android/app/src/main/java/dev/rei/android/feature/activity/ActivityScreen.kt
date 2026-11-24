@@ -3,6 +3,7 @@ package dev.rei.android.feature.activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -12,9 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +59,7 @@ import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 import kotlinx.coroutines.delay
 
@@ -104,14 +109,15 @@ fun ActivityContent(state: ActivityUiState, actions: ActivityActions, modifier: 
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     val rows = state.feed.rows(segment)
     Column(modifier.fillMaxSize()) {
-        ReiTopBar("", scrolled = scrolled)
+        ReiTopBar("", scrolledTitle = "Background Activity", scrolled = scrolled)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                 item(key = "header") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
@@ -128,6 +134,7 @@ fun ActivityContent(state: ActivityUiState, actions: ActivityActions, modifier: 
                 } else {
                     items(rows, key = { it.key }) { row -> ActivityRowView(row, state, actions) }
                 }
+            }
             }
         }
     }
@@ -174,7 +181,9 @@ private fun EmptySegment(segment: ActivitySegment) {
 
 @Composable
 private fun LoadingLine() {
-    Text("Loading activity…", Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+    }
 }
 
 @Composable
@@ -185,7 +194,7 @@ private fun ActivityRowView(row: ActivityRow, state: ActivityUiState, actions: A
             onDecide = { approve, length, hours -> actions.onDecide(row.approval, approve, length, hours) },
             agentName = state.agentNames[row.approval.agentId],
         )
-        is TakeoverRow -> RowCard(onOpen = { actions.onOpenChat(row.sessionId) }, openLabel = "Open ${row.title}") {
+        is TakeoverRow -> RowCard(onOpen = { actions.onOpenChat(row.sessionId) }, openLabel = "Open ${row.title}", attention = true) {
             Text("Rei wants you to take over the browser", style = MaterialTheme.typography.titleSmall)
             Supporting(row.title)
         }
@@ -271,13 +280,19 @@ internal fun changeText(change: MemoryChange): String = when (change.op) {
  * actions stay separate controls for TalkBack.
  */
 @Composable
-private fun RowCard(onOpen: (() -> Unit)?, openLabel: String, footer: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+private fun RowCard(
+    onOpen: (() -> Unit)?,
+    openLabel: String,
+    attention: Boolean = false,
+    footer: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     Surface(
         shape = ReiShapes.Card,
-        color = colors.surfaceContainerLowest,
-        contentColor = colors.onSurface,
-        border = BorderStroke(1.dp, colors.outlineVariant),
+        color = if (attention) colors.tertiaryContainer else ReiTheme.colors.card,
+        contentColor = if (attention) colors.onTertiaryContainer else colors.onSurface,
+        border = BorderStroke(1.dp, if (attention) ReiTheme.colors.attentionBorder else colors.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column {

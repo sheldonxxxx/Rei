@@ -28,11 +28,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 
 /**
  * One settings section in the Android 16 style: an optional [title] above an 18dp rounded card on
- * `surfaceContainerLowest`. Put [SettingsRow]s inside; set `dividerBelow` on every row but the last.
+ * [ReiTheme.colors] `card`. Put [SettingsRow]s inside; set `dividerBelow` on every row but the last.
  */
 @Composable
 fun SettingsGroup(
@@ -45,7 +46,7 @@ fun SettingsGroup(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = ReiShapes.Card,
-            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            color = ReiTheme.colors.card,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Column(Modifier.clip(ReiShapes.Card), content = content)

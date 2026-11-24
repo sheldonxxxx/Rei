@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -37,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -117,10 +121,11 @@ fun KnowledgeContent(
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ReiTopBar("", scrolled = scrolled)
+            ReiTopBar("", scrolledTitle = "Knowledge", scrolled = scrolled)
             PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
                 MotionRegion(key = Triple(state.tab, state.selectedTags, state.searching), ready = state.loaded) {
-                    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                        LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 96.dp)) {
                         item {
                             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 WorkspaceHeader(
@@ -168,6 +173,7 @@ fun KnowledgeContent(
                             }
                         }
                     }
+                    }
                 }
             }
         }
@@ -204,9 +210,10 @@ private fun PageRow(
         ) {
             if (!trash && node.childCount > 0) {
                 ReiIconButton(
-                    if (row.expanded) ReiIcons.Down else ReiIcons.Chevron,
+                    ReiIcons.Chevron,
                     if (row.expanded) "Collapse ${node.title}" else "Expand ${node.title}",
                     onToggle,
+                    modifier = Modifier.rotate(if (row.expanded) 0f else -90f),
                     iconSize = 20.dp,
                 )
             } else {
@@ -282,7 +289,7 @@ private fun KnowledgeFilterSheet(
     onDismiss: () -> Unit,
 ) {
     ReiSheet(onDismiss = onDismiss, title = "Filters") {
-        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Show", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 KnowledgeTab.entries.forEach { tab -> FilterChip(state.tab == tab, { onTab(tab) }, { Text(tab.label) }) }

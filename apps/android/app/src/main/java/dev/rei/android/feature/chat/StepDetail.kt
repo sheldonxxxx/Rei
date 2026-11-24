@@ -370,7 +370,7 @@ private fun ToolDetail(api: ReiApi, step: TraceStep, data: JsonObject?, onOpenAp
             step.summary?.let { add("Summary" to it) }
             add("Started" to formatWhen(step.startedAt))
             add("Time" to duration(step.latencyMs))
-            if (step.sideEffect) add("Effect" to "Acted outside the box")
+            if (step.sideEffect) add("Effect" to "Acted outside the sandbox")
         },
         links = if (step.approvalId != null && onOpenApproval != null) mapOf("Decision" to FactLink("See the approval", onOpenApproval)) else emptyMap(),
     )
@@ -662,7 +662,7 @@ private fun Collapsible(
             ) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = summary)
                 Icon(
-                    ReiIcons.Down,
+                    ReiIcons.Chevron,
                     null,
                     Modifier.size(16.dp).rotate(if (open) 0f else -90f),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,

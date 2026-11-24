@@ -146,8 +146,11 @@ class ActivitySettingsTest {
     fun theSettingsIndexHasEveryGroupAndRow() {
         showSettings()
         listOf(
-            "App", "Appearance", "Notifications", "Show details by default", "Check for updates", "Security", "Devices", "Passkeys",
-            "Rei", "Memory", "Triggers", "Usage", "General", "Providers", "Models", "Runtime", "Plugins", "Skills", "Connectors", "Permissions",
+            "App", "Appearance", "Notifications", "Show details by default", "Check for updates",
+            "Security", "Devices", "Passkeys", "Two-factor authentication",
+            "Workspace", "General", "Memory", "Triggers", "Usage",
+            "Models & Providers", "Models", "Providers", "Runtime",
+            "Capabilities", "Permissions", "Connectors", "Skills", "Plugins",
             "Session", "Sign out of this device", "Disconnect server",
         ).forEach { compose.onNodeWithText(it).performScrollTo().assertExists() }
         compose.onNodeWithText("Providers").performScrollTo()

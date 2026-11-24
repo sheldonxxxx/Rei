@@ -15,14 +15,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.autofill.ContentType
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.string
+import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SecureWindow
 import dev.rei.android.ui.components.SettingsGroup
 import dev.rei.android.ui.components.SettingsRow
+import dev.rei.android.ui.icons.ReiIcons
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -63,11 +66,19 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
                 }
             } else {
                 FormGroup {
+                    var showPassword by remember { mutableStateOf(false) }
                     ReiTextField(
                         password, { password = it }, "Current password", enabled = !writes.busy,
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         contentType = ContentType.Password,
+                        trailingContent = {
+                            ReiIconButton(
+                                if (showPassword) ReiIcons.EyeOff else ReiIcons.Eye,
+                                if (showPassword) "Hide password" else "Show password",
+                                { showPassword = !showPassword },
+                            )
+                        },
                     )
                     enrol?.let { (uri, secret) ->
                         Text("Add this key to your authenticator app:", style = MaterialTheme.typography.bodyMedium)

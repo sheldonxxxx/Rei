@@ -168,6 +168,16 @@ object ReiIcons {
             "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
         )
     }
+    /** lucide `monitor-smartphone`. */
+    val Devices: ImageVector by lazy {
+        icon(
+            "Devices",
+            "M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8",
+            "M10 19v-3.96 3.15",
+            "M7 19h5",
+            "M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2Z",
+        )
+    }
     /** lucide `arrow-down`. */
     val Down: ImageVector by lazy {
         icon(

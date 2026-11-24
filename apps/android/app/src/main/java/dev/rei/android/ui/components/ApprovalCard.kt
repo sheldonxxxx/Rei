@@ -6,17 +6,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import dev.rei.android.ui.theme.ReiEnter
 import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.arrive
+import dev.rei.android.ui.theme.mono
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -73,11 +76,12 @@ fun ApprovalCard(
     val pending = item.status == "pending"
     var options by remember(approval.id) { mutableStateOf(false) }
     var showArgs by remember(approval.id) { mutableStateOf(false) }
-    var busy by remember(approval.id) { mutableStateOf(false) }
+    var deciding by remember(approval.id) { mutableStateOf<Boolean?>(null) }
     var error by remember(approval.id) { mutableStateOf<String?>(null) }
+    val busy = deciding != null
 
     fun decide(approve: Boolean, length: String = "once", hours: Int? = null) {
-        busy = true
+        deciding = approve
         error = null
         haptics.performHapticFeedback(if (approve) HapticFeedbackType.Confirm else HapticFeedbackType.Reject)
         scope.launch {
@@ -91,7 +95,7 @@ fun ApprovalCard(
             } catch (failure: Exception) {
                 error = (failure as? ReiApiException)?.message ?: "Could not decide this request. Try again."
             } finally {
-                busy = false
+                deciding = null
             }
         }
     }
@@ -103,7 +107,7 @@ fun ApprovalCard(
             .then(if (pending) Modifier.arrive(ReiEnter.Card) else Modifier)
             .semantics { if (pending) liveRegion = LiveRegionMode.Polite },
         shape = ReiShapes.Card,
-        color = if (pending) colors.tertiaryContainer else colors.surfaceContainerLowest,
+        color = if (pending) colors.tertiaryContainer else ReiTheme.colors.card,
         border = BorderStroke(1.dp, if (pending) ReiTheme.colors.attentionBorder else colors.outlineVariant),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -150,15 +154,29 @@ fun ApprovalCard(
             }
             if (item.argsPreview.isNotBlank()) {
                 TextButton(onClick = { showArgs = !showArgs }, contentPadding = ButtonDefaults.TextButtonContentPadding) {
-                    Text(if (showArgs) "Hide details" else "Show details")
+                    Text(if (showArgs) "Hide request details" else "Show request details")
                 }
-                if (showArgs) SelectionContainer {
-                    Text(item.argsPreview, style = MaterialTheme.typography.bodySmall, color = colors.onSurface)
+                if (showArgs) {
+                    Surface(
+                        shape = ReiShapes.Inset,
+                        color = colors.surfaceContainerLow,
+                        border = BorderStroke(1.dp, colors.outlineVariant),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        SelectionContainer {
+                            Text(
+                                item.argsPreview,
+                                Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall.mono(),
+                                color = colors.onSurface,
+                            )
+                        }
+                    }
                 }
             }
             if (pending) {
                 Button(onClick = { decide(true) }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Text("Allow once")
+                    Text(if (deciding == true) "Allowing…" else "Allow once")
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (grantOptions(item).size > 1) {
@@ -174,7 +192,7 @@ fun ApprovalCard(
                         enabled = !busy,
                         modifier = Modifier.heightIn(min = 48.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
-                    ) { Text("Deny") }
+                    ) { Text(if (deciding == false) "Denying…" else "Deny") }
                 }
             } else {
                 item.grantLength?.takeIf { item.status == "approved" }?.let { length ->
@@ -210,7 +228,7 @@ private fun GrantSheet(
     var hours by remember(item.id) { mutableStateOf("1") }
     val hoursChosen = hours.toIntOrNull()?.takeIf { it in 1..168 }
     ReiSheet(onDismiss = onDismiss, title = "Allow this and similar requests") {
-        Column(Modifier.padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(horizontal = 12.dp).verticalScroll(rememberScrollState()).imePadding()) {
             options.forEach { option ->
                 Row(
                     Modifier
@@ -233,22 +251,21 @@ private fun GrantSheet(
                 }
             }
             if (length == "hours") {
-                OutlinedTextField(
+                ReiTextField(
                     value = hours,
-                    onValueChange = { hours = it },
-                    label = { Text("Hours (1–168)") },
+                    onValueChange = { hours = it.filter(Char::isDigit).take(3) },
+                    label = "Hours (1–168)",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
                     enabled = !busy,
-                    isError = hoursChosen == null,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    error = if (hoursChosen == null) "Enter whole hours between 1 and 168." else null,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
             Button(
                 onClick = { onAllow(length, if (length == "hours") hoursChosen else null) },
                 enabled = !busy && (length != "hours" || hoursChosen != null),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp).heightIn(min = 48.dp),
-            ) { Text("Allow") }
+            ) { Text(if (busy) "Allowing…" else "Allow") }
         }
     }
 }

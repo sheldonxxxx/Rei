@@ -87,7 +87,7 @@ private fun SkillList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit)
         if (loaded != null) {
             val (skills, agents) = loaded
             SettingsGroup {
-                SettingsRow("Instructions an assistant reads before a task. A skill you add here stands on its own; a plugin's skills are named plugin/skill.")
+                SettingsRow("Instructions an agent reads before a task. A skill you add here stands on its own; a plugin's skills are named plugin/skill.")
             }
             FormGroup {
                 if (creating) {
@@ -115,7 +115,7 @@ private fun SkillList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit)
                                 if (skill.builtIn) "Built-in" else skill.pluginName?.let { "Plugin: $it" + if (skill.pluginEnabled) "" else " (disabled)" } ?: "Standalone",
                                 "v${skill.version}",
                             ).joinToString(" · "),
-                            if (skill.builtIn) "Included with Rei · Read-only" else listOfNotNull(agentsLine(skill.agents, agents), dateTime(skill.updatedAt)?.let { "Updated $it" }, if (skill.author == "agent") "Saved by an assistant" else "Edited by you").joinToString(" · "),
+                            if (skill.builtIn) "Included with Rei · Read-only" else listOfNotNull(agentsLine(skill.agents, agents), dateTime(skill.updatedAt)?.let { "Updated $it" }, if (skill.author == "agent") "Saved by an agent" else "Edited by you").joinToString(" · "),
                         ).joinToString("\n"),
                         onClick = { onOpen(skill.id) }, dividerBelow = index < skills.lastIndex, trailing = { SettingsChevron() },
                     )
@@ -195,7 +195,7 @@ fun SkillDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onOpenPlugin:
                     SettingsRow(
                         "Version ${version.version}" + if (isCurrent) " · Current" else "",
                         summary = listOfNotNull(
-                            listOfNotNull(if (skill.builtIn) "Included with Rei" else if (version.author == "agent") "By an assistant" else "By you", if (skill.builtIn) null else dateTime(version.createdAt)).joinToString(" · "),
+                            listOfNotNull(if (skill.builtIn) "Included with Rei" else if (version.author == "agent") "By an agent" else "By you", if (skill.builtIn) null else dateTime(version.createdAt)).joinToString(" · "),
                             version.note.takeIf { it.isNotBlank() },
                         ).joinToString("\n"),
                         dividerBelow = index < data.versions.lastIndex,

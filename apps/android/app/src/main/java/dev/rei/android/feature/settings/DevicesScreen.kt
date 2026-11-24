@@ -50,7 +50,7 @@ fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit)
                 list.forEachIndexed { index, device ->
                     SettingsRow(
                         title = device.label,
-                        icon = ReiIcons.Keyboard,
+                        icon = ReiIcons.Devices,
                         summary = listOfNotNull(device.kind, dateTime(device.lastSeenAt)).joinToString(" · "),
                         onClick = { sheet = device },
                         dividerBelow = index < list.lastIndex,

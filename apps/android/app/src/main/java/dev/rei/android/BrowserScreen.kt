@@ -26,22 +26,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,7 +59,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.rei.android.di.AppContainer
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.icons.ReiIcons
+import dev.rei.android.ui.theme.ReiShapes
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
@@ -73,9 +75,9 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
     var dragging by rememberSaveable { mutableStateOf(false) }
     var editAddress by rememberSaveable { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ReiIconButton(ReiIcons.Back, "Close browser", onBack)
+            ReiIconButton(ReiIcons.Close, "Close browser", onBack)
             Column(Modifier.weight(1f)) {
                 Text(state.title.ifBlank { "Browser" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (state.url.isNotBlank()) {
@@ -87,11 +89,6 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            if (state.control) {
-                ReiIconButton(ReiIcons.Back, "Page back", { state.send("nav") { put("action", "back") } })
-                ReiIconButton(ReiIcons.Forward, "Page forward", { state.send("nav") { put("action", "forward") } })
-                ReiIconButton(ReiIcons.Reload, "Reload page", { state.send("nav") { put("action", "reload") } })
             }
             when {
                 state.control -> Button(
@@ -147,9 +144,29 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
                 },
             )
             if (!state.ready || state.frame == null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(state.status.ifBlank { "Waiting for a browser frame…" }, color = androidx.compose.ui.graphics.Color.White)
-                    if (!state.ready) TextButton(onClick = vm::reconnect) { Text("Reconnect") }
+                    if (!state.ready) {
+                        TextButton(
+                            onClick = vm::reconnect,
+                            colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
+                        ) { Text("Reconnect") }
+                    }
+                }
+            }
+        }
+
+        if (state.control) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ReiIconButton(ReiIcons.Back, "Page back", { state.send("nav") { put("action", "back") } })
+                    ReiIconButton(ReiIcons.Forward, "Page forward", { state.send("nav") { put("action", "forward") } })
+                    ReiIconButton(ReiIcons.Reload, "Reload page", { state.send("nav") { put("action", "reload") } })
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -159,8 +176,10 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
         var address by rememberSaveable(state.url) { mutableStateOf(state.url) }
         AlertDialog(
             onDismissRequest = { editAddress = false },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             title = { Text("Open address") },
-            text = { OutlinedTextField(address, { address = it }, singleLine = true, label = { Text("Address") }) },
+            text = { ReiTextField(address, { address = it }, "Address") },
             confirmButton = {
                 TextButton(onClick = {
                     state.send("goto") { put("url", address.trim()) }
@@ -176,8 +195,10 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
         val pending = state.takeover?.status == "pending"
         AlertDialog(
             onDismissRequest = { if (!vm.busy) vm.ending = false },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             title = { Text(if (pending) "Decline takeover" else "Return control") },
-            text = { OutlinedTextField(note, { note = it.take(500) }, label = { Text("Note to agent (optional)") }) },
+            text = { ReiTextField(note, { note = it.take(500) }, "Note to agent (optional)", singleLine = false, minLines = 2) },
             confirmButton = {
                 Button(onClick = { vm.endTakeover(if (pending) "cancel" else "done", note) }, enabled = !vm.busy) {
                     Text(if (pending) "Decline" else "Done")
@@ -209,12 +230,14 @@ fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit
         }
         AlertDialog(
             onDismissRequest = { respond(dialog?.kind == "alert") },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             title = { Text(if (select != null) "Select options" else "Browser dialog") },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     dialog?.let {
                         Text(it.message)
-                        if (it.kind == "prompt") OutlinedTextField(answer, { answer = it }, label = { Text("Answer") })
+                        if (it.kind == "prompt") ReiTextField(answer, { answer = it }, "Answer")
                     }
                     select?.options?.forEach { option ->
                         if (select.multiple) {

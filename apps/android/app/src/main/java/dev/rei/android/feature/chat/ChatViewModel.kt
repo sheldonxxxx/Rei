@@ -517,12 +517,41 @@ class ChatViewModel(
 
     fun removeSkill(skill: SkillOption) = mutableState.update { it.copy(selectedSkills = it.selectedSkills - skill) }
 
+    fun compact(instructions: String? = null) {
+        val api = session.currentApi ?: return
+        val id = current.sessionId ?: return
+        if (current.busy) {
+            mutableState.update { it.copy(notice = "The chat is busy. Wait for the reply to finish, then try /compact again.") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                api.compactSession(id, UUID.randomUUID().toString(), instructions)
+                val key = chatDraftKey(api.serverUrl, id)
+                local.edit().remove(key).apply()
+                typed = ""
+                mutableState.update { it.copy(draft = "", draftEpoch = it.draftEpoch + 1, notice = "Compacting chat…") }
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                fail(failure)
+            }
+        }
+    }
+
     fun send() {
         val api = session.currentApi ?: return
         val id = current.sessionId ?: return
         val text = typed.trim()
         val attachments = current.attachments
         if ((text.isEmpty() && attachments.isEmpty()) || current.pending != null || current.uploading) return
+        if (attachments.isEmpty() && current.selectedSkills.isEmpty()) {
+            val compactMatch = Regex("^/compact(?:\\s+([\\s\\S]*))?$", RegexOption.IGNORE_CASE).matchEntire(text)
+            if (compactMatch != null) {
+                compact(compactMatch.groupValues[1].trim().ifEmpty { null })
+                return
+            }
+        }
         val key = chatDraftKey(api.serverUrl, id)
         val request = UUID.randomUUID().toString()
         val send = PendingSend(request, text, attachments, current.selectedSkills)

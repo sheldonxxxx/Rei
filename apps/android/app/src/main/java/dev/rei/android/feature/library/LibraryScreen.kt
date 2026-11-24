@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -129,7 +131,7 @@ fun LibraryContent(
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ReiTopBar("", scrolled = scrolled)
+            ReiTopBar("", scrolledTitle = "Library", scrolled = scrolled)
             PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.weight(1f)) {
                 MotionRegion(key = Triple(query.tab, query.type, query.origin), ready = state.loaded) {
                     LazyVerticalGrid(
@@ -227,7 +229,7 @@ private fun LibraryFilterSheet(
 ) {
     val query = state.query
     ReiSheet(onDismiss = onDismiss, title = "Filters") {
-        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FilterGroup("Show") {
                 LibraryTab.entries.forEach { tab -> FilterChip(query.tab == tab, { onTab(tab) }, { Text(tab.label) }) }
             }

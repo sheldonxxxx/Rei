@@ -21,17 +21,21 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 
 /** A picture that pinches to zoom, pans once zoomed and toggles on double tap. Shared by the chat and the file viewer. */
 @Composable
 fun ZoomableImage(bitmap: ImageBitmap, description: String, modifier: Modifier = Modifier) {
     var scale by remember(bitmap) { mutableFloatStateOf(1f) }
     var offset by remember(bitmap) { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
     Image(
         bitmap,
         description,
         modifier
             .fillMaxSize()
+            .onSizeChanged { containerSize = it }
             .pointerInput(bitmap) {
                 detectTapGestures(onDoubleTap = {
                     if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
@@ -48,7 +52,14 @@ fun ZoomableImage(bitmap: ImageBitmap, description: String, modifier: Modifier =
                         // Pan only while zoomed in, so a vertical swipe never fights the screen around it.
                         if (next > 1f || zoom != 1f) {
                             scale = next
-                            offset = if (next > 1f) offset + pan else Offset.Zero
+                            offset = if (next > 1f) {
+                                val maxX = (containerSize.width * (next - 1f)) / 2f
+                                val maxY = (containerSize.height * (next - 1f)) / 2f
+                                val raw = offset + pan
+                                Offset(raw.x.coerceIn(-maxX, maxX), raw.y.coerceIn(-maxY, maxY))
+                            } else {
+                                Offset.Zero
+                            }
                             event.changes.forEach { if (it.moved()) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })

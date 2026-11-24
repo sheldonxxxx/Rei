@@ -188,7 +188,7 @@ fun ConnectorDetail(api: ReiApi, id: String, canRemove: Boolean, onBack: () -> U
             }
             SettingsGroup(title = "Permissions") {
                 ChoiceRow(
-                    "MCP permission profile", current.mcpProfile ?: "always_ask", McpProfiles, icon = ReiIcons.Shield,
+                    "Connector permission profile", current.mcpProfile ?: "always_ask", McpProfiles, icon = ReiIcons.Shield,
                     summary = "Chat permissions do not change this profile. A provider can mislabel a tool.",
                     enabled = !writes.busy && current.canSetProfile(), dividerBelow = true,
                     onSelect = { choice ->
@@ -259,7 +259,7 @@ fun ConnectorDetail(api: ReiApi, id: String, canRemove: Boolean, onBack: () -> U
     if (confirmYolo && current != null) {
         ConfirmDialog(
             title = "Enable YOLO for this connector?",
-            text = "All MCP tools may run without asking, including writes, messages and irreversible deletion. Data can be permanently lost or sent outside your control. Chat permissions and trigger allowlists will not add prompts. Enable this only if you accept those risks.",
+            text = "All connector tools may run without asking, including writes, messages and irreversible deletion. Data can be permanently lost or sent outside your control. Chat permissions and trigger allowlists will not add prompts. Enable this only if you accept those risks.",
             confirmLabel = "Enable YOLO", destructive = true,
             onConfirm = {
                 confirmYolo = false

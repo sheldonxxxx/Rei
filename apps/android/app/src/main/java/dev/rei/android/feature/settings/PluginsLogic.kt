@@ -34,7 +34,7 @@ internal data class PluginRow(
     val connectionCount: Long,
 ) {
     /** What the plugin brings, as the web labels it. */
-    val kind get() = if (skillCount > 0 && connectionCount > 0) "Skills + MCP" else if (skillCount > 0) "Skills" else "MCP"
+    val kind get() = if (skillCount > 0 && connectionCount > 0) "Skills + Connectors" else if (skillCount > 0) "Skills" else "Connectors"
 }
 
 internal fun JsonObject.pluginRow() = PluginRow(

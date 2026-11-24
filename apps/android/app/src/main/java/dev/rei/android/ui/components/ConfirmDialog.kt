@@ -8,6 +8,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 
 /**
  * Asks before something that cannot be undone. [text] says what will be lost or what happens next in plain words
@@ -26,7 +27,7 @@ fun ConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = ReiShapes.Dialog,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = ReiTheme.colors.card,
         title = { Text(title) },
         text = { Text(text) },
         dismissButton = { TextButton(onDismiss) { Text(dismissLabel) } },

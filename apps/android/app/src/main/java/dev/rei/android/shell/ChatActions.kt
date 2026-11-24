@@ -19,6 +19,7 @@ import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 
 /** What a long press on a chat can do. */
 interface ChatActionHandler {
@@ -39,7 +40,7 @@ fun ChatActionsSheet(session: Session, handler: ChatActionHandler, onDismiss: ()
         "rename" -> AlertDialog(
             onDismissRequest = onDismiss,
             shape = ReiShapes.Dialog,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            containerColor = ReiTheme.colors.card,
             title = { Text("Rename chat") },
             text = { ReiTextField(title, { title = it }, "Chat title") },
             dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

@@ -27,6 +27,13 @@ object ServerAddress {
         return null
     }
 
+    /** Prepends `https://` when the user omits a URL scheme so plain hostnames work on Connect. */
+    fun normalize(raw: String): String {
+        val text = raw.trim()
+        if (text.isEmpty() || text.contains("://") || text.any(Char::isWhitespace)) return text
+        return "https://$text"
+    }
+
     /** A gentle nudge while typing, before there is anything wrong: shown for a release build and an http address. */
     fun hint(raw: String, allowCleartext: Boolean): String? {
         val text = raw.trim()

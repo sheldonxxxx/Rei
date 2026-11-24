@@ -4,9 +4,12 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
@@ -44,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.window.core.layout.WindowSizeClass
 import dev.rei.android.NotificationTarget
 import dev.rei.android.ReiUiState
 import dev.rei.android.data.ReiApi
@@ -53,6 +57,7 @@ import dev.rei.android.feature.chat.ChatViewModel
 import dev.rei.android.feature.knowledge.NewPageTarget
 import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.LocalNotices
+import dev.rei.android.ui.components.LocalSnackbarClearance
 import dev.rei.android.ui.components.LocalWorkspaceOpener
 import dev.rei.android.ui.components.Notices
 import dev.rei.android.ui.components.WorkspaceOpener
@@ -87,8 +92,8 @@ internal fun ReiApp(
     val current = Destination.fromNavDestination(entry?.destination)
     val width = currentWindowAdaptiveInfo().windowSizeClass
     val mode = when {
-        width.isWidthAtLeastBreakpoint(840) -> DrawerMode.Permanent
-        width.isWidthAtLeastBreakpoint(600) -> DrawerMode.Dismissible
+        width.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> DrawerMode.Permanent
+        width.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) -> DrawerMode.Dismissible
         else -> DrawerMode.Modal
     }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -100,6 +105,8 @@ internal fun ReiApp(
 
     val snackbar = remember { SnackbarHostState() }
     val notices = remember(snackbar, container) { Notices(snackbar, container.appScope) }
+    var snackbarBottomClearance by remember { mutableStateOf(0.dp) }
+    LaunchedEffect(entry?.destination?.id) { snackbarBottomClearance = 0.dp }
     val opener = remember(nav) {
         object : WorkspaceOpener {
             override fun openFile(fileId: String, versionId: String?) {
@@ -123,7 +130,7 @@ internal fun ReiApp(
                 message = notice.message,
                 actionLabel = notice.actionLabel,
                 withDismissAction = notice.actionLabel == null,
-                duration = SnackbarDuration.Short,
+                duration = if (notice.actionLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed && notice.undo != null) {
                 container.workspaceRepository.performUndo(notice.undo)
@@ -171,6 +178,8 @@ internal fun ReiApp(
                 closeDrawer()
             }
         },
+        onNewChat = { shell.newChat() },
+        attentionCount = drawer.attentionCount,
     )
 
     LaunchedEffect(notificationTarget) {
@@ -216,17 +225,25 @@ internal fun ReiApp(
                     if (currentMode == DrawerMode.Dismissible && drawerState.targetValue == DrawerValue.Open) DrawerWidth else 0.dp,
                     label = "drawer room",
                 )
+                val snackbarBottom by animateDpAsState(snackbarBottomClearance + 12.dp, label = "snackbar bottom")
                 Box(
                     Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
-                        .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                        .windowInsetsPadding(
+                            WindowInsets.ime
+                                .union(WindowInsets.navigationBars)
+                                .union(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
+                        )
                         .padding(end = drawerRoom),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     Box(if (currentMode == DrawerMode.Dismissible) Modifier.widthIn(max = MediumColumn).fillMaxSize() else Modifier.fillMaxSize()) {
                         ReiNavHost(nav, currentEnv, Modifier.fillMaxSize())
-                        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = 12.dp))
+                        SnackbarHost(
+                            snackbar,
+                            Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = snackbarBottom),
+                        )
                     }
                 }
             }
@@ -241,7 +258,12 @@ internal fun ReiApp(
             it.hasRoute<SettingsRoute>()
     } ?: true
 
-    CompositionLocalProvider(LocalShell provides controller, LocalWorkspaceOpener provides opener, LocalNotices provides notices) {
+    CompositionLocalProvider(
+        LocalShell provides controller,
+        LocalWorkspaceOpener provides opener,
+        LocalNotices provides notices,
+        LocalSnackbarClearance provides { snackbarBottomClearance = it },
+    ) {
         when (mode) {
             DrawerMode.Modal -> ModalNavigationDrawer(
                 drawerContent = {

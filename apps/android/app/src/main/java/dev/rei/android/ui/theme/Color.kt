@@ -81,6 +81,18 @@ val EngawaLightColorScheme: ColorScheme = lightColorScheme(
     surfaceContainer = Light.sidebar,
     surfaceContainerHigh = Light.sidebar,
     surfaceContainerHighest = Light.accent,
+    primaryFixed = Color(0xFFEADFD4),
+    primaryFixedDim = Color(0xFFD7C6B6),
+    onPrimaryFixed = Color(0xFF2D231B),
+    onPrimaryFixedVariant = Color(0xFF56473C),
+    secondaryFixed = Light.accent,
+    secondaryFixedDim = Color(0xFFCDC4BA),
+    onSecondaryFixed = Light.foreground,
+    onSecondaryFixedVariant = Color(0xFF56504A),
+    tertiaryFixed = Light.attentionSoft,
+    tertiaryFixedDim = Color(0xFFE5D1B4),
+    onTertiaryFixed = Color(0xFF342310),
+    onTertiaryFixedVariant = Light.attentionText,
 )
 
 val EngawaDarkColorScheme: ColorScheme = darkColorScheme(
@@ -113,13 +125,26 @@ val EngawaDarkColorScheme: ColorScheme = darkColorScheme(
     outline = Dark.controlBorder,
     outlineVariant = Dark.border,
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFF3A3532),
+    surfaceBright = Color(0xFF3B3632),
     surfaceDim = Color(0xFF151312),
-    surfaceContainerLowest = Dark.card,
-    surfaceContainerLow = Dark.sidebar,
+    // Monotonic dark surface ladder so M3 tonal elevation steps cleanly from canvas outward.
+    surfaceContainerLowest = Color(0xFF151312),
+    surfaceContainerLow = Color(0xFF1E1B1A),
     surfaceContainer = Dark.sidebar,
     surfaceContainerHigh = Dark.card,
-    surfaceContainerHighest = Dark.accent,
+    surfaceContainerHighest = Color(0xFF3B3632),
+    primaryFixed = Color(0xFFEADFD4),
+    primaryFixedDim = Color(0xFFD7C6B6),
+    onPrimaryFixed = Color(0xFF2D231B),
+    onPrimaryFixedVariant = Color(0xFF56473C),
+    secondaryFixed = Color(0xFFDED7CF),
+    secondaryFixedDim = Color(0xFFCDC4BA),
+    onSecondaryFixed = Color(0xFF292725),
+    onSecondaryFixedVariant = Color(0xFF56504A),
+    tertiaryFixed = Color(0xFFF6ECDD),
+    tertiaryFixedDim = Color(0xFFE5D1B4),
+    onTertiaryFixed = Color(0xFF342310),
+    onTertiaryFixedVariant = Color(0xFF755633),
 )
 
 /** Tokens Material 3 has no slot for. Read them with `ReiTheme.colors` (the web names, camel-cased). */
@@ -129,7 +154,7 @@ data class ReiColors(
     val supportingTextStrong: Color,
     /** `--attention-border`: the ochre edge of an approval. */
     val attentionBorder: Color,
-    /** `--card`: cards and panels (also `surfaceContainerLowest`). */
+    /** `--card`: cards and panels (`#FFFEFC` in light, `#302C29` in dark). */
     val card: Color,
     val syntaxKeyword: Color,
     val syntaxString: Color,
@@ -207,4 +232,10 @@ fun ColorScheme.allColors(): Map<String, Color> = mapOf(
     "surfaceContainerLowest" to surfaceContainerLowest, "surfaceContainerLow" to surfaceContainerLow,
     "surfaceContainer" to surfaceContainer, "surfaceContainerHigh" to surfaceContainerHigh,
     "surfaceContainerHighest" to surfaceContainerHighest,
+    "primaryFixed" to primaryFixed, "primaryFixedDim" to primaryFixedDim,
+    "onPrimaryFixed" to onPrimaryFixed, "onPrimaryFixedVariant" to onPrimaryFixedVariant,
+    "secondaryFixed" to secondaryFixed, "secondaryFixedDim" to secondaryFixedDim,
+    "onSecondaryFixed" to onSecondaryFixed, "onSecondaryFixedVariant" to onSecondaryFixedVariant,
+    "tertiaryFixed" to tertiaryFixed, "tertiaryFixedDim" to tertiaryFixedDim,
+    "onTertiaryFixed" to onTertiaryFixed, "onTertiaryFixedVariant" to onTertiaryFixedVariant,
 )

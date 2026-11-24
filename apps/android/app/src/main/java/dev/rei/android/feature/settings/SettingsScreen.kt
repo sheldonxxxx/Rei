@@ -3,6 +3,7 @@ package dev.rei.android.feature.settings
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -47,6 +49,7 @@ import dev.rei.android.ui.components.SettingsSwitchRow
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.ThemePreference
 
 /** The native settings sub-screens the index opens. */
@@ -57,6 +60,7 @@ enum class SettingsPage(val title: String) {
     Notifications("Notifications"),
     Devices("Devices"),
     Passkeys("Passkeys"),
+    TwoFactor("Two-factor authentication"),
     Memory("Memory"),
     Triggers("Triggers"),
     Usage("Usage"),
@@ -94,48 +98,60 @@ internal fun SettingsIndex(
         updates.messages.collect { notices?.show(it) }
     }
     Column(Modifier.fillMaxSize()) {
-        ReiTopBar("", scrolled = scroll.value > 0)
-        Column(
-            Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 16.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text("Settings", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium)
-            AccountCard(host = hostOf(serverUrl), device = device.value)
+        ReiTopBar("", scrolledTitle = "Settings", scrolled = scroll.value > 0)
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier
+                    .widthIn(max = 760.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text("Settings", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium)
+                AccountCard(host = hostOf(serverUrl), device = device.value)
 
-            SettingsGroup(title = "App") {
-                SettingsRow("Appearance", icon = ReiIcons.Eye, summary = themePreference.label, onClick = { onOpen(SettingsPage.Appearance) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Notifications", icon = ReiIcons.Bell, onClick = { onOpen(SettingsPage.Notifications) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsSwitchRow(
-                    "Show details by default", showDetails, details::set,
-                    icon = ReiIcons.Info, summary = "Chats show full tool arguments and results.",
-                    dividerBelow = true,
-                )
-                SettingsRow(
-                    "Check for updates", icon = ReiIcons.Download,
-                    summary = updateSummary(updates.enabled, updateState),
-                    onClick = if (updates.enabled) updates::checkNow else null,
-                )
-            }
-            SettingsGroup(title = "Security") {
-                SettingsRow("Devices", icon = ReiIcons.Keyboard, summary = "Where you’re signed in", onClick = { onOpen(SettingsPage.Devices) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Passkeys", icon = ReiIcons.Key, onClick = { onOpen(SettingsPage.Passkeys) }, trailing = { SettingsChevron() })
-            }
-            SettingsGroup(title = "Rei") {
-                SettingsRow("General", icon = ReiIcons.Settings, onClick = { onOpen(SettingsPage.General) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Memory", icon = ReiIcons.Memory, onClick = { onOpen(SettingsPage.Memory) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Triggers", icon = ReiIcons.Clock, onClick = { onOpen(SettingsPage.Triggers) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Usage", icon = ReiIcons.Usage, onClick = { onOpen(SettingsPage.Usage) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Permissions", icon = ReiIcons.Shield, onClick = { onOpen(SettingsPage.Permissions) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Providers", icon = ReiIcons.Globe, onClick = { onOpen(SettingsPage.Providers) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Models", icon = ReiIcons.Brain, onClick = { onOpen(SettingsPage.Models) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Runtime", icon = ReiIcons.Terminal, onClick = { onOpen(SettingsPage.Runtime) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Connectors", icon = ReiIcons.Branch, onClick = { onOpen(SettingsPage.Connectors) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Skills", icon = ReiIcons.Sparkle, onClick = { onOpen(SettingsPage.Skills) }, dividerBelow = true, trailing = { SettingsChevron() })
-                SettingsRow("Plugins", icon = ReiIcons.Puzzle, onClick = { onOpen(SettingsPage.Plugins) }, trailing = { SettingsChevron() })
-            }
-            SettingsGroup(title = "Session") {
-                SettingsRow("Sign out of this device", icon = ReiIcons.Logout, onClick = { confirm = "signout" }, destructive = true, dividerBelow = true)
-                SettingsRow("Disconnect server", icon = ReiIcons.Close, onClick = { confirm = "disconnect" }, destructive = true)
+                SettingsGroup(title = "App") {
+                    SettingsRow("Appearance", icon = ReiIcons.Eye, summary = themePreference.label, onClick = { onOpen(SettingsPage.Appearance) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Notifications", icon = ReiIcons.Bell, onClick = { onOpen(SettingsPage.Notifications) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsSwitchRow(
+                        "Show details by default", showDetails, details::set,
+                        icon = ReiIcons.Info, summary = "Expand tool steps, request details, and surface inspection in chats.",
+                        dividerBelow = true,
+                    )
+                    SettingsRow(
+                        "Check for updates", icon = ReiIcons.Download,
+                        summary = updateSummary(updates.enabled, updateState),
+                        onClick = if (updates.enabled) updates::checkNow else null,
+                    )
+                }
+                SettingsGroup(title = "Security") {
+                    SettingsRow("Devices", icon = ReiIcons.Devices, summary = "Where you’re signed in", onClick = { onOpen(SettingsPage.Devices) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Passkeys", icon = ReiIcons.Key, summary = "Sign in with your device screen lock", onClick = { onOpen(SettingsPage.Passkeys) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Two-factor authentication", icon = ReiIcons.Lock, summary = "Add an authenticator code to sign-in", onClick = { onOpen(SettingsPage.TwoFactor) }, trailing = { SettingsChevron() })
+                }
+                SettingsGroup(title = "Workspace") {
+                    SettingsRow("General", icon = ReiIcons.Settings, summary = "Time zone, chat titles and companion", onClick = { onOpen(SettingsPage.General) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Memory", icon = ReiIcons.Memory, summary = "Profile, agent notes and review", onClick = { onOpen(SettingsPage.Memory) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Triggers", icon = ReiIcons.Clock, summary = "Scheduled and background runs", onClick = { onOpen(SettingsPage.Triggers) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Usage", icon = ReiIcons.Usage, summary = "Tokens, cache hits and web search", onClick = { onOpen(SettingsPage.Usage) }, trailing = { SettingsChevron() })
+                }
+                SettingsGroup(title = "Models & Providers") {
+                    SettingsRow("Models", icon = ReiIcons.Brain, summary = "Default model and thinking effort", onClick = { onOpen(SettingsPage.Models) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Providers", icon = ReiIcons.Globe, summary = "API keys, OAuth and search", onClick = { onOpen(SettingsPage.Providers) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Runtime", icon = ReiIcons.Terminal, summary = "Summaries, run limits and timeouts", onClick = { onOpen(SettingsPage.Runtime) }, trailing = { SettingsChevron() })
+                }
+                SettingsGroup(title = "Capabilities") {
+                    SettingsRow("Permissions", icon = ReiIcons.Shield, summary = "Agent defaults and sandbox network", onClick = { onOpen(SettingsPage.Permissions) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Connectors", icon = ReiIcons.Branch, summary = "External apps and tools", onClick = { onOpen(SettingsPage.Connectors) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Skills", icon = ReiIcons.Sparkle, summary = "Reusable instructions for agents", onClick = { onOpen(SettingsPage.Skills) }, dividerBelow = true, trailing = { SettingsChevron() })
+                    SettingsRow("Plugins", icon = ReiIcons.Puzzle, summary = "Bundled skills and connectors", onClick = { onOpen(SettingsPage.Plugins) }, trailing = { SettingsChevron() })
+                }
+                SettingsGroup(title = "Session") {
+                    SettingsRow("Sign out of this device", icon = ReiIcons.Logout, onClick = { confirm = "signout" }, destructive = true, dividerBelow = true)
+                    SettingsRow("Disconnect server", icon = ReiIcons.Close, onClick = { confirm = "disconnect" }, destructive = true)
+                }
             }
         }
     }
@@ -181,7 +197,7 @@ private fun AccountCard(host: String, device: String?) {
     val colors = MaterialTheme.colorScheme
     Surface(
         shape = ReiShapes.Card,
-        color = colors.surfaceContainerLowest,
+        color = ReiTheme.colors.card,
         border = BorderStroke(1.dp, colors.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {

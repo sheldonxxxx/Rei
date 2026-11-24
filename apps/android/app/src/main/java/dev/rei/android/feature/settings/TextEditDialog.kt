@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.VisualTransformation
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 
 /** A dialog with one text field: rename a device, edit a memory entry, add a line. Save stays off until there is a change within [limit]. */
 @Composable
@@ -30,7 +31,7 @@ fun TextEditDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = ReiShapes.Dialog,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = ReiTheme.colors.card,
         title = { Text(title) },
         text = {
             ReiTextField(

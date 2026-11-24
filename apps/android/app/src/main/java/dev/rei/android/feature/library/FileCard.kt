@@ -42,6 +42,7 @@ import dev.rei.android.feature.viewer.typeLabel
 import dev.rei.android.ui.components.markdown.loadPicture
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 
 private val sourceExtensions = setOf(
@@ -84,7 +85,7 @@ fun FileCard(file: LibraryFile, api: ReiApi?, onOpen: () -> Unit, modifier: Modi
         onClick = onOpen,
         modifier = modifier.fillMaxWidth().semantics { role = Role.Button },
         shape = ReiShapes.Card,
-        color = colors.surfaceContainerLowest,
+        color = ReiTheme.colors.card,
         border = BorderStroke(1.dp, colors.outlineVariant),
     ) {
         Column {
@@ -98,7 +99,7 @@ fun FileCard(file: LibraryFile, api: ReiApi?, onOpen: () -> Unit, modifier: Modi
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
                             .clip(ReiShapes.Pill)
-                            .background(colors.surfaceContainerLowest.copy(alpha = 0.9f))
+                            .background(ReiTheme.colors.card.copy(alpha = 0.9f))
                             .padding(5.dp)
                             .size(16.dp),
                         tint = colors.tertiary,

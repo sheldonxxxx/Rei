@@ -46,12 +46,24 @@ internal data class MemoryEdit(val id: String, val op: String, val by: String, v
  * link to Memory review in Background Activity.
  */
 @Composable
-fun MemoryScreen(api: ReiApi, onOpenActivity: () -> Unit, onOpenHistory: (String) -> Unit, onBack: () -> Unit) {
-    MemoryList(api, onOpenActivity, onBack, onOpenHistory)
+fun MemoryScreen(
+    api: ReiApi,
+    onOpenActivity: () -> Unit,
+    onOpenHistory: (String) -> Unit,
+    onBack: () -> Unit,
+    onOpenReviewSettings: (() -> Unit)? = null,
+) {
+    MemoryList(api, onOpenActivity, onBack, onOpenHistory, onOpenReviewSettings)
 }
 
 @Composable
-private fun MemoryList(api: ReiApi, onOpenActivity: () -> Unit, onBack: () -> Unit, onHistory: (String) -> Unit) {
+private fun MemoryList(
+    api: ReiApi,
+    onOpenActivity: () -> Unit,
+    onBack: () -> Unit,
+    onHistory: (String) -> Unit,
+    onOpenReviewSettings: (() -> Unit)?,
+) {
     val notices = LocalNotices.current
     val writes = rememberWrites()
     val memory = rememberResource(api) { parseMemory(api.request("GET", listOf("api", "memory"))) }
@@ -67,8 +79,15 @@ private fun MemoryList(api: ReiApi, onOpenActivity: () -> Unit, onBack: () -> Un
         SettingsGroup {
             SettingsRow(
                 "Memory review", icon = ReiIcons.Activity, summary = "See what Rei saved from your chats, and undo it.",
+                dividerBelow = onOpenReviewSettings != null,
                 onClick = onOpenActivity, trailing = { SettingsChevron() },
             )
+            if (onOpenReviewSettings != null) {
+                SettingsRow(
+                    "Background review settings", icon = ReiIcons.Settings, summary = "Turn automatic memory reviews on or change reply cadence.",
+                    onClick = onOpenReviewSettings, trailing = { SettingsChevron() },
+                )
+            }
         }
         memory.value?.forEach { doc ->
             val title = if (doc.agentId == null) "About you" else "${names.value?.get(doc.agentId) ?: "Agent"}’s notes"

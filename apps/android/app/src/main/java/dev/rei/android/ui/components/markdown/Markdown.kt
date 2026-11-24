@@ -30,7 +30,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +40,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -316,8 +319,8 @@ private fun MarkdownBlocks(parent: Node, env: MarkdownEnv, skip: Node? = null) {
                     }
                 }
             }
-            is BlockQuote -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.width(3.dp).background(MaterialTheme.colorScheme.outlineVariant, ReiShapes.Pill).heightIn(min = 24.dp))
+            is BlockQuote -> Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.width(3.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, ReiShapes.Pill))
                 Box(Modifier.weight(1f)) { MarkdownBlocks(node, env) }
             }
             is Callout -> CalloutBlock(node, env)
@@ -666,20 +669,47 @@ private fun InlineMarkdown(
 /** An image in a message or surface: a thumbnail that opens full screen when the chat provides a viewer. */
 @Composable
 fun MarkdownPicture(api: ReiApi, destination: String, caption: String) {
-    val image by produceState<ImageBitmap?>(null, destination, api) {
-        value = null
-        value = loadPicture(api, destination, 1200)
+    val loaded by produceState<Pair<Boolean, ImageBitmap?>>(false to null, destination, api) {
+        value = false to null
+        value = true to loadPicture(api, destination, 1200)
     }
     val open = LocalPictureOpener.current
-    image?.let {
-        Image(
-            it,
+    val (done, image) = loaded
+    when {
+        image != null -> Image(
+            image,
             caption.ifBlank { "Image" },
             Modifier
                 .fillMaxWidth()
                 .heightIn(max = 360.dp)
                 .then(if (open != null) Modifier.clickable(onClickLabel = "Open image") { open(PictureSource(destination, caption)) } else Modifier),
         )
+        !done -> Surface(
+            Modifier.fillMaxWidth().height(160.dp),
+            shape = ReiShapes.Inset,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Box(contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+        }
+        else -> Surface(
+            Modifier.fillMaxWidth(),
+            shape = ReiShapes.Inset,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(ReiIcons.Image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    caption.ifBlank { "Image couldn’t be loaded." },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

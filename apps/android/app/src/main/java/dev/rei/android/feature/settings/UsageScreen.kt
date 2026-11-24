@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +49,7 @@ import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 
 /**
@@ -80,7 +82,9 @@ fun UsageScreen(api: ReiApi, onBack: () -> Unit) {
         val data = usage.value
         when {
             problem != null -> Unit
-            data == null -> if (usage.error == null) Text("Loading usage…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            data == null -> if (usage.error == null) Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+            }
             else -> UsageContent(data)
         }
     }
@@ -125,7 +129,7 @@ private fun UsageContent(data: UsageData) {
 @Composable
 private fun Headline(totals: UsageTotals) {
     val colors = MaterialTheme.colorScheme
-    Surface(shape = ReiShapes.Card, color = colors.surfaceContainerLowest, border = BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = ReiShapes.Card, color = ReiTheme.colors.card, border = BorderStroke(1.dp, colors.outlineVariant), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Total processed", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
             Text(totals.totalProcessed.text, style = MaterialTheme.typography.displayMedium.tabular(), color = colors.onSurface)
@@ -162,7 +166,7 @@ private fun StatPairs(stats: List<Pair<String, String>>) {
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
-    Surface(shape = ReiShapes.Card, color = colors.surfaceContainerLowest, border = BorderStroke(1.dp, colors.outlineVariant), modifier = modifier) {
+    Surface(shape = ReiShapes.Card, color = ReiTheme.colors.card, border = BorderStroke(1.dp, colors.outlineVariant), modifier = modifier) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.titleLarge.tabular(), color = colors.onSurface)

@@ -199,6 +199,14 @@ class ReiApi(serverUrl: String, private val token: String? = null) {
         request("POST", sessionPath(id) + "cancel")
     }
 
+    suspend fun compactSession(id: String, requestId: String, instructions: String? = null) {
+        val body = buildJsonObject {
+            put("requestId", requestId)
+            if (!instructions.isNullOrBlank()) put("instructions", instructions.trim())
+        }
+        request("POST", sessionPath(id) + "compact", body)
+    }
+
     suspend fun markRead(id: String, itemId: String, at: Long) {
         request("PUT", sessionPath(id) + "read-marker", buildJsonObject {
             put("itemId", itemId)

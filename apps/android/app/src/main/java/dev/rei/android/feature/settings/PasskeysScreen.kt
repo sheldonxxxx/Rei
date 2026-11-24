@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
@@ -35,6 +36,7 @@ import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -116,19 +118,27 @@ fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
 private fun NewPasskeyDialog(onDismiss: () -> Unit, onConfirm: (label: String, password: String) -> Unit) {
     var label by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = ReiShapes.Dialog,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = ReiTheme.colors.card,
         title = { Text("Add a passkey") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ReiTextField(label, { label = it.take(60) }, "Passkey name (optional)")
                 ReiTextField(
                     password, { password = it }, "Rei password",
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     contentType = ContentType.Password,
+                    trailingContent = {
+                        ReiIconButton(
+                            if (showPassword) ReiIcons.EyeOff else ReiIcons.Eye,
+                            if (showPassword) "Hide password" else "Show password",
+                            { showPassword = !showPassword },
+                        )
+                    },
                 )
             }
         },

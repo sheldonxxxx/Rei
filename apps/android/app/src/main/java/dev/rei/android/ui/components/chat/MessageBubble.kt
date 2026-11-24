@@ -2,6 +2,7 @@ package dev.rei.android.ui.components.chat
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +18,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -42,6 +48,7 @@ import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiEnter
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.arrive
 
 /** Your message: right-aligned in `surfaceContainerHigh`, up to 85 % of the width. No arrival animation: you just wrote it. */
@@ -131,12 +138,10 @@ fun PendingBubble(
     }
 }
 
-/** The assistant's quiet icon row under a finished reply. Retry is offered on the last reply only. */
+/** The assistant's quiet icon row under a finished reply: Copy (with brief check) and Inspect; Fork/Retry live in the message sheet. */
 data class ReplyActions(
     val onCopy: () -> Unit,
-    val onFork: (() -> Unit)?,
-    val onInspect: (() -> Unit)?,
-    val onRetry: (() -> Unit)?,
+    val onInspect: (() -> Unit)? = null,
 )
 
 /**
@@ -157,6 +162,7 @@ fun AssistantBubble(
     highlighted: Boolean = false,
     actions: ReplyActions? = null,
     onContinue: (() -> Unit)? = null,
+    showDetails: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val flash = rememberFlash(highlighted)
@@ -187,7 +193,7 @@ fun AssistantBubble(
                         parts.forEachIndexed { index, part ->
                             when (part) {
                                 is MessagePart.Text -> if (part.text.isNotBlank()) ReiMarkdown(part.text, api, caret = streaming && index == parts.lastIndex)
-                                is MessagePart.Surface -> InlineSurface(api, sessionId, part.value)
+                                is MessagePart.Surface -> InlineSurface(api, sessionId, part.value, detail = showDetails)
                             }
                         }
                     }
@@ -212,11 +218,25 @@ fun AssistantBubble(
 @Composable
 private fun ReplyActionRow(actions: ReplyActions) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(1500)
+            copied = false
+        }
+    }
     Row(Modifier.padding(start = 0.dp), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-        ReiIconButton(ReiIcons.Copy, "Copy", actions.onCopy, tint = quiet, iconSize = 16.dp)
-        actions.onFork?.let { ReiIconButton(ReiIcons.Branch, "Fork into a new chat", it, tint = quiet, iconSize = 16.dp) }
+        ReiIconButton(
+            icon = if (copied) ReiIcons.Check else ReiIcons.Copy,
+            contentDescription = if (copied) "Copied" else "Copy",
+            onClick = {
+                actions.onCopy()
+                copied = true
+            },
+            tint = if (copied) MaterialTheme.colorScheme.primary else quiet,
+            iconSize = 16.dp,
+        )
         actions.onInspect?.let { ReiIconButton(ReiIcons.Eye, "Inspect", it, tint = quiet, iconSize = 16.dp) }
-        actions.onRetry?.let { ReiIconButton(ReiIcons.Reload, "Retry", it, tint = quiet, iconSize = 16.dp) }
     }
 }
 
@@ -249,7 +269,8 @@ private fun AttachmentLabel(label: String, onClick: (() -> Unit)?) {
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
         shape = ReiShapes.Pill,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        color = ReiTheme.colors.card,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             androidx.compose.material3.Icon(ReiIcons.File, null, Modifier.padding(0.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -258,10 +279,11 @@ private fun AttachmentLabel(label: String, onClick: (() -> Unit)?) {
     }
 }
 
-/** Aligns a bubble and caps it at [fraction] of the width, and at the reading column on wide screens. */
+/** Aligns a bubble and caps it at [fraction] of the container width, and at the reading column on wide screens. */
 @Composable
 private fun BubbleBox(alignment: Alignment.Horizontal, fraction: Float, content: @Composable () -> Unit) {
-    val width = LocalConfiguration.current.screenWidthDp.dp
+    val density = LocalDensity.current
+    val width = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (alignment == Alignment.End) Alignment.CenterEnd else Alignment.CenterStart) {
         Box(Modifier.widthIn(max = minOf(width * fraction, 680.dp))) { content() }
     }

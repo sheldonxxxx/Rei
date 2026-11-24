@@ -49,4 +49,11 @@ class ServerAddressTest {
         assertNull(ServerAddress.hint("http://127.0.0.1", allowCleartext = true))
         assertEquals(null, ServerAddress.hint("https://rei.example.com", allowCleartext = false))
     }
+
+    @Test
+    fun normalizePrependsHttpsWhenSchemeOmitted() {
+        assertEquals("https://rei.example.com", ServerAddress.normalize("rei.example.com"))
+        assertEquals("http://localhost:8787", ServerAddress.normalize(" http://localhost:8787 "))
+        assertEquals("", ServerAddress.normalize("   "))
+    }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,8 +39,11 @@ fun ImageViewer(caption: String, onDismiss: () -> Unit, key: Any, load: suspend 
     val loaded by produceState<Pair<Boolean, ImageBitmap?>>(false to null, key) { value = true to load() }
     val image = loaded.second
     val failed = loaded.first && image == null
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
             val bitmap = image
             if (bitmap != null) {
                 ZoomableImage(bitmap, caption.ifBlank { "Image" })
@@ -54,7 +58,7 @@ fun ImageViewer(caption: String, onDismiss: () -> Unit, key: Any, load: suspend 
             if (caption.isNotBlank()) {
                 Text(
                     caption,
-                    Modifier.align(Alignment.BottomCenter).padding(24.dp),
+                    Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(24.dp),
                     color = Color.White,
                     style = MaterialTheme.typography.bodyMedium,
                 )

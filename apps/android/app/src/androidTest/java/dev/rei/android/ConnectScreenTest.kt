@@ -94,8 +94,11 @@ class ConnectScreenTest {
 
     @Test
     fun insecureAddressIsFlaggedInRelease() {
-        compose.setContent { ReiTheme { ConnectScreen(ReiUiState(), {}, { _, _, _ -> }, {}) } }
-        compose.onNodeWithText("Rei server address").performTextInput("rei.example.com")
-        compose.onNodeWithText("Connect", substring = false).assertIsNotEnabled()
+        var connected: String? = null
+        compose.setContent { ReiTheme { ConnectScreen(ReiUiState(), { connected = it }, { _, _, _ -> }, {}) } }
+        compose.onNodeWithText("Rei server address").performTextInput("http://rei.example.com")
+        compose.onNodeWithText("Connect", substring = false).performClick()
+        org.junit.Assert.assertNull(connected)
+        compose.onNodeWithText("Use https://", substring = true).assertExists()
     }
 }

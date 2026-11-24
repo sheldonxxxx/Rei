@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +64,7 @@ fun WorkspaceHeader(
             trailing?.invoke()
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            val keyboard = LocalSoftwareKeyboardController.current
             PillField(
                 value = query,
                 onValueChange = onQuery,
@@ -70,7 +72,7 @@ fun WorkspaceHeader(
                 description = searchLabel,
                 leadingIcon = ReiIcons.Search,
                 modifier = Modifier.weight(1f),
-                keyboardActions = KeyboardActions.Default,
+                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
             )
             Box(contentAlignment = Alignment.TopEnd) {
                 ReiIconButton(ReiIcons.Filter, filterLabel, onFilter)

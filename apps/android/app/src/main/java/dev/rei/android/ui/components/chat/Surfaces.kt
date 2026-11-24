@@ -2,30 +2,41 @@ package dev.rei.android.ui.components.chat
 
 import android.util.Log
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,7 +64,10 @@ import dev.rei.android.ui.components.markdown.isExternalMarkdownLink
 import dev.rei.android.ui.components.markdown.openExternalLink
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiSheet
+import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Surface
 import java.time.Instant
@@ -119,7 +133,7 @@ private class SurfaceEngine(
 }
 
 @Composable
-fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject) {
+fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject, detail: Boolean = false) {
     val id = value.optionalString("surfaceId") ?: return
     val state = value.optionalString("state").orEmpty()
     val owner = value.optionalString("sessionId") ?: currentSessionId
@@ -147,7 +161,7 @@ fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject) {
     Surface(
         Modifier.fillMaxWidth(),
         shape = ReiShapes.Card,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        color = ReiTheme.colors.card,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -180,8 +194,10 @@ fun InlineSurface(api: ReiApi, currentSessionId: String, value: JsonObject) {
                 }
                 engine.failure?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                ReiIconButton(ReiIcons.Info, "Inspect surface", { inspect = true })
+            if (detail) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    ReiIconButton(ReiIcons.Info, "Inspect surface", { inspect = true })
+                }
             }
         }
     }
@@ -397,12 +413,11 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
         is SurfaceSpec.Picture -> MarkdownPicture(engine.api, spec.url, spec.description)
         is SurfaceSpec.Link -> SurfaceLink(spec.url, spec.label)
         is SurfaceSpec.Action -> SurfaceButton(engine, spec)
-        is SurfaceSpec.TextInput -> OutlinedTextField(
-            spec.value,
+        is SurfaceSpec.TextInput -> ReiTextField(
+            value = spec.value,
             onValueChange = { if (spec.pointer != null) engine.input(spec.pointer, JsonPrimitive(it)) },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(spec.label) },
-            placeholder = { Text(spec.placeholder) },
+            label = spec.label,
+            placeholder = spec.placeholder.ifBlank { null },
             enabled = engine.interactive && spec.pointer != null && !engine.sending,
             singleLine = !spec.multiline,
             visualTransformation = if (spec.obscured) PasswordVisualTransformation() else VisualTransformation.None,
@@ -418,19 +433,45 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
         }
         is SurfaceSpec.Choices -> {
             Text(spec.label)
+            val enabled = engine.interactive && spec.pointer != null && !engine.sending
             spec.options.forEach { (value, label) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(value in spec.selected, onCheckedChange = { select ->
-                        if (spec.pointer != null) {
-                            val next = when {
-                                !select -> spec.selected - value
-                                spec.exclusive -> listOf(value)
-                                else -> spec.selected + value
-                            }
-                            engine.input(spec.pointer, JsonArray(next.map(::JsonPrimitive)))
+                val isSelected = value in spec.selected
+                val updateSelection: (Boolean) -> Unit = { select ->
+                    if (spec.pointer != null) {
+                        val next = when {
+                            !select -> spec.selected - value
+                            spec.exclusive -> listOf(value)
+                            else -> spec.selected + value
                         }
-                    }, enabled = engine.interactive && spec.pointer != null && !engine.sending)
-                    Text(label)
+                        engine.input(spec.pointer, JsonArray(next.map(::JsonPrimitive)))
+                    }
+                }
+                if (spec.exclusive) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = isSelected, enabled = enabled, role = Role.RadioButton) {
+                                updateSelection(true)
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = isSelected, onClick = null, enabled = enabled)
+                        Text(label, Modifier.padding(start = 8.dp))
+                    }
+                } else {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .toggleable(value = isSelected, enabled = enabled, role = Role.Checkbox) { select ->
+                                updateSelection(select)
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = isSelected, onCheckedChange = null, enabled = enabled)
+                        Text(label, Modifier.padding(start = 8.dp))
+                    }
                 }
             }
         }
@@ -460,9 +501,9 @@ private fun SurfaceView(engine: SurfaceEngine, spec: SurfaceSpec) {
 @Composable
 private fun SurfaceTabs(engine: SurfaceEngine, spec: SurfaceSpec.Tabs) {
     var index by remember { mutableIntStateOf(0) }
-    Row(Modifier.horizontalScroll(rememberScrollState())) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         spec.titles.forEachIndexed { i, title ->
-            TextButton(onClick = { index = i }, enabled = index != i) { Text(title) }
+            FilterChip(selected = index == i, onClick = { index = i }, label = { Text(title) })
         }
     }
     spec.panes.getOrNull(index)?.let { SurfaceView(engine, it) }
@@ -516,8 +557,8 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
     var sort by remember { mutableStateOf<String?>(null) }
     var ascending by remember { mutableStateOf(true) }
     var page by remember { mutableIntStateOf(0) }
-    if (spec.filterable) OutlinedTextField(
-        query, { query = it; page = 0 }, label = { Text("Filter rows") }, singleLine = true,
+    if (spec.filterable) ReiTextField(
+        query, { query = it; page = 0 }, label = "Filter rows", singleLine = true,
     )
     val matches = spec.rows.filter { row -> row.values.any { it.contains(query, ignoreCase = true) } }
     val ordered = sort?.let { key -> matches.sortedBy { it[key].orEmpty() }.let { if (ascending) it else it.asReversed() } } ?: matches
@@ -528,15 +569,15 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
                     ascending = if (sort == key) !ascending else true
                     sort = key
                     page = 0
-                }, modifier = Modifier.widthIn(min = 115.dp)) { Text(name) }
-                else Text(name, Modifier.widthIn(min = 115.dp).padding(8.dp), style = MaterialTheme.typography.labelLarge)
+                }, modifier = Modifier.width(120.dp)) { Text(name) }
+                else Text(name, Modifier.width(120.dp).padding(8.dp), style = MaterialTheme.typography.labelLarge)
             }
         }
         HorizontalDivider()
         ordered.drop(page * spec.pageSize).take(spec.pageSize).forEach { row ->
             Row {
                 spec.columns.forEach { (key, _) ->
-                    Text(row[key].orEmpty(), Modifier.widthIn(min = 115.dp, max = 115.dp).padding(8.dp))
+                    Text(row[key].orEmpty(), Modifier.width(120.dp).padding(8.dp))
                 }
             }
             HorizontalDivider()
@@ -549,22 +590,48 @@ private fun SurfaceTable(spec: SurfaceSpec.Table) {
     spec.caption?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SurfaceChart(spec: SurfaceSpec.Chart) {
-    val colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary)
+    val colors = ReiTheme.colors.charts
+    val baselineColor = MaterialTheme.colorScheme.outlineVariant
     val values = spec.series.map { it.second }
-    val ceiling = values.flatten().filterNotNull().maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1f) ?: 1f
+    val nums = values.flatten().filterNotNull()
+    val minVal = (nums.minOrNull() ?: 0f).coerceAtMost(0f)
+    val maxVal = (nums.maxOrNull() ?: 0f).coerceAtLeast(0f)
+    val span = (maxVal - minVal).coerceAtLeast(1f)
     if (spec.labels.isNotEmpty() && values.isNotEmpty()) {
         Canvas(Modifier.fillMaxWidth().height(130.dp)) {
+            val baselineY = (maxVal / span) * size.height
+            if (minVal < 0f && maxVal > 0f) {
+                drawLine(baselineColor, Offset(0f, baselineY), Offset(size.width, baselineY), strokeWidth = 1.dp.toPx())
+            }
             val barWidth = size.width / (spec.labels.size * values.size)
             for (i in spec.labels.indices) for (j in values.indices) {
                 val value = values[j].getOrNull(i) ?: continue
-                val y = (value / ceiling) * (size.height / 2)
+                val barHeight = (kotlin.math.abs(value) / span) * size.height
+                val top = if (value >= 0f) baselineY - barHeight else baselineY
                 drawRect(
                     colors[j % colors.size],
-                    topLeft = Offset((i * values.size + j) * barWidth, size.height / 2 - y.coerceAtLeast(0f)),
-                    size = Size(barWidth * 0.8f, kotlin.math.abs(y)),
+                    topLeft = Offset((i * values.size + j) * barWidth, top),
+                    size = Size(barWidth * 0.8f, barHeight),
                 )
+            }
+        }
+    }
+    if (spec.series.any { it.first.isNotBlank() }) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(top = 4.dp),
+        ) {
+            spec.series.forEachIndexed { index, (name, _) ->
+                if (name.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(colors[index % colors.size]))
+                        Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }
@@ -595,32 +662,30 @@ private fun SurfaceInspector(api: ReiApi, sessionId: String, id: String, title: 
             error = failure.message ?: "Could not load this surface."
         }
     }
-    AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text("Inspect ${title.ifBlank { "surface" }}") },
-        text = {
-            Column(Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState())) {
-                val data = answer
-                if (data == null && error == null) CircularProgressIndicator()
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                if (data != null) for ((field, heading) in listOf("revisions" to "Revisions", "actions" to "Actions", "failures" to "Failures")) {
-                    Text(heading, style = MaterialTheme.typography.titleSmall)
-                    val entries = data.objects(field).asReversed()
-                    if (entries.isEmpty()) Text("None")
-                    entries.forEach { entry ->
-                        var expanded by remember(entry) { mutableStateOf(false) }
-                        val description = listOfNotNull(
-                            entry.optionalString("revision")?.let { "#$it" },
-                            entry.optionalString("summary") ?: entry.optionalString("decision") ?: entry.optionalString("tool"),
-                        ).joinToString(" ")
-                        TextButton(onClick = { expanded = !expanded }) { Text(description.ifBlank { "Details" }) }
-                        if (expanded) SelectionContainer { Text(prettyJson.encodeToString(JsonObject.serializer(), entry)) }
-                    }
+    ReiSheet(onDismiss = dismiss, title = "Inspect ${title.ifBlank { "surface" }}") {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val data = answer
+            if (data == null && error == null) CircularProgressIndicator(Modifier.padding(vertical = 8.dp))
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (data != null) for ((field, heading) in listOf("revisions" to "Revisions", "actions" to "Actions", "failures" to "Failures")) {
+                Text(heading, style = MaterialTheme.typography.titleSmall)
+                val entries = data.objects(field).asReversed()
+                if (entries.isEmpty()) Text("None", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                entries.forEach { entry ->
+                    var expanded by remember(entry) { mutableStateOf(false) }
+                    val description = listOfNotNull(
+                        entry.optionalString("revision")?.let { "#$it" },
+                        entry.optionalString("summary") ?: entry.optionalString("decision") ?: entry.optionalString("tool"),
+                    ).joinToString(" ")
+                    TextButton(onClick = { expanded = !expanded }) { Text(description.ifBlank { "Details" }) }
+                    if (expanded) SelectionContainer { Text(prettyJson.encodeToString(JsonObject.serializer(), entry)) }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = dismiss) { Text("Close") } },
-    )
+        }
+    }
 }
 
 private fun JsonElement?.text(): String = when (this) {

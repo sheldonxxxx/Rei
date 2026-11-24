@@ -23,7 +23,7 @@ import dev.rei.android.ui.components.StatusKind
  * with "Try again" when it fails.
  */
 @Composable
-fun UpdatePrompt(modifier: Modifier = Modifier) {
+fun UpdatePrompt(modifier: Modifier = Modifier, showBanner: Boolean = true) {
     val context = LocalContext.current
     val manager = remember(context) { UpdateManager.get(context) }
     val state by manager.state.collectAsStateWithLifecycle()
@@ -57,6 +57,17 @@ fun UpdatePrompt(modifier: Modifier = Modifier) {
         )
         else -> Unit
     }
+    if (showBanner) {
+        UpdateBanner(modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp))
+    }
+}
+
+/** Progress banner for an active download/install, docked under `ReiTopBar` inside the signed-in shell. */
+@Composable
+fun UpdateBanner(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val manager = remember(context) { UpdateManager.get(context) }
+    val state by manager.state.collectAsStateWithLifecycle()
     val progress = when (val current = state) {
         is UpdateState.Downloading -> "Downloading Rei ${current.feed.versionName}" + (current.percent?.let { " · $it%" } ?: "…")
         is UpdateState.Installing ->
@@ -65,7 +76,7 @@ fun UpdatePrompt(modifier: Modifier = Modifier) {
         else -> null
     }
     if (progress != null) {
-        Box(modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
+        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             val installing = state is UpdateState.Installing
             StatusBanner(
                 progress,

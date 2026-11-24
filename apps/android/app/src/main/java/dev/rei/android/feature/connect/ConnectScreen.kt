@@ -9,13 +9,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -89,7 +94,8 @@ fun ConnectScreen(
     LaunchedEffect(state.serverUrl) { if (state.serverUrl.isNotEmpty()) url = state.serverUrl }
 
     val cleartext = BuildConfig.DEBUG
-    val urlProblem = ServerAddress.validate(url, cleartext)
+    val normalizedUrl = ServerAddress.normalize(url)
+    val urlProblem = ServerAddress.validate(normalizedUrl, cleartext)
     // Errors from the server land under the field that explains them.
     val serverError = state.error
     val code0 = state.errorCode
@@ -110,14 +116,19 @@ fun ConnectScreen(
 
     fun connect() {
         tried = true
-        if (url.isNotBlank() && urlProblem == null) { focus.clearFocus(); onConnect(url.trim()) }
+        if (normalizedUrl.isNotBlank() && urlProblem == null) { focus.clearFocus(); onConnect(normalizedUrl) }
     }
     val canSignIn = !working && password.isNotEmpty() && label.isNotBlank() &&
         (!setup || password.length >= 12) &&
         (!needsCode || if (setup) code.isNotBlank() else code.length == 6)
     fun signIn() { if (canSignIn) { focus.clearFocus(); onSignIn(password, code, label) } }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding().imePadding()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)),
+    ) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -129,7 +140,7 @@ fun ConnectScreen(
             Surface(
                 modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                 shape = ReiShapes.Card,
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                color = ReiTheme.colors.card,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -152,7 +163,9 @@ fun ConnectScreen(
                         }
                     }
                     if (banner != null) StatusBanner(banner, kind = StatusKind.Error)
-                    if (working) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Box(Modifier.fillMaxWidth().height(4.dp)) {
+                        if (working) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    }
                     if (auth == null) {
                         ReiTextField(
                             value = url,
@@ -161,14 +174,13 @@ fun ConnectScreen(
                             placeholder = "https://rei.example.com",
                             enabled = !working,
                             error = connectError ?: urlProblem?.takeIf { tried || url.trim().startsWith("http://") || url.contains(' ') },
-                            supportingText = ServerAddress.hint(url, cleartext) ?: "The address of the Rei you run.",
+                            supportingText = ServerAddress.hint(normalizedUrl, cleartext) ?: "The address of the Rei you run.",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                             keyboardActions = KeyboardActions(onGo = { connect() }),
-                            contentType = ContentType.Username,
                         )
                         Button(
                             onClick = ::connect,
-                            enabled = !working && url.isNotBlank() && (urlProblem == null),
+                            enabled = !working && url.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                             shape = ReiShapes.Pill,
                         ) { Text("Connect") }
@@ -228,6 +240,8 @@ fun ConnectScreen(
                             label = "Device name",
                             enabled = !working,
                             supportingText = "Shown in Settings → Devices so you can sign it out later.",
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { signIn() }),
                         )
                         Button(
                             onClick = ::signIn,

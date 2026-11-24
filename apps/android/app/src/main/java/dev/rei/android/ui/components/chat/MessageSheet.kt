@@ -11,7 +11,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import dev.rei.android.data.Message
 import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
+import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.icons.ReiIcons
 
@@ -90,11 +90,13 @@ fun SelectTextSheet(text: String, onDismiss: () -> Unit) {
 fun EditMessageSheet(initial: String, onDismiss: () -> Unit, onSend: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
     ReiSheet(onDismiss = onDismiss, title = "Edit message") {
-        Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                text,
-                { text = it },
-                Modifier.fillMaxWidth().semantics { contentDescription = "Edited message" },
+        Column(Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ReiTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = "Edited message",
+                singleLine = false,
+                minLines = 3,
                 maxLines = 8,
             )
             Text(

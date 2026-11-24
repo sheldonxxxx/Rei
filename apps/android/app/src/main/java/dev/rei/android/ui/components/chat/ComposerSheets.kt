@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -52,7 +53,7 @@ import dev.rei.android.ui.icons.ReiIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
-/** The one attachment sheet behind the composer's `+`: device files, photos, the Library and slash commands. */
+/** The one attachment sheet behind the composer's `+`: device files, photos, the Library and skills. */
 @Composable
 fun AttachmentSheet(
     onDismiss: () -> Unit,
@@ -60,12 +61,15 @@ fun AttachmentSheet(
     onPhotos: () -> Unit,
     onLibrary: () -> Unit,
     onSlashCommands: () -> Unit,
+    attachmentsFull: Boolean = false,
 ) {
+    val fileLimitSummary = if (attachmentsFull) "At most ${AttachmentRef.MaxCount} attachments per message" else null
+    val rowAlpha = Modifier.alpha(if (attachmentsFull) 0.5f else 1f)
     ReiSheet(onDismiss = onDismiss, title = "Add to your message") {
-        SettingsRow("Device files", icon = ReiIcons.File, onClick = onDeviceFiles)
-        SettingsRow("Photos", icon = ReiIcons.Image, onClick = onPhotos)
-        SettingsRow("Library", icon = ReiIcons.Library, onClick = onLibrary)
-        SettingsRow("Slash commands", icon = ReiIcons.Terminal, onClick = onSlashCommands, summary = "Run one of the agent’s skills")
+        SettingsRow("Device files", modifier = rowAlpha, icon = ReiIcons.File, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onDeviceFiles)
+        SettingsRow("Photos", modifier = rowAlpha, icon = ReiIcons.Image, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onPhotos)
+        SettingsRow("Library", modifier = rowAlpha, icon = ReiIcons.Library, summary = fileLimitSummary, onClick = if (attachmentsFull) null else onLibrary)
+        SettingsRow("Skills", icon = ReiIcons.Terminal, onClick = onSlashCommands, summary = "Run one of the agent’s skills")
     }
 }
 
@@ -127,7 +131,7 @@ fun LibraryAttachmentSheet(api: ReiApi, onDismiss: () -> Unit, onSelect: (Attach
 /** What `/` offers: the skills this chat's agent can run. Choosing one adds a chip; the next message carries it. */
 @Composable
 fun SkillSheet(skills: List<SkillOption>, loaded: Boolean, onDismiss: () -> Unit, onSelect: (SkillOption) -> Unit) {
-    ReiSheet(onDismiss = onDismiss, title = "Slash commands") {
+    ReiSheet(onDismiss = onDismiss, title = "Skills") {
         if (!loaded) {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
         } else if (skills.isEmpty()) {

@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -100,8 +101,19 @@ class WorkspaceScreensTest {
                 )
             }
         }
-        listOf("Info", "History", "Download", "Move to Trash").forEach { compose.onNodeWithContentDescription(it).assertIsEnabled().performClick() }
-        assertEquals(listOf("info", "history", "download", "trash"), calls)
+        compose.onNodeWithContentDescription("Info").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("Download").assertIsEnabled().performClick()
+        val hasOverflow = compose.onAllNodesWithContentDescription("File options").fetchSemanticsNodes().isNotEmpty()
+        if (hasOverflow) {
+            compose.onNodeWithContentDescription("File options").performClick()
+            compose.onNodeWithText("History").performClick()
+            compose.onNodeWithContentDescription("File options").performClick()
+            compose.onNodeWithText("Move to Trash").performClick()
+        } else {
+            compose.onNodeWithContentDescription("History").assertIsEnabled().performClick()
+            compose.onNodeWithContentDescription("Move to Trash").assertIsEnabled().performClick()
+        }
+        assertEquals(listOf("info", "download", "history", "trash"), calls)
     }
 
     @Test

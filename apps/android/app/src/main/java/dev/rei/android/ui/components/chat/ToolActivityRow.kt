@@ -78,7 +78,12 @@ fun ToolActivityRow(
     val acted = steps.count { it.sideEffect }
     val heading = activityHeading(run, waitingForApproval)
     val scale = LocalMotionScale.current
-    val rotation by animateFloatAsState(if (open) 0f else -90f, tween((ReiMotion.CeilingMs * 0.5f * scale).toInt()), label = "chevron")
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val rotation by animateFloatAsState(
+        if (open) 0f else -90f,
+        tween(if (scale <= 0f) 0 else (ReiMotion.CeilingMs * 0.5f).toInt()),
+        label = "chevron",
+    )
 
     Column(modifier.fillMaxWidth().arrive(ReiEnter.Rise), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
@@ -95,7 +100,7 @@ fun ToolActivityRow(
         ) {
             Text(heading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Icon(
-                ReiIcons.Down,
+                ReiIcons.Chevron,
                 contentDescription = null,
                 Modifier.size(18.dp).rotate(rotation),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -111,7 +116,7 @@ fun ToolActivityRow(
                 )
             }
         }
-        AnimatedVisibility(open, enter = ReiMotion.enter(ReiEnter.Fade, scale), exit = ReiMotion.exit(scale)) {
+        AnimatedVisibility(open, enter = ReiMotion.enter(ReiEnter.Fade, scale, density), exit = ReiMotion.exit(scale)) {
             Column(Modifier.padding(bottom = 4.dp).testTag("activity-list"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (detail) {
                     Text(
@@ -134,6 +139,15 @@ fun ToolActivityRow(
                     }
                 } else {
                     Column(Modifier.padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        val hidden = steps.size - shown.size
+                        if (hidden > 0) {
+                            Text(
+                                "+$hidden earlier ${if (hidden == 1) "step" else "steps"}",
+                                Modifier.padding(vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         shown.forEach { step -> ActivityRowItem(step, false, outcomes, waitingForApproval, null, onOpenPage) }
                     }
                 }
@@ -218,7 +232,7 @@ internal fun ActivityRowItem(
             }
         }
         if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
-        if (onInspect != null) Icon(ReiIcons.Chevron, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
+        if (onInspect != null) Icon(ReiIcons.Forward, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
     }
 }
 

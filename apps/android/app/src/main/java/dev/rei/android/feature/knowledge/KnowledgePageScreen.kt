@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -73,6 +74,7 @@ fun KnowledgePageScreen(
     onOpenPage: (String) -> Unit,
     onClose: () -> Unit,
     onDirtyChanged: (Boolean) -> Unit = {},
+    showBack: Boolean = true,
 ) {
     val vm: KnowledgePageViewModel = viewModel(factory = KnowledgePageViewModel.factory(target, container))
     val state by vm.state.collectAsStateWithLifecycle()
@@ -104,7 +106,7 @@ fun KnowledgePageScreen(
         api = api,
         menuOpen = menu,
         onMenu = { menu = it },
-        onBack = ::back,
+        onBack = if (showBack || state.editing) ::back else null,
         onEdit = vm::edit,
         onSave = vm::save,
         onTitle = vm::setTitle,
@@ -139,7 +141,7 @@ fun KnowledgePageContent(
     api: ReiApi?,
     menuOpen: Boolean,
     onMenu: (Boolean) -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     onEdit: () -> Unit,
     onSave: () -> Unit,
     onTitle: (String) -> Unit,
@@ -210,7 +212,11 @@ private fun PageReader(page: KnowledgePageData, api: ReiApi?, onOpenPage: (Strin
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current
     val updated = remember(page.updatedAt) { relative(context, page.updatedAt) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 760.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         if (page.trashed) StatusBanner("This page is in Trash.", actionLabel = "Restore", onAction = onRestore)
         if (page.locked) StatusBanner("This page is locked. Open it in Rei web to change it.")
         if (page.ancestors.isNotEmpty()) {
@@ -261,6 +267,7 @@ private fun PageReader(page: KnowledgePageData, api: ReiApi?, onOpenPage: (Strin
         }
         Box(Modifier.size(24.dp))
     }
+    }
 }
 
 @Composable
@@ -275,7 +282,11 @@ private fun PageEditor(
     onReload: () -> Unit,
 ) {
     val draft = state.draft
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 760.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
         state.saveError?.let { message ->
             if (state.conflict) StatusBanner("$message Reload to see the latest version; your edits here will be discarded.", kind = StatusKind.Error, actionLabel = "Reload page", onAction = onReload)
             else StatusBanner(message, kind = StatusKind.Error)
@@ -303,5 +314,6 @@ private fun PageEditor(
             )
         }
         Box(Modifier.size(24.dp))
+    }
     }
 }
