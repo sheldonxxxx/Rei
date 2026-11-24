@@ -1,7 +1,10 @@
-// `./rei <command>`: the basic operations the web app cannot do (set up, start, stop, redeploy, check, recover the
-// account, show the setup code). Run it on the machine where docker runs; it finds the repository from its own location
-// and reaches the stack only through `docker compose` and the published app port.
-import { dirname, resolve } from "node:path";
+// `./rei <command>` in a checkout, `rei <command>` from npm (rei-ai): the basic operations the web app cannot do (set up,
+// start, stop, redeploy or upgrade, check, recover the account, show the setup code). Run it on the machine where docker
+// runs; it finds the stack from its own location (layout.ts) and reaches it only through `docker compose` and the
+// published app port.
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callers } from "./commands/callers.ts";
 import { doctor } from "./commands/doctor.ts";
@@ -14,11 +17,17 @@ import { setup } from "./commands/setup.ts";
 import { setupCode } from "./commands/setup-code.ts";
 import { sources } from "./commands/sources.ts";
 import { status } from "./commands/status.ts";
-import { makeCtx } from "./ctx.ts";
+import { upgrade } from "./commands/upgrade.ts";
+import type { Ctx, CtxParts, Mode } from "./ctx.ts";
+import { BUILD_OVERLAY, makeCtx } from "./ctx.ts";
 import { loadGuide, useGuide } from "./guide.ts";
 import { initSecrets } from "./init.ts";
+import { isInstalled } from "./install.ts";
+import { locate, phrase } from "./layout.ts";
 import { realClock, realHost, realOut, realPrompter } from "./real.ts";
 import { realRunner } from "./runner.ts";
+import { updateNotice } from "./update-check.ts";
+import { cliVersion } from "./version.ts";
 
 const USAGE = `Rei レイ · your personal AI workspace
 
@@ -27,6 +36,7 @@ const USAGE = `Rei レイ · your personal AI workspace
   ./rei stop            Stop Rei services (--all: Dodai too)
   ./rei restart         Restart Rei services (--all: Dodai too)
   ./rei redeploy        Rebuild Rei images and redeploy (keeps data)
+  ./rei upgrade         Move to this version's images (keeps data)
   ./rei status          See whether Rei is running
   ./rei doctor          Check problems and show how to fix them
   ./rei reset-password  Recover your Rei account
@@ -66,6 +76,8 @@ function help(command?: string): string {
       return IMPORT_HELP;
     case "init":
       return "./rei init\n\nCreate what the stack needs once: containers/.env, the shared secrets in containers/.secrets/secrets.env and the external storage volumes. Existing values are never replaced. Setup runs it; containers/init.sh is the same command.";
+    case "upgrade":
+      return "./rei upgrade [--force]\n\nMove this installation to the release of this CLI: install it first with npm i -g rei-ai@<version>. The configuration is copied to backups/ in REI_HOME, the new compose files are written, the new images are pulled and the services recreated, and doctor checks the result. Data volumes and secrets are kept; the new release upgrades its databases when it starts. A downgrade is refused; --force writes the older files anyway.";
     case "redeploy":
       return "./rei redeploy [--no-cache]\n\nRebuild the web app and all Rei-built Compose images, then recreate services. Docker's build cache is reused, so unchanged layers are fast; --no-cache forces a full rebuild. Docker data volumes and secrets are preserved.";
     default:
@@ -80,41 +92,65 @@ const FLAGS: Record<string, string[]> = {
   stop: ["--all"],
   restart: ["--all"],
   redeploy: ["--no-cache"],
+  upgrade: ["--force"],
   doctor: ["--json"],
   status: ["--json"],
   "reset-password": [],
   init: [],
 };
 
+/** The overview for this mode: a checkout redeploys from source, an npm installation upgrades to its version. */
+function usage(mode: Mode): string {
+  const drop = mode === "source" ? "./rei upgrade " : "./rei redeploy ";
+  return USAGE.split("\n")
+    .filter((line) => !line.trimStart().startsWith(drop))
+    .join("\n");
+}
+
 async function main(argv: string[]): Promise<number> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const layout = locate(here, process.env, homedir(), existsSync);
+  const mode: Mode = existsSync(join(layout.containersDir, BUILD_OVERLAY)) ? "source" : "image";
+  const say = (text: string): string => phrase(text, mode, layout.containersDir, homedir());
+  const version = cliVersion(mode === "source" ? layout.root : here);
   const basic = argv.includes("--basic");
   const [command, ...flags] = argv.filter((arg) => arg !== "--basic");
-  if (command === "--help" || command === "-h" || command === "help") {
-    console.log(USAGE);
+  if (command === "--version" || command === "-v") {
+    console.log(version);
     return 0;
   }
-  if (!command) {
-    console.log(USAGE);
+  if (!command || command === "--help" || command === "-h" || command === "help") {
+    console.log(say(usage(mode)));
     return 0;
   }
   if (command === "import" && (flags.includes("--help") || flags.includes("-h"))) {
-    console.log(help(command));
+    console.log(say(help(command)));
     return 0;
+  }
+  const parts = (p: Pick<CtxParts, "guide" | "out" | "prompter">): CtxParts => ({
+    ...p,
+    root: layout.root,
+    containersDir: layout.containersDir,
+    ...(layout.assetsDir ? { assetsDir: layout.assetsDir } : {}),
+    version,
+    runner: realRunner(),
+    clock: realClock,
+    host: realHost(),
+    fetch: globalThis.fetch,
+    env: process.env,
+  });
+  // An npm installation that was never set up has no compose files to act on: say what to do instead of a docker error.
+  const needsStack = !["setup", "init", "start", "upgrade"].includes(command);
+  if (mode === "image" && needsStack && !existsSync(join(layout.containersDir, "compose.yaml"))) {
+    console.error(
+      say(`rei: Rei is not set up in ${layout.containersDir}. Run rei setup first (REI_HOME picks another folder).`),
+    );
+    return 1;
   }
   // Passed to the gateway's own CLI as they are: its options are its own, and it answers on the terminal.
   // `import` reads an export here and talks to the app's HTTP API; its options are its own too.
   if (command === "callers" || command === "sources" || command === "reader" || command === "import") {
-    const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-    const ctx = makeCtx({
-      root,
-      runner: realRunner(),
-      out: realOut(),
-      clock: realClock,
-      host: realHost(),
-      prompter: realPrompter(),
-      fetch: globalThis.fetch,
-      env: process.env,
-    });
+    const ctx = makeCtx(parts({ out: realOut(), prompter: realPrompter() }));
     if (command === "reader") return reader(ctx, flags);
     if (command === "import") return importCommand(ctx, flags);
     return command === "callers" ? callers(ctx, flags) : sources(ctx, flags);
@@ -122,42 +158,48 @@ async function main(argv: string[]): Promise<number> {
   const allowed = FLAGS[command];
   if (!allowed) {
     console.error(`rei: unknown command "${command}"\n`);
-    console.error(USAGE);
+    console.error(say(usage(mode)));
     return 2;
   }
   if (flags.includes("--help") || flags.includes("-h")) {
-    console.log(help(command));
+    console.log(say(help(command)));
     return 0;
   }
   const unknown = flags.filter((f) => !allowed.includes(f));
   if (unknown.length) {
-    console.error(`rei ${command}: unknown option ${unknown.join(", ")}\n\n${USAGE}`);
+    console.error(say(`rei ${command}: unknown option ${unknown.join(", ")}\n\n${usage(mode)}`));
     return 2;
   }
   const terminal = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  const guidedCommand = ["setup", "reset-password", "redeploy"].includes(command);
+  const guidedCommand = ["setup", "reset-password", "redeploy", "upgrade"].includes(command);
   const wantsGuide = guidedCommand && useGuide(argv, process.env, terminal);
   const guided = wantsGuide ? await loadGuide() : undefined;
   if (!basic && wantsGuide && !guided) console.log("Using basic prompts. Run npm ci to enable the guided interface.");
-  const ctx = makeCtx({
-    guide: guided?.guide,
-    root: resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."),
-    runner: realRunner(),
-    out: guided
-      ? {
-          line: (text = "") => {
-            if (text) guided.guide.message(text);
-          },
-          color: false,
-        }
-      : realOut(),
-    clock: realClock,
-    host: realHost(),
-    prompter: guided?.prompter ?? realPrompter(),
-    fetch: globalThis.fetch,
-    env: process.env,
-  });
+  const ctx = makeCtx(
+    parts({
+      ...(guided ? { guide: guided.guide } : {}),
+      out: guided
+        ? {
+            line: (text = "") => {
+              if (text) guided.guide.message(text);
+            },
+            color: false,
+          }
+        : realOut(),
+      prompter: guided?.prompter ?? realPrompter(),
+    }),
+  );
   const has = (flag: string) => flags.includes(flag);
+  const code = await run(ctx, command, has);
+  // Once a day, an npm installation may say that a newer rei-ai exists. Never on --json output.
+  if (!has("--json") && isInstalled(ctx)) {
+    const notice = await updateNotice(ctx);
+    if (notice) console.error(`\n${notice}`);
+  }
+  return code;
+}
+
+async function run(ctx: Ctx, command: string, has: (flag: string) => boolean): Promise<number> {
   switch (command) {
     case "start":
       if (!ctx.host.stat(resolve(ctx.containersDir, ".secrets", "secrets.env")))
@@ -168,6 +210,8 @@ async function main(argv: string[]): Promise<number> {
       return lifecycle(ctx, command, { all: has("--all") });
     case "redeploy":
       return redeploy(ctx, { noCache: has("--no-cache") });
+    case "upgrade":
+      return upgrade(ctx, { force: has("--force") });
     case "setup":
       return setup(ctx, {
         nonInteractive: has("--non-interactive"),

@@ -5,6 +5,7 @@ import type { PsRow } from "./compose.ts";
 import { Compose } from "./compose.ts";
 import { parseDotenv } from "./dotenv.ts";
 import type { Clock, Guide, Host, Out, Prompter, Runner } from "./io.ts";
+import { phrase } from "./layout.ts";
 import type { Publish } from "./validate.ts";
 import { appAddress, parsePublish } from "./validate.ts";
 
@@ -23,6 +24,10 @@ export interface Ctx {
   mode: Mode;
   /** How a person runs this CLI, for messages: ./rei or rei. */
   cli: string;
+  /** The packaged compose files and scripts that image mode writes into REI_HOME. */
+  assetsDir?: string;
+  /** This CLI's version: the release whose images an npm installation runs. */
+  version: string;
   composeFile: string;
   /** Rei's own stack (compose.yaml). */
   compose: Compose;
@@ -44,6 +49,8 @@ export interface CtxParts {
   root: string;
   /** REI_HOME in an npm installation; <root>/containers when it is not given. */
   containersDir?: string;
+  assetsDir?: string;
+  version?: string;
   runner: Runner;
   out: Out;
   clock: Clock;
@@ -72,8 +79,24 @@ export function makeCtx(p: CtxParts): Ctx {
     files("compose.dodai"),
     p.env.REI_PROJECT ? `${p.env.REI_PROJECT}-dodai` : undefined,
   );
+  // Messages are written for a checkout (./rei, containers/…); an npm installation says them its own way.
+  const say = (text: string): string => phrase(text, mode, containersDir, p.host.homeDir);
+  const out: Out =
+    mode === "source" ? p.out : { line: (text?: string) => p.out.line(text && say(text)), color: p.out.color };
+  const guide: Guide | undefined =
+    mode === "source" || !p.guide
+      ? p.guide
+      : {
+          intro: (title) => p.guide?.intro(say(title)),
+          outro: (message) => p.guide?.outro(say(message)),
+          message: (message, kind) => p.guide?.message(say(message), kind),
+          task: (message, work) => (p.guide as Guide).task(say(message), work),
+        };
   return {
     ...p,
+    ...(guide ? { guide } : {}),
+    out,
+    version: p.version ?? "0.0.0",
     containersDir,
     mode,
     cli: mode === "source" ? "./rei" : "rei",

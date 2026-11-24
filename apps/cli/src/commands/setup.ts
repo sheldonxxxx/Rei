@@ -1,5 +1,6 @@
-// `rei setup`: one command from a fresh checkout to a running, checked stack. Every step is safe to repeat, so after a
-// failure (the first one stops the run) fix what it says and run it again.
+// `rei setup`: one command from a fresh checkout, or a fresh npm installation, to a running, checked stack. Every step is
+// safe to repeat, so after a failure (the first one stops the run) fix what it says and run it again. A checkout builds
+// its images; an npm installation writes its compose files into REI_HOME and pulls the published images instead.
 
 import { join } from "node:path";
 import { composeVersion, disk, dockerDaemon, nodeVersion, publishPort } from "../checks/preflight.ts";
@@ -20,6 +21,7 @@ import { writeEnvText } from "../env-file.ts";
 import type { CheckResult } from "../format.ts";
 import { fail, ok, printRow, row, skip, warn } from "../format.ts";
 import { initSecrets } from "../init.ts";
+import { installAssets, installedVersion, markInstalled } from "../install.ts";
 import { restrictReiStorageKey } from "../storage/garage.ts";
 import { showSetupCode } from "./setup-code.ts";
 
@@ -63,14 +65,34 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
   report("disk", "disk", disk(ctx));
   if (!report("port", "published port", await publishPort(ctx))) return stop();
 
+  const image = ctx.mode === "image";
+  if (image && !report("files", "installation files", files(ctx))) return stop();
+
   ctx.guide?.message("2 of 3 · Preparing Rei. The first run can take a few minutes.");
   // 2. Secrets
   if (!report("secrets", "secrets", await secrets(ctx))) return stop();
 
   report("tz", "time zone", timeZoneStep(ctx));
 
-  // 3. Dependencies and the PWA
-  if (ctx.host.stat(join(ctx.root, "node_modules"))) report("deps", "dependencies", ok("node_modules present"));
+  // 3. Dependencies and the PWA (a checkout), or the published images (an npm installation)
+  if (image) {
+    for (const [project, name] of [
+      [ctx.shared, "Dodai"],
+      [ctx.compose, "Rei"],
+    ] as const) {
+      const code = await setupCommand(ctx, `Downloading ${name}'s images…`, "docker", project.args(["pull"]));
+      if (
+        !report(
+          "pull",
+          `${name}'s images`,
+          code === 0
+            ? ok("pulled")
+            : fail(`docker compose pull exited ${code}`, "read its output above; it needs network access"),
+        )
+      )
+        return stop();
+    }
+  } else if (ctx.host.stat(join(ctx.root, "node_modules"))) report("deps", "dependencies", ok("node_modules present"));
   else if (
     !report(
       "deps",
@@ -79,7 +101,9 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
     )
   )
     return stop();
-  if (o.skipBuild) report("web", "web app", skip("--skip-build"));
+  if (image) {
+    // The web app is in the control image.
+  } else if (o.skipBuild) report("web", "web app", skip("--skip-build"));
   else if (
     !report(
       "web",
@@ -100,7 +124,8 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
   // because Rei's control plane needs the gateway and compose cannot order services across two projects.
   await retireLegacyGateway(ctx);
   await retireLegacyStorage(ctx);
-  let upCode = await setupCommand(ctx, "Starting Dodai…", "docker", ctx.shared.args(["up", "-d", "--build", "--wait"]));
+  const build = image ? "--no-build" : "--build";
+  let upCode = await setupCommand(ctx, "Starting Dodai…", "docker", ctx.shared.args(["up", "-d", build, "--wait"]));
   if (upCode === 0) {
     // Rei's own key may use rei-files and make no other bucket; callers' buckets are made by ./rei callers --storage.
     const warning = await restrictReiStorageKey(ctx);
@@ -111,7 +136,9 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
       ctx,
       "Starting Rei…",
       "docker",
-      ctx.compose.args(["up", "-d", "--build", "--remove-orphans"]),
+      ctx.compose.args(
+        image ? ["up", "-d", "--no-build", "--wait", "--remove-orphans"] : ["up", "-d", "--build", "--remove-orphans"],
+      ),
     );
   if (upCode === 0) await dropLegacyStorageNetwork(ctx);
   ctx.reset();
@@ -121,7 +148,10 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
       "start the stack",
       upCode === 0
         ? ok("docker compose up finished")
-        : fail(`docker compose up exited ${upCode}`, "read its output above (a build error shows there)"),
+        : fail(
+            `docker compose up exited ${upCode}`,
+            image ? "read its output above" : "read its output above (a build error shows there)",
+          ),
     )
   )
     return stop();
@@ -135,8 +165,28 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
 
   // Done: where to open Rei and the setup code, when the first account is still to be created.
   if (!(await finish(ctx))) return stop();
+  if (image) markInstalled(ctx);
   ctx.guide?.outro("Complete setup and change settings in the Rei web app.");
   return 0;
+}
+
+/**
+ * An npm installation: its compose files and scripts, written into REI_HOME (.env and .secrets/ are never touched). A
+ * different release is moved to with `rei upgrade`, which keeps a copy of the configuration first.
+ */
+function files(ctx: Ctx): CheckResult {
+  const installed = installedVersion(ctx);
+  if (installed && installed !== ctx.version)
+    return fail(
+      `${ctx.containersDir} runs Rei ${installed}, and this is ${ctx.version}`,
+      "run rei upgrade to move it to this release (it keeps a copy of the configuration first)",
+    );
+  try {
+    const written = installAssets(ctx);
+    return ok(written.length ? `${written.length} written to ${ctx.containersDir}` : "up to date");
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error), "reinstall rei-ai: npm i -g rei-ai");
+  }
 }
 
 /**

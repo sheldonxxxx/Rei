@@ -9,7 +9,7 @@ interface Step {
   cwd?: string;
 }
 
-async function runStep(ctx: Ctx, step: Step): Promise<number> {
+export async function runStep(ctx: Ctx, step: Step): Promise<number> {
   if (ctx.guide) {
     const result = await ctx.guide.task(step.title, () =>
       ctx.runner.run(step.command, step.args, { ...(step.cwd ? { cwd: step.cwd } : {}) }),
@@ -31,6 +31,12 @@ async function runStep(ctx: Ctx, step: Step): Promise<number> {
  * rebuild. Dodai goes first, and Rei's are recreated once they are healthy.
  */
 export async function redeploy(ctx: Ctx, opts: { noCache?: boolean } = {}): Promise<number> {
+  if (ctx.mode === "image") {
+    ctx.out.line(
+      "rei redeploy rebuilds the images of a checkout. This installation runs published images: to move to a newer release, run npm i -g rei-ai@latest, then rei upgrade.",
+    );
+    return 2;
+  }
   ctx.guide?.intro("Rebuild and redeploy Rei");
   ctx.guide?.message(
     "This recreates Rei's containers and causes a short interruption. Data volumes and secrets are kept.",
@@ -116,7 +122,7 @@ export async function redeploy(ctx: Ctx, opts: { noCache?: boolean } = {}): Prom
   return 0;
 }
 
-function failed(ctx: Ctx, action: string, command: string, code: number, extra = ""): number {
+export function failed(ctx: Ctx, action: string, command: string, code: number, extra = ""): number {
   const message = `Could not ${action} (${command} exited ${code}).${extra ? ` ${extra}` : ""} Data volumes and secrets were not deleted.`;
   if (ctx.guide) ctx.guide.outro(message);
   else ctx.out.line(message);

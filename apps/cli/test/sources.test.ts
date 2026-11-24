@@ -4,6 +4,7 @@ import type { Ctx } from "../src/ctx.ts";
 
 const ctxWith = (state: string, interactive = vi.fn(async () => 0)) =>
   ({
+    cli: "./rei",
     compose: { ps: async () => [{ service: "control", state }], interactive },
   }) as unknown as Ctx;
 

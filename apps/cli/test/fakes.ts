@@ -1,6 +1,7 @@
 // Fakes for the CLI's edges: a docker-compose stack that answers the commands the CLI issues (and keeps a log of them),
 // an in-memory host, a terminal buffer, a clock that only moves when somebody sleeps, and scripted answers to prompts.
 import { basename } from "node:path";
+import { ASSET_FILES } from "../src/asset-files.ts";
 import type { Ctx } from "../src/ctx.ts";
 import { makeCtx } from "../src/ctx.ts";
 import type { Clock, Host, Out, Prompter, Runner, RunOptions, RunResult } from "../src/io.ts";
@@ -130,7 +131,7 @@ export class FakeStack implements Runner {
 
   /** Splits a `docker compose` argument list into the project it names and the subcommand (after the last -f file). */
   private parse(args: string[]): { shared: boolean; rest: string[] } {
-    const shared = args.includes(SHARED);
+    const shared = args.some((a) => a.endsWith("/compose.dodai.yaml"));
     const rest = args.slice(args.lastIndexOf("-f") + 2);
     if (rest[0] === "-p") rest.splice(0, 2);
     this.calls.push(`compose: ${shared ? "shared: " : ""}${rest.join(" ")}`);
@@ -202,6 +203,7 @@ export class FakeStack implements Runner {
       this.bringUp();
       return done();
     }
+    if (rest[0] === "pull") return done();
     if (rest[0] === "exec") return this.exec(rest.slice(2));
     return done("", 1, `unsupported: ${rest.join(" ")}`);
   }
@@ -440,19 +442,45 @@ export interface RigOptions extends StackOptions {
   /** What the app answers: undefined = account exists. */
   setupRequired?: boolean;
   appDown?: boolean;
-  /** An already set-up checkout: node_modules, secrets, .env. */
+  /** An already set-up checkout: node_modules, secrets, .env. With `image`, an already set-up REI_HOME. */
   checkout?: boolean;
+  /** An npm installation (image mode): REI_HOME at HOME_REI, the package's files at ASSETS, this CLI at `version`. */
+  image?: boolean;
+  /** This CLI's version (default 1.2.0). */
+  version?: string;
+  /** With `image` and a set-up REI_HOME: the version it was set up with (default: the CLI's). */
+  installed?: string;
+  /** The latest rei-ai the npm registry names; without it the registry cannot be reached. */
+  registry?: string;
   /** Answer specific confirmations differently (matched by a substring of the question). */
   confirms?: { match: string; answer: boolean }[];
 }
 
+/** REI_HOME of an npm installation in the image-mode rig. */
+export const HOME_REI = "/Users/tester/.rei";
+/** The package's assets/ in the image-mode rig. */
+export const ASSETS = "/npm/lib/node_modules/rei-ai/assets";
+/** What the package carries for each asset file: its path, so a test can tell which one landed where. */
+export const assetText = (path: string): string => `# packaged ${path}\n`;
+
 export function makeRig(o: RigOptions = {}): Rig {
   const stack = new FakeStack(o);
   const host = new FakeHost();
-  // A checkout: the build overlays are part of the repository.
-  host.files.set(COMPOSE_BUILD, { text: "services: {}\n", mode: 0o644 });
-  host.files.set(SHARED_BUILD, { text: "services: {}\n", mode: 0o644 });
-  if (o.checkout !== false) {
+  const version = o.version ?? "1.2.0";
+  if (o.image) {
+    for (const f of ASSET_FILES) host.files.set(`${ASSETS}/${f.path}`, { text: assetText(f.path), mode: 0o644 });
+    if (o.checkout !== false) {
+      for (const f of ASSET_FILES) host.files.set(`${HOME_REI}/${f.path}`, { text: assetText(f.path), mode: f.mode });
+      host.files.set(`${HOME_REI}/.secrets/secrets.env`, { text: SET_UP_SECRETS, mode: 0o600 });
+      host.files.set(`${HOME_REI}/.env`, { text: "REI_TZ=Asia/Macau\n", mode: 0o644 });
+      host.files.set(`${HOME_REI}/.installed-version`, { text: `${o.installed ?? version}\n`, mode: 0o644 });
+    }
+  } else {
+    // A checkout: the build overlays are part of the repository.
+    host.files.set(COMPOSE_BUILD, { text: "services: {}\n", mode: 0o644 });
+    host.files.set(SHARED_BUILD, { text: "services: {}\n", mode: 0o644 });
+  }
+  if (!o.image && o.checkout !== false) {
     host.files.set(`${ROOT}/node_modules/.package-lock.json`, { text: "{}", mode: 0o644 });
     host.files.set(`${ROOT}/node_modules`, { text: "", mode: 0o755 });
     host.files.set(`${ROOT}/containers/.secrets/secrets.env`, { text: SET_UP_SECRETS, mode: 0o600 });
@@ -466,12 +494,27 @@ export function makeRig(o: RigOptions = {}): Rig {
   const fetchFn = (async (input: string | URL | Request) => {
     const url = String(input);
     fetched.push(url);
+    if (url.startsWith("https://registry.npmjs.org/")) {
+      if (o.registry === undefined) throw new TypeError("fetch failed");
+      return Response.json({ name: "rei-ai", version: o.registry });
+    }
     if (o.appDown) throw new TypeError("fetch failed");
     if (url.endsWith("/api/health")) return Response.json({ ok: true });
     if (url.endsWith("/api/auth/state"))
       return Response.json({ setupRequired: o.setupRequired ?? false, signedIn: false });
     return new Response("nope", { status: 404 });
   }) as typeof fetch;
-  const ctx = makeCtx({ root: ROOT, runner: stack, out, clock, host, prompter, fetch: fetchFn, env: o.env ?? {} });
+  const ctx = makeCtx({
+    root: o.image ? HOME_REI : ROOT,
+    ...(o.image ? { containersDir: HOME_REI, assetsDir: ASSETS } : {}),
+    version,
+    runner: stack,
+    out,
+    clock,
+    host,
+    prompter,
+    fetch: fetchFn,
+    env: o.env ?? {},
+  });
   return { ctx, stack, host, out, clock, prompter, fetched };
 }

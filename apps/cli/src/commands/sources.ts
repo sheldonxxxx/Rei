@@ -8,7 +8,7 @@ export async function sources(ctx: Ctx, args: string[]): Promise<number> {
     (r) => r.service === "control" && r.state === "running",
   );
   if (!running) {
-    console.error("rei: Rei is not running, so event sources cannot be changed. Run ./rei start first.");
+    console.error(`rei: Rei is not running, so event sources cannot be changed. Run ${ctx.cli} start first.`);
     return 1;
   }
   return ctx.compose.interactive(["exec", "-T", "control", "node", "src/node/events-cli.ts", "sources", ...args]);

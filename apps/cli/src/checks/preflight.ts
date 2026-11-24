@@ -42,7 +42,8 @@ export function nodeVersion(ctx: Ctx): CheckResult {
 }
 
 export function disk(ctx: Ctx): CheckResult {
-  const free = ctx.host.freeBytes(ctx.root);
+  // REI_HOME may not exist before the first setup; its parent, the home directory, is on the same disk as a rule.
+  const free = ctx.host.freeBytes(ctx.root) ?? ctx.host.freeBytes(ctx.host.homeDir);
   if (free === undefined) return warn("free disk space could not be read");
   const gb = (free / 1024 ** 3).toFixed(1);
   return free >= MIN_FREE_BYTES
