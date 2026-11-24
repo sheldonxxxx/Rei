@@ -49,8 +49,11 @@ RUN deluser --remove-home node && delgroup node 2>/dev/null; \
  && mkdir /data && chown 1000:1000 /data && chmod 700 /data
 # ssh into the sandbox. /run/egress holds the unix socket the egress proxy asks for decisions on (a volume shared with
 # the egress container, whose user is also uid 1000); creating it here gives an empty volume the right owner.
-RUN apk add --no-cache openssh-client \
- && mkdir /run/egress && chown 1000:1000 /run/egress
+# restic makes the backups (docs/backup-user.md); /backup-staging is where a bundle is built before restic reads it (a
+# volume in compose, which takes the owner from this directory).
+RUN apk add --no-cache openssh-client restic \
+ && mkdir /run/egress && chown 1000:1000 /run/egress \
+ && mkdir /backup-staging && chown 1000:1000 /backup-staging && chmod 700 /backup-staging
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY packages/protocol/package.json ./packages/protocol/package.json

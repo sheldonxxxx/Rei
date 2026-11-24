@@ -73,7 +73,7 @@ x-exec-image: &exec-image
   image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-exec:${REI_VERSION:-dev}
 
 services:
-  control:
+  control: &control
     logging: *logging
     image: ${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-control:${REI_VERSION:-dev}
     read_only: true
@@ -125,10 +125,19 @@ services:
       GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:?run containers/init.sh}
       GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?run containers/init.sh}
       QDRANT__SERVICE__API_KEY: ${QDRANT__SERVICE__API_KEY:?run containers/init.sh}
+      # Backups (docs/backup-user.md). REI_BACKUP_DIR is a folder on this machine for the restic repository; unset, the
+      # variable below is empty and Settings says backups are not set up. The control plane has no route to the internet,
+      # so a repository is always a folder, never a cloud bucket. Bundles are built in the backup-staging volume first.
+      REI_BACKUP_PATH: ${REI_BACKUP_DIR:+/backups}
+      REI_BACKUP_STAGING: /backup-staging
     volumes:
       - control-data:/data
       - exec-client:/run/exec-keys:ro
       - egress-sock:/run/egress
+      - backup-staging:/backup-staging
+      # Compose cannot leave a mount out, so an unset REI_BACKUP_DIR mounts /dev/null (an inert file) and the path variable
+      # above stays empty. The folder must be writable by uid 1000 (the control plane's user).
+      - ${REI_BACKUP_DIR:-/dev/null}:/backups
     networks:
       internal: { ipv4_address: "${REI_NET:-10.89}.231.10" }
       gateway-admin: {}
@@ -140,6 +149,18 @@ services:
     depends_on:
       exec-keys: { condition: service_completed_successfully }
     restart: unless-stopped
+
+  # A one-off copy of the control plane for ./rei backup restore (docs/backup-user.md): the same image, volumes and secrets,
+  # run as root while the stack is stopped or being replaced. It joins only the networks it needs and takes no fixed
+  # address, so it can run next to the real control plane. The tools profile keeps `up` from ever starting it.
+  control-restore:
+    <<: *control
+    profiles: [tools]
+    depends_on: {}
+    restart: "no"
+    networks:
+      gateway-admin: {}
+      storage: {}
 
   edge:
     logging: *logging
@@ -280,6 +301,7 @@ networks:
 
 volumes:
   control-data: {}
+  backup-staging: {}
   exec-host: {}
   exec-client: {}
   exec-workspace: {}

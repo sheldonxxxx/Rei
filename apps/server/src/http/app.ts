@@ -16,6 +16,9 @@ import {
   backgroundDetailRoute,
   backgroundListRoute,
   backgroundRetryRoute,
+  backupPasswordRoute,
+  backupRepositoryRoute,
+  backupSettingsRoute,
   behaviorSettingsRoute,
   CLIENT_HEADER,
   CLIENT_QUERY,
@@ -57,6 +60,7 @@ import {
   exportSkillRoute,
   filePreview,
   firstTimeSetupRoute,
+  forgetBackupRepositoryRoute,
   forkPreviewRoute,
   forkRoute,
   gatewayUsageRoute,
@@ -122,6 +126,7 @@ import {
   renamePasskeyRoute,
   revokeDeviceRoute,
   revokeGrantRoute,
+  runBackupRoute,
   runTriggerRoute,
   type SandboxNetworkSettings,
   SESSION_COOKIE,
@@ -167,6 +172,7 @@ import {
   triggersRoute,
   undoMemoryChangeRoute,
   updateAgentRoute,
+  updateBackupSettingsRoute,
   updateBehaviorSettingsRoute,
   updateCompanionRoute,
   updateConnectorRoute,
@@ -211,6 +217,7 @@ import type { AgentDesigner } from "../pi/agent-designer.ts";
 
 const INSTRUCTIONS_MAX = 8_000;
 
+import type { BackupService } from "../backup/service.ts";
 import { EVENT_LIMITS, type EventReceiver, readLimited } from "../events/receive.ts";
 import type { EventSources } from "../events/sources.ts";
 import { type BehaviorDefaults, behaviorResponse, updateBehavior } from "../pi/behavior-settings.ts";
@@ -280,6 +287,8 @@ export interface AppDeps {
   memory?: MemoryService;
   /** Knowledge: shared long-term pages. */
   knowledge?: KnowledgeService;
+  /** Backups (Settings > Backups). */
+  backup?: BackupService;
   /** Receives signed outside events (POST /api/events/:source); without it every source is unknown. */
   events?: EventReceiver;
   /** The event sources, for the read-only list on the Triggers page. */
@@ -853,6 +862,19 @@ export function createApp(deps: AppDeps): Hono {
     return body;
   });
   mountRoute(app, timeZoneRoute, contract, () => ({ timeZone: savedTimeZone(store) }));
+  const backups = (): BackupService => {
+    if (!deps.backup) throw notFound("Backups are not available.");
+    return deps.backup;
+  };
+  mountRoute(app, backupSettingsRoute, contract, () => backups().settings());
+  mountRoute(app, updateBackupSettingsRoute, contract, (_c, { body }) => backups().update(body));
+  mountRoute(app, backupPasswordRoute, contract, async () => ({ password: await backups().generatePassword() }));
+  mountRoute(app, backupRepositoryRoute, contract, (_c, { body }) => backups().setRepository(body));
+  mountRoute(app, forgetBackupRepositoryRoute, contract, () => backups().forgetRepository());
+  mountRoute(app, runBackupRoute, contract, async () => {
+    await backups().start("manual");
+    return backups().settings();
+  });
   mountRoute(app, updateTimeZoneRoute, contract, (_c, { body }) => {
     const timeZone = knownTimeZone(body.timeZone);
     if (!timeZone) throw badRequest("bad_request", "timeZone must be an IANA time zone, such as Asia/Macau.");

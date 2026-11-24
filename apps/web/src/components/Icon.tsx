@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Archive,
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
@@ -155,6 +156,7 @@ const ICONS = {
   settings: Settings,
   image: ImageIcon,
   info: Info,
+  archive: Archive,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

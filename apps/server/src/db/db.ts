@@ -10,5 +10,7 @@ export interface Db {
   transaction<T>(fn: () => T): T;
   /** Folds the write-ahead log into the database file and empties it (after a purge, so deleted text is not left in it). */
   checkpoint?(): void;
+  /** An online, consistent copy of the whole database in a new file, while writers carry on (SQLite's backup API). */
+  backupTo?(path: string): Promise<void>;
   close(): void;
 }

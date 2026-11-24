@@ -1,5 +1,6 @@
 // `rei doctor [--json]`: what is wrong and how to fix it. Read-only: it never starts, stops, restarts or recreates anything.
 import { appHealth } from "../checks/app.ts";
+import { backupCheck } from "../checks/backup.ts";
 import { networkRows } from "../checks/network.ts";
 import { composeVersion, disk, dockerDaemon, nodeVersion } from "../checks/preflight.ts";
 import { browserSmoke, sandbox } from "../checks/sandbox.ts";
@@ -62,6 +63,7 @@ export async function doctor(ctx: Ctx, opts: { json: boolean }): Promise<number>
     add(await guard("browser", "browser", () => browserSmoke(ctx)));
     add(await networkRows(ctx));
     add(await guard("app", "app", () => appHealth(ctx)));
+    add(await guard("backup", "backups", () => backupCheck(ctx)));
   }
 
   const failed = rows.filter((r) => r.status === "fail").length;

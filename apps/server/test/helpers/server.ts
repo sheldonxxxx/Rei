@@ -50,6 +50,8 @@ export interface TestServerOptions {
   fileObjects?: NodeHostOptions["fileObjects"];
   /** The search service (a fake): the retrieval index runs, without a Qdrant container. */
   retrieval?: NodeHostOptions["retrieval"];
+  /** Backups: a folder to back up to, a fake restic, a faster tick. */
+  backup?: NodeHostOptions["backup"];
 }
 
 export interface TestServer {
@@ -98,6 +100,7 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
     // Test hosts run without Garage and Qdrant: file bytes go to a folder, and history search stays keyword-only.
     garage: undefined,
     qdrant: undefined,
+    backup: { repositoryDir: undefined, stagingDir: undefined, version: "test" },
     control,
     ...(options.codexImageGateway ? { codexImageGateway: options.codexImageGateway } : {}),
   };
@@ -116,6 +119,7 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
     ...(options.mcp ? { mcp: options.mcp } : {}),
     ...(options.fileObjects ? { fileObjects: options.fileObjects } : {}),
     ...(options.retrieval ? { retrieval: options.retrieval } : {}),
+    ...(options.backup ? { backup: options.backup } : {}),
   });
   await host.plane.start();
   if (!options.titles) host.plane.store.metaSet("title_enabled", "0");

@@ -27573,6 +27573,2272 @@
         }
       }
     },
+    "/api/settings/backups": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Backups: the schedule, the repository, the last runs and whether they are stale.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "daily": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "monthly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "weekly",
+                        "monthly"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "repository": {
+                      "enum": [
+                        "none",
+                        "pending",
+                        "ready"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "trigger": {
+                              "enum": [
+                                "schedule",
+                                "manual"
+                              ]
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "ok",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshotId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bytesAdded": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "counts": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maintenance": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "trigger",
+                            "status",
+                            "startedAt",
+                            "finishedAt",
+                            "snapshotId",
+                            "bytesAdded",
+                            "counts",
+                            "error",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastSuccessAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nextRunAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "snapshots": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "repositoryBytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "enum": [
+                              "schedule",
+                              "manual"
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "running",
+                              "ok",
+                              "failed"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "snapshotId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bytesAdded": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counts": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maintenance": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "snapshotId",
+                          "bytesAdded",
+                          "counts",
+                          "error",
+                          "maintenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "time",
+                    "timeZone",
+                    "retention",
+                    "repository",
+                    "path",
+                    "running",
+                    "lastRun",
+                    "lastSuccessAt",
+                    "nextRunAt",
+                    "stale",
+                    "snapshots",
+                    "repositoryBytes",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Turn backups on or off, set the daily time and the retention.",
+        "description": "Errors: \"bad_request\", \"backups_unavailable\", \"repository_missing\".",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "daily": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "monthly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "weekly",
+                        "monthly"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "repository": {
+                      "enum": [
+                        "none",
+                        "pending",
+                        "ready"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "trigger": {
+                              "enum": [
+                                "schedule",
+                                "manual"
+                              ]
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "ok",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshotId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bytesAdded": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "counts": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maintenance": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "trigger",
+                            "status",
+                            "startedAt",
+                            "finishedAt",
+                            "snapshotId",
+                            "bytesAdded",
+                            "counts",
+                            "error",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastSuccessAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nextRunAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "snapshots": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "repositoryBytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "enum": [
+                              "schedule",
+                              "manual"
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "running",
+                              "ok",
+                              "failed"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "snapshotId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bytesAdded": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counts": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maintenance": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "snapshotId",
+                          "bytesAdded",
+                          "counts",
+                          "error",
+                          "maintenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "time",
+                    "timeZone",
+                    "retention",
+                    "repository",
+                    "path",
+                    "running",
+                    "lastRun",
+                    "lastSuccessAt",
+                    "nextRunAt",
+                    "stale",
+                    "snapshots",
+                    "repositoryBytes",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "time": {
+                    "type": "string",
+                    "description": "A 24-hour time, HH:mm, in the user's time zone."
+                  },
+                  "retention": {
+                    "type": "object",
+                    "properties": {
+                      "daily": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 999
+                      },
+                      "weekly": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 999
+                      },
+                      "monthly": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 999
+                      }
+                    },
+                    "required": [
+                      "daily",
+                      "weekly",
+                      "monthly"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/backups/password": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Generate the password of a repository to be created. It is shown once and never again.",
+        "description": "Errors: \"backups_unavailable\", \"repository_exists\".",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "password": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "password"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/settings/backups/repository": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Create the repository with the generated password, or connect one that already exists.",
+        "description": "Errors: \"backups_unavailable\", \"bad_request\", \"repository_exists\", \"repository_failed\".",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "daily": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "monthly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "weekly",
+                        "monthly"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "repository": {
+                      "enum": [
+                        "none",
+                        "pending",
+                        "ready"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "trigger": {
+                              "enum": [
+                                "schedule",
+                                "manual"
+                              ]
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "ok",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshotId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bytesAdded": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "counts": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maintenance": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "trigger",
+                            "status",
+                            "startedAt",
+                            "finishedAt",
+                            "snapshotId",
+                            "bytesAdded",
+                            "counts",
+                            "error",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastSuccessAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nextRunAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "snapshots": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "repositoryBytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "enum": [
+                              "schedule",
+                              "manual"
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "running",
+                              "ok",
+                              "failed"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "snapshotId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bytesAdded": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counts": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maintenance": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "snapshotId",
+                          "bytesAdded",
+                          "counts",
+                          "error",
+                          "maintenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "time",
+                    "timeZone",
+                    "retention",
+                    "repository",
+                    "path",
+                    "running",
+                    "lastRun",
+                    "lastSuccessAt",
+                    "nextRunAt",
+                    "stale",
+                    "snapshots",
+                    "repositoryBytes",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "const": "create"
+                      },
+                      "confirmed": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "confirmed"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "const": "connect"
+                      },
+                      "password": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "password"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Forget the repository and its password and turn backups off. The repository's files are left where they are.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "daily": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "monthly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "weekly",
+                        "monthly"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "repository": {
+                      "enum": [
+                        "none",
+                        "pending",
+                        "ready"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "trigger": {
+                              "enum": [
+                                "schedule",
+                                "manual"
+                              ]
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "ok",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshotId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bytesAdded": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "counts": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maintenance": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "trigger",
+                            "status",
+                            "startedAt",
+                            "finishedAt",
+                            "snapshotId",
+                            "bytesAdded",
+                            "counts",
+                            "error",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastSuccessAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nextRunAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "snapshots": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "repositoryBytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "enum": [
+                              "schedule",
+                              "manual"
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "running",
+                              "ok",
+                              "failed"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "snapshotId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bytesAdded": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counts": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maintenance": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "snapshotId",
+                          "bytesAdded",
+                          "counts",
+                          "error",
+                          "maintenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "time",
+                    "timeZone",
+                    "retention",
+                    "repository",
+                    "path",
+                    "running",
+                    "lastRun",
+                    "lastSuccessAt",
+                    "nextRunAt",
+                    "stale",
+                    "snapshots",
+                    "repositoryBytes",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/settings/backups/run": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Start a backup now.",
+        "description": "Errors: \"backups_unavailable\", \"repository_missing\", \"backup_running\".",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "time": {
+                      "type": "string"
+                    },
+                    "timeZone": {
+                      "type": "string"
+                    },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "daily": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "weekly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        },
+                        "monthly": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 999
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "weekly",
+                        "monthly"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "repository": {
+                      "enum": [
+                        "none",
+                        "pending",
+                        "ready"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "lastRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "trigger": {
+                              "enum": [
+                                "schedule",
+                                "manual"
+                              ]
+                            },
+                            "status": {
+                              "enum": [
+                                "running",
+                                "ok",
+                                "failed"
+                              ]
+                            },
+                            "startedAt": {
+                              "type": "integer"
+                            },
+                            "finishedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "snapshotId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "bytesAdded": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "counts": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "integer"
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "maintenance": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "trigger",
+                            "status",
+                            "startedAt",
+                            "finishedAt",
+                            "snapshotId",
+                            "bytesAdded",
+                            "counts",
+                            "error",
+                            "maintenance"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lastSuccessAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "nextRunAt": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "type": "boolean"
+                    },
+                    "snapshots": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "repositoryBytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "trigger": {
+                            "enum": [
+                              "schedule",
+                              "manual"
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "running",
+                              "ok",
+                              "failed"
+                            ]
+                          },
+                          "startedAt": {
+                            "type": "integer"
+                          },
+                          "finishedAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "snapshotId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bytesAdded": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "counts": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer"
+                                }
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maintenance": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "trigger",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "snapshotId",
+                          "bytesAdded",
+                          "counts",
+                          "error",
+                          "maintenance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "enabled",
+                    "time",
+                    "timeZone",
+                    "retention",
+                    "repository",
+                    "path",
+                    "running",
+                    "lastRun",
+                    "lastSuccessAt",
+                    "nextRunAt",
+                    "stale",
+                    "snapshots",
+                    "repositoryBytes",
+                    "history"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
     "/api/settings/behavior": {
       "get": {
         "tags": [

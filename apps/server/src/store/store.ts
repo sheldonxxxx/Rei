@@ -1680,7 +1680,7 @@ export class AppStore {
       ...(input.messageId ? { messageId: input.messageId } : {}),
       title: flat(input.title, 80),
       body: flat(input.body, 200),
-      path: `#/s/${input.sessionId}`,
+      path: input.sessionId ? `#/s/${input.sessionId}` : "#/",
     };
     const session = this.getSessionRowAny(input.sessionId);
     this.db.run(

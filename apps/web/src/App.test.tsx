@@ -311,6 +311,7 @@ describe("Settings window", () => {
       "Capabilities",
       "Triggers",
       "Permissions",
+      "Backups",
       "Usage",
     ]);
     expect(within(nav).getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
@@ -633,6 +634,7 @@ describe("Settings window", () => {
         "Capabilities",
         "Triggers",
         "Permissions",
+        "Backups",
         "Usage",
       ]);
       expect(within(dialog()).queryByRole("link", { name: "Back to Settings" })).toBeNull();

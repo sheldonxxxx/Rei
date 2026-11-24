@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BACKUP_HELP, backupCommand } from "./commands/backup.ts";
 import { callers } from "./commands/callers.ts";
 import { doctor } from "./commands/doctor.ts";
 import { IMPORT_HELP, importCommand } from "./commands/import.ts";
@@ -45,6 +46,7 @@ const USAGE = `Rei レイ · your personal AI workspace
   ./rei callers         Manage other services that use the gateway
   ./rei sources         Manage senders of outside events (they start triggers)
   ./rei reader          Show how the shared page reader's engines are doing (stats)
+  ./rei backup          List or restore backups (snapshots, restore)
   ./rei import chatgpt  Import past chats from a ChatGPT export
   Models, memory and web search are configured in the web app.
 
@@ -75,6 +77,8 @@ function help(command?: string): string {
       return "./rei sources <add|list|rotate|disable|enable|remove> [options]\n\nManage the senders that may tell Rei something happened so a trigger can start: their secrets and whether they are accepted. Run ./rei sources with no command to see every option. See docs/events.md.";
     case "import":
       return IMPORT_HELP;
+    case "backup":
+      return BACKUP_HELP;
     case "init":
       return "./rei init\n\nCreate what the stack needs once: containers/.env, the shared secrets in containers/.secrets/secrets.env and the external storage volumes. Existing values are never replaced. Setup runs it.";
     case "upgrade":
@@ -126,7 +130,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(say(usage(mode)));
     return 0;
   }
-  if (command === "import" && (flags.includes("--help") || flags.includes("-h"))) {
+  if ((command === "import" || command === "backup") && (flags.includes("--help") || flags.includes("-h"))) {
     console.log(say(help(command)));
     return 0;
   }
@@ -160,10 +164,17 @@ async function main(argv: string[]): Promise<number> {
   };
   // Passed to the gateway's own CLI as they are: its options are its own, and it answers on the terminal.
   // `import` reads an export here and talks to the app's HTTP API; its options are its own too.
-  if (command === "callers" || command === "sources" || command === "reader" || command === "import") {
+  if (
+    command === "callers" ||
+    command === "sources" ||
+    command === "reader" ||
+    command === "import" ||
+    command === "backup"
+  ) {
     if (notSetUp()) return 1;
     const ctx = makeCtx(parts({ out: realOut(), prompter: realPrompter() }));
     if (refused(ctx)) return 2;
+    if (command === "backup") return backupCommand(ctx, flags);
     if (command === "reader") return reader(ctx, flags);
     if (command === "import") return importCommand(ctx, flags);
     return command === "callers" ? callers(ctx, flags) : sources(ctx, flags);

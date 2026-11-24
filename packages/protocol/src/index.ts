@@ -2,6 +2,7 @@
 // of the client contract (`contract/`, ADR 0008). Everything here runs unchanged in the browser, on Node and in Workers.
 
 export * from "./api.ts";
+export * from "./backup.ts";
 export * from "./browser.ts";
 export * from "./contract/index.ts";
 export type * from "./entities.ts";

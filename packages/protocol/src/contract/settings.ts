@@ -39,6 +39,13 @@ import type {
   UpdateTitleSettingsRequest,
 } from "../api.ts";
 import type {
+  BackupPasswordResponse,
+  BackupRepositoryRequest,
+  BackupRun,
+  BackupSettings,
+  UpdateBackupSettingsRequest,
+} from "../backup.ts";
+import type {
   CheckEmbeddingSetupResponse,
   EmbeddingSetupSettings,
   ModelLimits,
@@ -282,6 +289,56 @@ export const UpdateTimeZoneRequestSchema = obj({
 });
 true satisfies Same<Static<typeof UpdateTimeZoneRequestSchema>, UpdateTimeZoneRequest>;
 
+const BackupRetentionSchema = obj({
+  daily: int({ minimum: 0, maximum: 999 }),
+  weekly: int({ minimum: 0, maximum: 999 }),
+  monthly: int({ minimum: 0, maximum: 999 }),
+});
+export const BackupRunSchema = obj({
+  id: str(),
+  trigger: oneOf(["schedule", "manual"]),
+  status: oneOf(["running", "ok", "failed"]),
+  startedAt: int(),
+  finishedAt: nullable(int()),
+  snapshotId: nullable(str()),
+  bytesAdded: nullable(int()),
+  counts: nullable(map(int())),
+  error: nullable(str()),
+  maintenance: nullable(str()),
+});
+true satisfies Same<Static<typeof BackupRunSchema>, BackupRun>;
+export const BackupSettingsSchema = obj({
+  available: bool(),
+  enabled: bool(),
+  time: str(),
+  timeZone: str(),
+  retention: BackupRetentionSchema,
+  repository: oneOf(["none", "pending", "ready"]),
+  path: str(),
+  running: bool(),
+  lastRun: nullable(BackupRunSchema),
+  lastSuccessAt: nullable(int()),
+  nextRunAt: nullable(int()),
+  stale: bool(),
+  snapshots: nullable(int()),
+  repositoryBytes: nullable(int()),
+  history: arr(BackupRunSchema),
+});
+true satisfies Same<Static<typeof BackupSettingsSchema>, BackupSettings>;
+export const UpdateBackupSettingsRequestSchema = obj({
+  enabled: opt(bool()),
+  time: opt(str({ description: "A 24-hour time, HH:mm, in the user's time zone." })),
+  retention: opt(BackupRetentionSchema),
+});
+true satisfies Same<Static<typeof UpdateBackupSettingsRequestSchema>, UpdateBackupSettingsRequest>;
+export const BackupPasswordResponseSchema = obj({ password: str() });
+true satisfies Same<Static<typeof BackupPasswordResponseSchema>, BackupPasswordResponse>;
+export const BackupRepositoryRequestSchema = union([
+  obj({ mode: lit("create"), confirmed: lit(true) }),
+  obj({ mode: lit("connect"), password: str({ minLength: 1, maxLength: 1000 }) }),
+]);
+true satisfies Same<Static<typeof BackupRepositoryRequestSchema>, BackupRepositoryRequest>;
+
 export const SandboxNetworkSettingsSchema = obj({ whitelist: arr(str()), defaults: arr(str()) });
 true satisfies Same<Static<typeof SandboxNetworkSettingsSchema>, SandboxNetworkSettings>;
 export const UpdateSandboxNetworkRequestSchema = union([
@@ -389,6 +446,55 @@ export const updateTimeZoneRoute = defineRoute({
   description: 'Errors: "bad_request" (not an IANA time zone).',
   body: UpdateTimeZoneRequestSchema,
   response: TimeZoneSettingsSchema,
+});
+export const backupSettingsRoute = defineRoute({
+  method: "GET",
+  path: "/api/settings/backups",
+  tag: "settings",
+  summary: "Backups: the schedule, the repository, the last runs and whether they are stale.",
+  response: BackupSettingsSchema,
+});
+export const updateBackupSettingsRoute = defineRoute({
+  method: "PUT",
+  path: "/api/settings/backups",
+  tag: "settings",
+  summary: "Turn backups on or off, set the daily time and the retention.",
+  description: 'Errors: "bad_request", "backups_unavailable", "repository_missing".',
+  body: UpdateBackupSettingsRequestSchema,
+  response: BackupSettingsSchema,
+});
+export const backupPasswordRoute = defineRoute({
+  method: "POST",
+  path: "/api/settings/backups/password",
+  tag: "settings",
+  summary: "Generate the password of a repository to be created. It is shown once and never again.",
+  description: 'Errors: "backups_unavailable", "repository_exists".',
+  response: BackupPasswordResponseSchema,
+});
+export const backupRepositoryRoute = defineRoute({
+  method: "POST",
+  path: "/api/settings/backups/repository",
+  tag: "settings",
+  summary: "Create the repository with the generated password, or connect one that already exists.",
+  description: 'Errors: "backups_unavailable", "bad_request", "repository_exists", "repository_failed".',
+  body: BackupRepositoryRequestSchema,
+  response: BackupSettingsSchema,
+});
+export const forgetBackupRepositoryRoute = defineRoute({
+  method: "DELETE",
+  path: "/api/settings/backups/repository",
+  tag: "settings",
+  summary:
+    "Forget the repository and its password and turn backups off. The repository's files are left where they are.",
+  response: BackupSettingsSchema,
+});
+export const runBackupRoute = defineRoute({
+  method: "POST",
+  path: "/api/settings/backups/run",
+  tag: "settings",
+  summary: "Start a backup now.",
+  description: 'Errors: "backups_unavailable", "repository_missing", "backup_running".',
+  response: BackupSettingsSchema,
 });
 export const sandboxNetworkRoute = defineRoute({
   method: "GET",
@@ -708,6 +814,12 @@ export const settingsRoutes = [
   updateContextSettingsRoute,
   timeZoneRoute,
   updateTimeZoneRoute,
+  backupSettingsRoute,
+  updateBackupSettingsRoute,
+  backupPasswordRoute,
+  backupRepositoryRoute,
+  forgetBackupRepositoryRoute,
+  runBackupRoute,
   sandboxNetworkRoute,
   updateSandboxNetworkRoute,
   providersRoute,

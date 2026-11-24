@@ -11,6 +11,9 @@ services:
   control:
     image: "${REI_PROJECT:-rei}/control:dev"
     build: { context: .., dockerfile: containers/control/Dockerfile }
+  # ./rei backup restore runs the control image as a one-off (it is never started by `up`).
+  control-restore:
+    image: "${REI_PROJECT:-rei}/control:dev"
   # The edge runs the control image with another command.
   edge:
     image: "${REI_PROJECT:-rei}/control:dev"

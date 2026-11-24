@@ -66,6 +66,7 @@ const HIDDEN_BODY: Record<NotifyPayload["event"], string> = {
   trigger_failed: "A scheduled task failed.",
   trigger_paused: "A scheduled task was paused.",
   session_done: "A chat has a new reply.",
+  backup_failed: "A backup needs attention.",
 };
 
 /** The payload as sent: unchanged, or with its body replaced when previews are hidden. */

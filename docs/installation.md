@@ -78,7 +78,7 @@ The default address is [http://127.0.0.1:8787](http://127.0.0.1:8787). To choose
 REI_PUBLISH=127.0.0.1:8788
 ```
 
-A new installation starts with an empty database. A later release upgrades it in place on its first start, from at least the previous minor release; Rei refuses a database that is too old or was written by a newer release, and changes nothing (see [Database upgrades](versioning.md#database-upgrades)). Take a backup before upgrading ([Backup and recovery](storage.md#backup-and-recovery)).
+A new installation starts with an empty database. A later release upgrades it in place on its first start, from at least the previous minor release; Rei refuses a database that is too old or was written by a newer release, and changes nothing (see [Database upgrades](versioning.md#database-upgrades)). Take a backup before upgrading ([Backups](backup-user.md)).
 
 ### A second stack on one machine
 
@@ -177,7 +177,7 @@ The CLI manages Rei レイ (`containers/compose.yaml`) and Dodai · 土台 (`con
 ./rei restart
 ```
 
-Keep the configured data volumes and `containers/.secrets/` when stopping the app. They contain account data, saved work, and service credentials. For a backup, stop the stack and copy its data volumes and secrets together.
+Keep the configured data volumes and `containers/.secrets/` when stopping the app. They contain account data, saved work, and service credentials. For a backup, turn on [Backups](backup-user.md) and keep a copy of the secrets with the repository password.
 
 Chat history and Library records live in SQLite; the file bytes themselves live in the Garage volume, and the history search indexes in the Qdrant volume; both belong to Dodai, so they keep running when you stop Rei, and outside callers' buckets are in the same Garage volume. Back them up together and restore them in that order — see [docs/storage.md](storage.md) for the commands, and for what each service's loss means. Qdrant is the one part that may be missing after a restore: search catches up from SQLite.
 
