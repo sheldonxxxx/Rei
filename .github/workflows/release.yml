@@ -8,10 +8,11 @@ name: Release
 #              compose files pinned to the images' digests)
 #   release    one GitHub Release with the APK, the feed and the image references
 #
-# Nothing is published before a reviewer approves the `release` environment. The approval job and the Android job both
-# wait on it at the same time, so one approval covers the images and the APK. The Android job has the signing secrets,
-# which belong to the environment, so it references it itself; every later job runs only after `approve`. The npm job
-# references it too (npm trusts only that environment), so it asks once more, after the images are pushed.
+# Only a `v*` tag may use the `release` environment, and only repository admins may push one. If the environment has
+# required reviewers, nothing is published before one approves: the approval job and the Android job wait on it at the
+# same time, so one approval covers the images and the APK, and the npm job (npm trusts only that environment) asks once
+# more after the images are pushed. Without reviewers the run goes straight through. The Android job has the signing
+# secrets, which belong to the environment, so it references it itself; every later job runs only after `approve`.
 on:
   push:
     tags: ["v*.*.*"]
@@ -58,7 +59,8 @@ jobs:
           set -euo pipefail
           node scripts/check-release-version.mjs "$TAG" | tee -a "$GITHUB_OUTPUT"
 
-  # The single approval of the release. Set required reviewers on the `release` environment (docs/versioning.md).
+  # The gate before anything is published. It waits only if the `release` environment has required reviewers
+  # (docs/versioning.md).
   approve:
     name: approve
     needs: [ci, verify-version]
@@ -71,7 +73,7 @@ jobs:
       - name: Approved
         env:
           VERSION: ${{ needs.verify-version.outputs.version }}
-        run: echo "Release $VERSION approved."
+        run: echo "Release $VERSION may publish."
 
   # The control image copies the built web app, which is not in git, so it is built once here for both architectures.
   web:
@@ -266,8 +268,8 @@ jobs:
   # The npm package rei-ai, built from this tag with every image pinned to the digest images-merge just pushed, then
   # published by npm trusted publishing (OIDC: no npm token exists anywhere) with a provenance statement. npm trusts
   # this repository, this workflow file and the `release` environment only (docs/versioning.md), so the job references
-  # the environment; it asks for its own approval once the images exist, the last check before a version that npm
-  # never lets anyone reuse. A pre-release is published under the dist-tag `next`, so `npm i rei-ai` never picks it.
+  # the environment; with required reviewers it asks for its own approval once the images exist, the last check before
+  # a version that npm never lets anyone reuse. A pre-release is published under the dist-tag `next`, so `npm i rei-ai` never picks it.
   npm:
     name: npm
     needs: [verify-version, approve, images-merge]

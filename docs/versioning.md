@@ -29,7 +29,7 @@ Rei never downgrades a database. Take a backup before an upgrade ([Backup and re
 
 ## Releasing
 
-A release is a Git tag. Pushing a tag `vX.Y.Z` (or `vX.Y.Z-suffix`) starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which checks it, waits for one approval, then publishes everything. Do the [one-time setup](#one-time-setup) first.
+A release is a Git tag. Pushing a tag `vX.Y.Z` (or `vX.Y.Z-suffix`) starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which checks it and then publishes everything without stopping. The tag is the release: only repository admins can push a `v*` tag, so pushing one is the decision to release. Do the [one-time setup](#one-time-setup) first.
 
 1. Start from an up-to-date `main` whose CI is green, and run `npm run verify`.
 2. Bump every manifest and the lockfile to the new version:
@@ -53,7 +53,7 @@ A release is a Git tag. Pushing a tag `vX.Y.Z` (or `vX.Y.Z-suffix`) starts [`.gi
    git push origin v0.2.0
    ```
 
-5. Open the run under **Actions → Release** and approve the **release** environment when it asks ("Review deployments"). This first approval covers the images and the Android build: the approval job and the Android job wait for it together, and everything that publishes runs after it. Once the images are pushed, the `npm` job asks once more for the same environment: approve it to publish `rei-ai`, the one step whose version npm never lets you reuse.
+5. Watch the run under **Actions → Release**. If the `release` environment has required reviewers (see [one-time setup](#one-time-setup)), approve it when it asks ("Review deployments"): once for the images and the Android build together, and once more when the `npm` job starts, before `rei-ai` is published.
 6. When the run is green, check the [release page](#what-a-release-contains), and after the first release make each package public (see below).
 
 A pre-release tag, for example `v0.2.0-rc.1`, goes through the same steps, but its GitHub Release is marked as a pre-release, it never becomes the latest release, its images get only their full version tag, with no `X.Y` or `latest`, and `rei-ai` is published under the npm dist-tag `next` (install it with `npm i -g rei-ai@next`), so `npm i rei-ai` keeps the stable release. Bump the manifests to `0.2.0-rc.1` for it.
@@ -65,7 +65,7 @@ Never move or reuse a tag. If a release is bad, fix forward with the next patch 
 | Stage | Jobs | What happens |
 | --- | --- | --- |
 | Gate | `ci`, `verify-version` | The CI workflow runs as a called workflow. `verify-version` fails unless the tag without the `v` equals the `version` in the root `package.json` and every workspace `package.json` (`scripts/check-release-version.mjs`). |
-| Approval | `approve` | Runs in the `release` environment, so a reviewer must approve it. Nothing is published before this. |
+| Approval | `approve` | Runs in the `release` environment. With no required reviewers it passes at once; with reviewers, nothing is published before one approves it. |
 | Images | `web`, `images-build`, `images-merge` | The web app is built once. Each of the six images is then built natively for `linux/amd64` (`ubuntu-24.04`) and `linux/arm64` (`ubuntu-24.04-arm`), with no emulation, and pushed by digest. A merge job per image joins the two into one multi-arch tag, then attests its build provenance. |
 | npm | `npm` | Runs in the `release` environment after `images-merge`. `scripts/cli-package.mjs` builds `rei-ai` from the tag: the CLI bundled into one file, and the compose files with every image pinned to the digest `images-merge` just pushed (`image: ghcr.io/<owner>/rei-<name>:X.Y.Z@sha256:…`). It fails unless the version equals the tag and all six images are pinned. The job checks the package, then runs `npm publish --provenance --access public`, with `--tag next` for a pre-release. It publishes by npm trusted publishing: npm exchanges the job's OIDC token (`id-token: write`) for a one-time credential, so there is no npm token anywhere. |
 | Android | `android` | Runs `apps/android/tools/release-apk.sh` with the signing key from the `release` environment's secrets, then uploads the APK and the update feed. |
@@ -90,7 +90,7 @@ The CI workflow skips its own Android and image builds on a tag, because the rel
 Do this once, in this order. `<owner>` is the account or organization that owns the repository.
 
 1. **Create the `release` environment.** Repository **Settings → Environments → New environment**, named exactly `release`.
-   - Turn on **Required reviewers** and add yourself or the people who may approve a release. If you are the only reviewer, leave **Prevent self-review** off, or you could not approve your own release.
+   - **Required reviewers** are optional. Without them a tag push releases straight through, and the tag rules (only admins may create, move or delete `v*` tags) and the tag-only environment are what guard a release. With them, every release stops twice for a reviewer: before anything is published, and again before the npm publish, the one step whose version can never be reused. If you are the only reviewer, leave **Prevent self-review** off, or you could not approve your own release.
    - Under **Deployment branches and tags**, choose **Selected branches and tags** and add the tag rule `v*`, so only a version tag can use the environment and its secrets.
 
 2. **Store the signing key as secrets of that environment** (**Environments → release → Add environment secret**, or with `gh`). Use the same release keystore that signed earlier builds: Android installs an update only when the signing key matches the installed app's. Encode the keystore file as one line of base64 and paste it as the value:
@@ -126,7 +126,7 @@ Do this once, in this order. `<owner>` is the account or organization that owns 
 
    The package's `repository` field (written by `scripts/cli-package.mjs`) must name this repository, or npm refuses the provenance. If the repository moves, update the field in the script and the trusted publisher together.
 
-4. **Push the first release tag** as described above and approve it (twice: the release, then the npm publish).
+4. **Push the first release tag** as described above (and approve it twice if you set required reviewers).
 
 5. **Make each package public.** New packages on GitHub's registry start **private**, even in a public repository, so nobody else can pull them until you change that. After the first run, open **your profile → Packages** (or `https://github.com/orgs/<owner>/packages` for an organization) and for each of `rei-control`, `rei-gateway`, `rei-reader`, `rei-egress`, `rei-exec` and `rei-browser`: open it, then **Package settings → Danger Zone → Change visibility → Public**. Check from a machine that is not signed in to the registry:
 

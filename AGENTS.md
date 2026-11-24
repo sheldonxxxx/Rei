@@ -72,7 +72,7 @@ Machine-specific details of a maintainer's setup (hosts, paths, other services) 
 
 `.github/workflows/ci.yml` runs on pushes to `main` and on pull requests with a read-only token and no secrets: `static` (gitleaks and `npm run check:static`), `test` (`npm run test:coverage`), `web` (`npm run build`), `android` (Gradle debug build, unit tests and lint, only for Android-related changes) and `images` (Docker builds of every Compose image, no push, only for image-related changes). It runs the same scripts as `npm run verify`, so a green local `verify` should predict a green run. Keep it that way: add a check as an npm script and call it from the workflow rather than inlining commands. Pin new actions by full commit SHA with the version in a comment, and never use `pull_request_target`. `.github/dependabot.yml` opens weekly grouped update pull requests. See `docs/code-quality.md`.
 
-`.github/workflows/release.yml` runs when a tag `vX.Y.Z` is pushed: it calls `ci.yml`, checks that the tag equals every `package.json` version, waits for approval of the `release` environment, then publishes multi-arch images to GHCR, the signed Android APK and a GitHub Release. Do not push a tag unless the owner asks. The procedure and the owner's one-time setup are in `docs/versioning.md`.
+`.github/workflows/release.yml` runs when a tag `vX.Y.Z` is pushed: it calls `ci.yml`, checks that the tag equals every `package.json` version, passes the `release` environment (which waits for approval only if it has required reviewers), then publishes multi-arch images to GHCR, the signed Android APK and a GitHub Release. Do not push a tag unless the owner asks. The procedure and the owner's one-time setup are in `docs/versioning.md`.
 
 ## Commit & Pull Request Guidelines
 
