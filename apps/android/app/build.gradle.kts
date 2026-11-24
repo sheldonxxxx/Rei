@@ -79,7 +79,7 @@ dependencies {
     implementation("org.commonmark:commonmark-ext-gfm-tables:0.33.0")
     implementation("org.commonmark:commonmark-ext-task-list-items:0.33.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-sse:5.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
 
