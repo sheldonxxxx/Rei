@@ -20,12 +20,12 @@ val reiUpdateFeedUrl = providers.gradleProperty("reiUpdateFeedUrl").orNull.orEmp
 
 android {
     namespace = "dev.rei.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.rei.android"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 37
         versionCode = reiVersionCode
         versionName = reiVersionName
         buildConfigField("String", "UPDATE_FEED_URL", "\"${reiUpdateFeedUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
