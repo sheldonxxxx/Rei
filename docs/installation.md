@@ -1,9 +1,14 @@
 # Install Rei レイ
 
+There are two ways to install Rei. [Install with npm](#install-with-npm) is the one for using it: it runs the published container images and needs no clone and no build. [From source](#from-source-for-developers) builds the images from a checkout, for working on Rei.
+
+The rest of this guide writes commands for a checkout. In an npm installation, type `rei` where it says `./rei`, and read `~/.rei/` (or your `REI_HOME`) where it says `containers/`.
+
 ## Requirements
 
-- A checkout of this repository on the machine where Docker runs.
-- Node.js 24 or newer, npm, Docker, and Docker Compose v2.
+- Docker and Docker Compose v2.20 or newer, on the machine that will run Rei.
+- Node.js 24 or newer, with npm.
+- macOS or Linux. On Windows, use WSL2 only: install Docker and Node inside the WSL2 distribution (or Docker Desktop's WSL2 integration) and run every command there.
 - Internet access to download dependencies, container images, and any model selected through oMLX.
 - Disk space for the images, optional oMLX model weights, conversations, and saved files. Setup checks available space; allow additional room as your Library grows.
 - A supported model account for real AI replies, connected in the web app under **Settings → Providers**.
@@ -11,9 +16,37 @@
 
 On macOS, run the CLI in the environment with access to your Docker daemon. An Apple Silicon Mac can host the optional oMLX service outside a Linux guest.
 
-## Start the services
+## Install with npm
 
-From the repository root:
+```sh
+npx rei-ai setup
+```
+
+or install the `rei` command once and use it from then on:
+
+```sh
+npm i -g rei-ai
+rei setup
+```
+
+Setup checks your computer, writes the compose files into `~/.rei`, creates `~/.rei/.env`, the shared secrets in `~/.rei/.secrets/secrets.env` (mode 0600) and the storage volumes, pulls the images of its own release and starts Dodai, then Rei. It ends with the address to open and the one-time setup code. Set `REI_HOME` to keep the files somewhere else; use the same `REI_HOME` for every later command. To choose another port, set `REI_PUBLISH=127.0.0.1:8788` in `~/.rei/.env` (create it first) or in the environment.
+
+Each version of `rei-ai` runs the images of the same release, named by digest in its compose files, so what it pulls cannot change after it is published. `rei setup` refuses a `~/.rei` that another release set up and says what to do instead. Every other command works as in a checkout: `rei status`, `rei doctor`, `rei start`, `rei stop`, `rei setup-code`, `rei reset-password`, `rei callers`, `rei sources`. `rei --version` prints the version, and `rei` alone lists the commands. `rei redeploy` exists only in a checkout.
+
+Once a day `rei` may print that a newer `rei-ai` exists. It asks the npm registry, stays silent offline, never updates anything by itself, and is turned off by `REI_NO_UPDATE_CHECK=1` (or `NO_UPDATE_NOTIFIER`, or `CI`).
+
+### Upgrade an npm installation
+
+```sh
+npm i -g rei-ai@latest
+rei upgrade
+```
+
+`rei upgrade` moves `~/.rei` to the release of the installed CLI. It copies the compose files, `.env`, `secrets.env` and the installed version to `~/.rei/backups/<time>-<old version>/` (mode 0700), writes the new compose files, adds any secret the new release needs while keeping every existing value, pulls the new images, recreates Dodai and then Rei, and runs `rei doctor`; its exit status is doctor's. The data volumes stay where they are and are **not** copied: [back them up](storage.md#backup-and-recovery) first if you want a way back. The new release upgrades its databases on its first start, from the previous minor release at most, so upgrade through each minor release in turn ([Database upgrades](versioning.md#database-upgrades)). A downgrade is refused; `rei upgrade --force` writes the older files anyway, but an older release still refuses a database a newer one has upgraded.
+
+## From source (for developers)
+
+Clone the repository on the machine where Docker runs, then from its root:
 
 ```sh
 ./rei setup
@@ -28,6 +61,8 @@ For a plain text interface, use `./rei setup --basic`. The basic interface is al
 Setup asks no questions and never downloads a model. If a step fails, follow the printed fix and run setup again. Repeating setup preserves the current configuration.
 
 After setup, control the services with `./rei start`, `./rei stop`, and `./rei restart`. These commands use the current Compose configuration; stopping Rei preserves its containers, data volumes, and secrets. The gateway runs as a separate Compose project so that other services can use it (see [Gateway callers](gateway-callers.md)): `start` starts it first, while `stop` and `restart` leave it running unless you add `--all`.
+
+A checkout always loads the build overlays (`containers/compose.build.yaml` and `containers/compose.dodai.build.yaml`) after the base compose files, so its images are built locally and tagged `rei/<name>:dev`. The base files alone name the published images, as an npm installation uses them.
 
 To rebuild the web app and all Rei-built Compose images from the current checkout, then recreate the services, run:
 

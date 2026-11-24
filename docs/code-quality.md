@@ -66,6 +66,8 @@ Secretlint uses the recommended preset. Two exact synthetic fixture values used 
 
 CI covers what `npm run verify` covers, plus the Android and image builds, on a clean checkout on Linux. It does not run the opt-in suites (real Chromium, LibreOffice, the embedder evaluation, the runtime benchmark), `npm run check:security`, live-browser flows or any provider-specific check. A green run does not mean the app was deployed.
 
+`.github/workflows/nightly.yml` (every night, and by hand from **Actions → Nightly**) installs Rei the way a user does. It builds the six images from `main` into a registry on the runner, tagged like a release, builds `rei-ai` pinned to their digests with `scripts/cli-package.mjs`, packs and installs it into a temporary prefix, and runs `rei setup --non-interactive`, `rei status`, `rei doctor` and the packaged smoke scripts from a temporary `REI_HOME`. It then removes that stack, sets up the latest published `rei-ai` and runs `rei upgrade` to the night's package; until a release beyond the `0.0.0` placeholder is on npm it skips that part with a notice. It needs no secrets and publishes nothing. `npm run package:cli` builds the same package locally, into `apps/cli/dist/npm`.
+
 `.github/dependabot.yml` opens weekly update pull requests, with minor and patch updates grouped per ecosystem: npm (root), GitHub Actions, Gradle (`apps/android`) and Docker (each `containers/*` Dockerfile directory). Major updates arrive separately. Dependabot's pull requests go through the same CI.
 
 To change a pinned action, update the SHA and the version comment together. To update the pinned gitleaks release, change `GITLEAKS_VERSION` and `GITLEAKS_SHA256` in the workflow; the checksum comes from the release's checksums file.

@@ -20,7 +20,7 @@
 
 Rei is a self-hosted AI assistant that runs on your own machine with Docker. You chat with agents that have their own instructions, skills, model choice and memory. They can use tools, read the web, run commands in a sandbox and keep files and notes for you. Every model call, tool call and policy decision can be inspected, and anything sensitive can wait for your approval. Your data stays in volumes you control, and you choose the model provider.
 
-It includes a web app (installable as a PWA), an Android client ([apps/android](apps/android/README.md)) and a command line, `./rei`, for setup and operations.
+It includes a web app (installable as a PWA), an Android client ([apps/android](apps/android/README.md)) and a command line, `rei` (`./rei` in a checkout), for setup and operations.
 
 ## Why Rei exists
 
@@ -58,22 +58,31 @@ Dodai · 土台 is the shared service layer (gateway, web reader, and storage: G
 
 **Requirements**
 
+- Docker with Compose v2.20 or newer, on the machine that will run Rei. macOS or Linux; on Windows, WSL2 only. The stack is developed on macOS.
 - Node.js 24 or newer and npm.
-- Docker with Compose v2, on the machine that will run Rei. The stack is developed on macOS.
 - Internet access for dependencies and container images, and disk space for the images and your data.
 - For real replies, an account with a supported model provider (a ChatGPT sign-in or any OpenAI-compatible endpoint), connected in the web app. [oMLX](docs/embedding-providers.md) on Apple Silicon can serve local models. See the [installation guide](docs/installation.md) for the full list.
+
+**Install with npm**, no clone and no build:
+
+```sh
+npx rei-ai setup        # or: npm i -g rei-ai && rei setup
+```
+
+Setup checks your machine, writes its files to `~/.rei`, pulls the published images of its release and starts the stack. Open the address it prints (by default <http://127.0.0.1:8787>) and create your account with the one-time code; models, memory and web search are set up in the web app.
+
+```sh
+rei status    # summarize the services
+rei doctor    # check the installation and suggest fixes
+npm i -g rei-ai@latest && rei upgrade   # move to a new release (keeps your data)
+```
+
+**From source**, for working on Rei: the same commands as `./rei` from a checkout, which builds the images locally.
 
 ```sh
 git clone https://github.com/sheldonxxxx/Rei.git
 cd Rei
 ./rei setup
-```
-
-Setup checks your machine, builds the images, starts the stack and walks you through model sign-in, memory and web search. Open the address it prints (by default <http://127.0.0.1:8787>) and create your account with the one-time code.
-
-```sh
-./rei status   # summarize the services
-./rei doctor   # check the installation and suggest fixes
 ```
 
 See the [installation guide](docs/installation.md) for configuration, upgrades, backup and restore.
@@ -109,7 +118,7 @@ apps/
   web/        React/Vite frontend
   gateway/    model, embedding, search, MCP and push gateway
   egress/     network proxy for the sandbox and browser
-  cli/        the ./rei setup and operations CLI
+  cli/        the setup and operations CLI (./rei, and the npm package rei-ai)
 packages/     shared protocol, network and logging packages
 containers/   Docker Compose stack and service images
 docs/         user, architecture and decision docs

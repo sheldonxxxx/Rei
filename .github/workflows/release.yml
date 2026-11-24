@@ -9,8 +9,9 @@ name: Release
 #   release    one GitHub Release with the APK, the feed and the image references
 #
 # Nothing is published before a reviewer approves the `release` environment. The approval job and the Android job both
-# wait on it at the same time, so one approval covers the whole release. The Android job has the signing secrets,
-# which belong to the environment, so it references it itself; every later job runs only after `approve`.
+# wait on it at the same time, so one approval covers the images and the APK. The Android job has the signing secrets,
+# which belong to the environment, so it references it itself; every later job runs only after `approve`. The npm job
+# references it too (npm trusts only that environment), so it asks once more, after the images are pushed.
 on:
   push:
     tags: ["v*.*.*"]

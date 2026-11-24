@@ -113,6 +113,8 @@ tar czf backups/secrets.tgz containers/.secrets   # secrets.env holds the keys: 
 ./rei start
 ```
 
+In an npm installation the same commands apply with `rei` for `./rei` and `~/.rei` (or your `REI_HOME`) for `containers`: `--env-file ~/.rei/.env --env-file ~/.rei/.secrets/secrets.env -f ~/.rei/compose.dodai.yaml`, and `tar czf backups/secrets.tgz -C ~/.rei .secrets`. `rei upgrade` copies the configuration and `secrets.env` to `~/.rei/backups/` by itself, but never the volumes.
+
 A Garage restore is all or nothing: it rolls back **every caller's bucket** together with Rei's. There is no per-bucket restore. Callers' keys live in Garage's metadata, so they come back with it.
 
 Restore in the same order, into a stopped stack: `secrets.tgz` back to `containers/.secrets` (then `chmod 600 .secrets/secrets.env`), the control and Garage volume archives back into their volumes, then `./rei start` and check `./rei doctor` plus `containers/smoke-storage.sh`. Qdrant needs nothing; on first start Rei detects missing collections before creating them, queues all existing visible history for lexical indexing, and clears dense coverage for the missing generations. The embedding worker refills the active and building generations when their configured provider is available; a retired generation refills if it is selected again. This work is recorded in SQLite before collection creation, so interrupted initialization can be retried. Collection and payload-index initialization uses the sync retry loop, including when Qdrant was unavailable at startup.
