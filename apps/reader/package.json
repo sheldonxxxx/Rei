@@ -18,6 +18,6 @@
     "@rei/network": "*",
     "@rei/protocol": "*",
     "hono": "4.13.20",
-    "linkedom": "0.18.13"
+    "linkedom": "0.18.15"
   }
 }
