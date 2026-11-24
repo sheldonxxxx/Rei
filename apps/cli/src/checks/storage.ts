@@ -2,7 +2,7 @@
 // containers are not the question this answers — the question is whether the one process allowed to talk to them can
 // actually reach them, which is what breaks when a stack is half-redeployed after a compose change.
 import type { Ctx } from "../ctx.ts";
-import { EXTERNAL_VOLUMES, expectedServices, legacyStorageContainers, volumeName } from "../ctx.ts";
+import { EXTERNAL_VOLUMES, expectedServices, legacyStorageContainers, networkName, volumeName } from "../ctx.ts";
 import type { CheckResult, Row } from "../format.ts";
 import { fail, ok, row, skip } from "../format.ts";
 
@@ -13,7 +13,7 @@ interface Target {
   what: string;
 }
 
-/** `service` is the compose service; `host` is the alias on rei-storage that Rei's control plane uses. */
+/** `service` is the compose service; `host` is the alias on <project>-storage that Rei's control plane uses. */
 const TARGETS: Target[] = [
   { service: "garage", host: "rei-garage", port: 3900, what: "the object store" },
   { service: "qdrant", host: "rei-qdrant", port: 6333, what: "the search index" },
@@ -36,7 +36,7 @@ export async function storageReach(ctx: Ctx, target: Target): Promise<CheckResul
     return ok(`the control plane reaches ${where} (${target.what})`);
   return fail(
     `the control plane cannot reach ${where} (${target.what})`,
-    `storage is Dodai's (rei-storage, private by design): ./rei start brings Dodai up first; if control is not on the network, recreate it — ${ctx.compose.command("up -d --force-recreate --no-deps control")}`,
+    `storage is Dodai's (${networkName(ctx, "storage")}, private by design): ./rei start brings Dodai up first; if control is not on the network, recreate it — ${ctx.compose.command("up -d --force-recreate --no-deps control")}`,
   );
 }
 
@@ -80,13 +80,14 @@ export async function storageRows(ctx: Ctx): Promise<Row[]> {
         )
       : ok("no Garage or Qdrant left in Rei's project"),
   );
-  const net = await ctx.runner.run("docker", ["network", "inspect", "rei-storage-shared"], { timeoutMs: 30_000 });
+  const sharedNet = networkName(ctx, "storage-shared");
+  const net = await ctx.runner.run("docker", ["network", "inspect", sharedNet], { timeoutMs: 30_000 });
   const shared = row(
     "storage:network",
     "callers' storage network",
     net.code === 0
-      ? ok("rei-storage-shared exists (external for callers)")
-      : fail("rei-storage-shared does not exist", "run ./rei start (or ./rei setup)"),
+      ? ok(`${sharedNet} exists (external for callers)`)
+      : fail(`${sharedNet} does not exist`, "run ./rei start (or ./rei setup)"),
   );
   return [volumes, old, shared];
 }

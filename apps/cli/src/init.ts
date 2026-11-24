@@ -103,9 +103,9 @@ export async function initSecrets(
   log: (line: string) => void = (line) => ctx.out.line(line),
 ): Promise<number> {
   const { host } = ctx;
-  const dir = join(ctx.containersDir, ".secrets");
+  const dir = join(ctx.envDir, ".secrets");
   host.mkdirp(dir, 0o755);
-  const envFile = join(ctx.containersDir, ".env");
+  const envFile = join(ctx.envDir, ".env");
   if (!host.stat(envFile)) {
     host.writeText(envFile, "", 0o644);
     log(`created ${envFile}`);

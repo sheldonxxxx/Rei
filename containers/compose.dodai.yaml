@@ -8,10 +8,10 @@
 #   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml up -d --build --wait
 #
 # Callers (docs/gateway-callers.md, docs/adr/0018). The gateway serves two listeners from one process:
-#   internal  10.89.235.2:8780 and 127.0.0.1:8780. Every route. Rei's control plane reaches it over gateway-admin with
+#   internal  <net>.235.2:8780 and 127.0.0.1:8780. Every route. Rei's control plane reaches it over gateway-admin with
 #             its own token (REI_STANDIN); loopback is for the health check and the gateway's own CLI.
-#   shared    10.89.234.2:8781. Models, search and embeddings only; every other path answers 404 there. Another compose
-#             project joins gateway-shared (external, name rei-gateway-shared) and calls http://rei-gateway:8781 with
+#   shared    <net>.234.2:8781. Models, search and embeddings only; every other path answers 404 there. Another compose
+#             project joins gateway-shared (external, name rei-gateway-shared for the default REI_PROJECT) and calls http://rei-gateway:8781 with
 #             its own caller token.
 #
 # The reader (docs/reader.md, docs/adr/0020) is reached only through the gateway: POST /read on either listener, with the
@@ -20,21 +20,26 @@
 #
 # Storage (docs/storage.md, docs/adr/0021). Garage and Qdrant keep Rei's files and indexes. An outside caller that needs
 # object storage is signed up with ./rei callers add <id> --storage: its own bucket and its own Garage key, which it
-# uses directly over rei-storage-shared. Storage is not behind the gateway, and the gateway and reader never depend on it.
-# Qdrant is for Rei only for now: it is not on rei-storage-shared.
+# uses directly over rei-storage-shared (<REI_PROJECT>-storage-shared). Storage is not behind the gateway, and the gateway and reader never depend on it.
+# Qdrant is for Rei only for now: it is not on the storage-shared network.
 #
 # Networks:
 #   gateway-admin   the gateway and Rei's control plane. No route out.
 #   gateway-shared  the gateway and whatever outside callers join. No route out, and no path to anything of Rei's.
 #   egress          the gateway. Model providers, search providers and the embedding endpoint.
-#   reader-internal the gateway and the reader (10.89.236.2:8790, alias `reader`). No route out.
+#   reader-internal the gateway and the reader (<net>.236.2:8790, alias `reader`). No route out.
 #   reader-egress   the reader. The public internet.
-#   storage         Garage (10.89.237.2), Qdrant (.3) and Rei's control plane (rei-storage). No route out. Garage's admin API
+#   storage         Garage (<net>.237.2), Qdrant (.3) and Rei's control plane (<REI_PROJECT>-storage). No route out. Garage's admin API
 #                   binds here only.
-#   storage-shared  Garage and whatever outside callers join (rei-storage-shared). No route out. S3 only: Garage's admin
+#   storage-shared  Garage and whatever outside callers join (<REI_PROJECT>-storage-shared). No route out. S3 only: Garage's admin
 #                   and RPC ports and Qdrant are not on it. Callers on it can reach each other.
 # Rei's egress proxy refuses all the internal subnets (EGRESS_REFUSE_CIDRS in compose.yaml), so nothing an agent drives
 # reaches the gateway, the reader or storage.
+#
+# <net> is REI_NET (two octets, default 10.89) and every fixed subnet and address derives from it; the named networks are
+# prefixed with REI_PROJECT (default rei), so rei-gateway-shared and rei-storage-shared are what other projects join. A
+# second stack on one machine sets both, with its own Dodai (docs/installation.md, "A second stack on one machine").
+# Garage's admin API address is fixed in garage/garage.toml (<net> cannot reach a config file): see that file.
 #
 # Every data volume is external, with a fixed Rei-prefixed name that containers/init.sh creates: compose never removes an
 # external volume, so `docker compose -p dodai down -v` cannot delete provider sign-ins, caller tokens, call logs, reader
@@ -56,8 +61,8 @@ services:
       REI_STANDIN: ${REI_STANDIN:?run containers/init.sh}
       REI_LOG_LEVEL: ${REI_GATEWAY_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
       # Must match the gateway's fixed addresses below. The full app never listens on gateway-shared.
-      GATEWAY_HOST: 10.89.235.2,127.0.0.1
-      GATEWAY_SHARED_LISTEN: 10.89.234.2:8781
+      GATEWAY_HOST: "${REI_NET:-10.89}.235.2,127.0.0.1"
+      GATEWAY_SHARED_LISTEN: "${REI_NET:-10.89}.234.2:8781"
       # Optional caps on Rei's own calls in flight (JSON, the shape of a caller budget). Unset: no caps.
       GATEWAY_REI_BUDGET: ${GATEWAY_REI_BUDGET:-}
       # Explicit hostname exceptions for local MCP servers. Empty by default.
@@ -75,8 +80,8 @@ services:
     volumes:
       - gateway-data:/data
     networks:
-      gateway-admin: { ipv4_address: 10.89.235.2 }
-      gateway-shared: { ipv4_address: 10.89.234.2, aliases: [rei-gateway] }
+      gateway-admin: { ipv4_address: "${REI_NET:-10.89}.235.2" }
+      gateway-shared: { ipv4_address: "${REI_NET:-10.89}.234.2", aliases: [rei-gateway] }
       egress: {}
       reader-internal: {}
     restart: unless-stopped
@@ -91,17 +96,17 @@ services:
     security_opt: [no-new-privileges:true]
     environment:
       REI_LOG_LEVEL: ${REI_READER_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
-      READER_HOST: 10.89.236.2
+      READER_HOST: "${REI_NET:-10.89}.236.2"
       # Render engines in the order they are tried (one name turns the other off), slots per engine, shadow sample.
       READER_ENGINES: ${REI_READER_ENGINES:-moli,chromium}
       READER_RENDER_SLOTS: ${REI_READER_RENDER_SLOTS:-2}
       READER_SHADOW_RATE: ${REI_READER_SHADOW_RATE:-0.1}
       # Networks the reader's proxy never connects into, besides its own interfaces' subnets: the stack's.
-      READER_REFUSE_CIDRS: 10.89.231.0/24,10.89.232.0/24,10.89.233.0/24,10.89.234.0/24,10.89.235.0/24,10.89.236.0/24,10.89.237.0/24,10.89.238.0/24
+      READER_REFUSE_CIDRS: "${REI_NET:-10.89}.231.0/24,${REI_NET:-10.89}.232.0/24,${REI_NET:-10.89}.233.0/24,${REI_NET:-10.89}.234.0/24,${REI_NET:-10.89}.235.0/24,${REI_NET:-10.89}.236.0/24,${REI_NET:-10.89}.237.0/24,${REI_NET:-10.89}.238.0/24"
     volumes:
       - reader-data:/data
     networks:
-      reader-internal: { ipv4_address: 10.89.236.2, aliases: [reader] }
+      reader-internal: { ipv4_address: "${REI_NET:-10.89}.236.2", aliases: [reader] }
       reader-egress: {}
     healthcheck:
       test:
@@ -109,7 +114,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://10.89.236.2:8790/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+          "fetch('http://${REI_NET:-10.89}.236.2:8790/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
         ]
       interval: 30s
       timeout: 3s
@@ -140,7 +145,7 @@ services:
       - garage-meta:/var/lib/garage/meta
       - garage-data:/var/lib/garage/data
     networks:
-      storage: { ipv4_address: 10.89.237.2, aliases: [rei-garage] }
+      storage: { ipv4_address: "${REI_NET:-10.89}.237.2", aliases: [rei-garage] }
       storage-shared: { aliases: [rei-garage] }
     healthcheck:
       test: ["CMD", "/garage", "-c", "/etc/garage/garage.toml", "status"]
@@ -171,7 +176,7 @@ services:
       - qdrant-data:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
     networks:
-      storage: { ipv4_address: 10.89.237.3, aliases: [rei-qdrant] }
+      storage: { ipv4_address: "${REI_NET:-10.89}.237.3", aliases: [rei-qdrant] }
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
       interval: 30s
@@ -184,27 +189,27 @@ networks:
   # Each fixed address is below .128; ip_range keeps Docker's own picks (other projects' containers joining while the
   # gateway or reader is being recreated) at .128 and above, so they can never take one.
   gateway-admin:
-    name: rei-gateway-admin
+    name: "${REI_PROJECT:-rei}-gateway-admin"
     internal: true
-    ipam: { config: [{ subnet: 10.89.235.0/24, ip_range: 10.89.235.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.235.0/24", ip_range: "${REI_NET:-10.89}.235.128/25" }] }
   gateway-shared:
-    name: rei-gateway-shared
+    name: "${REI_PROJECT:-rei}-gateway-shared"
     internal: true
-    ipam: { config: [{ subnet: 10.89.234.0/24, ip_range: 10.89.234.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.234.0/24", ip_range: "${REI_NET:-10.89}.234.128/25" }] }
   egress: {}
   reader-internal:
-    name: rei-reader-internal
+    name: "${REI_PROJECT:-rei}-reader-internal"
     internal: true
-    ipam: { config: [{ subnet: 10.89.236.0/24, ip_range: 10.89.236.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.236.0/24", ip_range: "${REI_NET:-10.89}.236.128/25" }] }
   reader-egress: {}
   storage:
-    name: rei-storage
+    name: "${REI_PROJECT:-rei}-storage"
     internal: true
-    ipam: { config: [{ subnet: 10.89.237.0/24, ip_range: 10.89.237.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.237.0/24", ip_range: "${REI_NET:-10.89}.237.128/25" }] }
   storage-shared:
-    name: rei-storage-shared
+    name: "${REI_PROJECT:-rei}-storage-shared"
     internal: true
-    ipam: { config: [{ subnet: 10.89.238.0/24, ip_range: 10.89.238.128/25 }] }
+    ipam: { config: [{ subnet: "${REI_NET:-10.89}.238.0/24", ip_range: "${REI_NET:-10.89}.238.128/25" }] }
 
 volumes:
   gateway-data: { external: true, name: "${REI_PROJECT:-rei}_gateway-data" }

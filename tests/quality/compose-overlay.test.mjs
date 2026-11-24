@@ -37,10 +37,10 @@ describe("compose build overlays", () => {
         expect(rei.length).toBeGreaterThan(0);
       });
 
-      it(`gives every Rei-built service an entry in ${overlayName}, tagged rei/<name>:dev`, () => {
+      it(`gives every Rei-built service an entry in ${overlayName}, tagged <REI_PROJECT or rei>/<name>:dev`, () => {
         for (const [service, name] of rei) {
           expect(overlay.services[service], `${service} is missing from ${overlayName}`).toBeDefined();
-          expect(overlay.services[service].image).toBe(`rei/${name}:dev`);
+          expect(overlay.services[service].image).toBe(`\${REI_PROJECT:-rei}/${name}:dev`);
         }
       });
 
@@ -48,7 +48,7 @@ describe("compose build overlays", () => {
         for (const name of new Set(rei.map(([, n]) => n))) {
           const builders = rei.filter(([, n]) => n === name).map(([service]) => overlay.services[service]);
           const builds = builders.filter((spec) => spec.build);
-          expect(builds.length, `nothing in ${overlayName} builds rei/${name}:dev`).toBeGreaterThan(0);
+          expect(builds.length, `nothing in ${overlayName} builds ${name}`).toBeGreaterThan(0);
           for (const { build } of builds) {
             const context = join(containers, build.context);
             expect(existsSync(join(context, build.dockerfile ?? "Dockerfile")), `${name}: ${build.dockerfile}`).toBe(

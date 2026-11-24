@@ -44,7 +44,7 @@ describe("doctor", () => {
     expect(get("service:gateway")).toMatchObject({
       status: "fail",
       detail: "running, unhealthy",
-      fix: `see docker compose -f ${SHARED} -f ${SHARED_BUILD} logs gateway`,
+      fix: `see docker compose --env-file ${ROOT}/containers/.env --env-file ${ROOT}/containers/.secrets/secrets.env -f ${SHARED} -f ${SHARED_BUILD} logs gateway`,
     });
     expect(get("service:control")).toMatchObject({ status: "ok" });
   });
@@ -58,7 +58,7 @@ describe("doctor", () => {
     expect(await doctor(rig.ctx, { json: false })).toBe(1);
     const text = rig.out.text;
     expect(text).toMatch(
-      /FAIL {1}egress +exited 137\n\s+→ see docker compose -f .*compose\.yaml -f .*compose\.build\.yaml logs egress/,
+      /FAIL {1}egress +exited 137\n\s+→ see docker compose --env-file .*\.env --env-file .*secrets\.env -f .*compose\.yaml -f .*compose\.build\.yaml logs egress/,
     );
     expect(text).toMatch(/warn {1}searxng +running, health check still starting/);
     expect(text).toMatch(/FAIL {1}exec-keys +exited 1/);

@@ -1,7 +1,7 @@
 // Garage storage for one caller: its own bucket and its own key, made with `garage json-api` inside Dodai's garage
 // container. That talks RPC to the node, so it needs no admin token, and it runs where the secrets already are: this CLI
 // never reads one. The only secret that passes through is the new key's own, which Garage returns once and the caller
-// prints once. Every operation is safe to repeat. Callers use Garage directly over rei-storage-shared (S3 only);
+// prints once. Every operation is safe to repeat. Callers use Garage directly over <project>-storage-shared (S3 only);
 // storage is not behind the gateway (docs/adr/0021).
 import type { Ctx } from "../ctx.ts";
 

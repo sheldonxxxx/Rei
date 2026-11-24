@@ -37,7 +37,7 @@ export function realRunner(): Runner {
     },
     interactive(cmd, args, opts = {}) {
       return new Promise<number>((resolve) => {
-        const child = spawn(cmd, args, { cwd: opts.cwd, stdio: "inherit" });
+        const child = spawn(cmd, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, stdio: "inherit" });
         child.on("error", (error) => {
           process.stderr.write(`${cmd}: ${error.message}\n`);
           resolve(127);

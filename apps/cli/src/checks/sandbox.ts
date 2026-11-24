@@ -9,6 +9,7 @@ async function smoke(ctx: Ctx, script: string, needs: string[]): Promise<CheckRe
   const rows = await ps(ctx).catch(() => []);
   if (!needs.every((s) => rows.some((r) => r.service === s && r.state === "running")))
     return skip(`${needs.join(", ")} not all running`);
+  // ctx.runner hands the script REI_ENV_DIR, REI_PROJECT and REI_NET, so it checks the same stack.
   const r = await ctx.runner.run(join(ctx.containersDir, script), [], { timeoutMs: 240_000 });
   const lines = r.stdout.split(/\r?\n/);
   const passed = lines.filter((l) => l.startsWith("PASS")).length;

@@ -2,7 +2,8 @@
 // (compose.dodai.yaml). In a checkout each is loaded with its build overlay (compose.build.yaml, compose.dodai.build.yaml),
 // which builds the images from source; an npm installation has the base files only, which name published images. The
 // compose file decides the project name (rei, dodai); REI_PROJECT overrides Rei's like containers/smoke-exec.sh does, and
-// the shared project is then <REI_PROJECT>-dodai.
+// the shared project is then <REI_PROJECT>-dodai (stack.ts). The env files live in the stack's env directory
+// (REI_ENV_DIR, default the compose files' directory).
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Runner, RunOptions, RunResult } from "./io.ts";
@@ -81,20 +82,32 @@ export function parseInspect(text: string): Inspected[] {
   }));
 }
 
+export interface ComposeOptions {
+  /** The directory holding .env and .secrets/secrets.env; default the base file's directory. */
+  envDir?: string;
+  /** Whether a file exists (the env files are passed only when they do); default the real file system. */
+  exists?: (path: string) => boolean;
+}
+
 export class Compose {
   readonly runner: Runner;
-  /** The base compose file; its directory holds the env files. */
+  /** The base compose file. */
   readonly file: string;
   /** Every file passed with -f, in order: the base file, then any overlay. */
   readonly files: readonly string[];
   readonly project: string | undefined;
+  /** Where .env and .secrets/ are. */
+  readonly envDir: string;
+  private readonly exists: (path: string) => boolean;
 
-  constructor(runner: Runner, files: string | readonly string[], project?: string) {
+  constructor(runner: Runner, files: string | readonly string[], project?: string, opts: ComposeOptions = {}) {
     this.runner = runner;
     this.files = typeof files === "string" ? [files] : [...files];
     if (this.files.length === 0) throw new Error("a compose project needs a file");
     this.file = this.files[0]!;
     this.project = project || undefined;
+    this.envDir = opts.envDir ?? dirname(this.file);
+    this.exists = opts.exists ?? existsSync;
   }
 
   private fileArgs(): string[] {
@@ -106,9 +119,9 @@ export class Compose {
    * secrets it uses. Passing --env-file replaces compose's own .env lookup, so .env is named too. Only those that exist.
    */
   envFileArgs(): string[] {
-    const dir = dirname(this.file);
+    const dir = this.envDir;
     return [join(dir, ".env"), join(dir, ".secrets", "secrets.env")]
-      .filter((path) => existsSync(path))
+      .filter((path) => this.exists(path))
       .flatMap((path) => ["--env-file", path]);
   }
 

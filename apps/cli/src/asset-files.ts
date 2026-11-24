@@ -7,6 +7,8 @@ export const ASSET_FILES: readonly { path: string; mode: number }[] = [
   { path: "compose.dodai.yaml", mode: 0o644 },
   { path: "edge/forward.mjs", mode: 0o644 },
   { path: "garage/garage.toml", mode: 0o644 },
+  // Sourced by the smoke scripts: which stack they check (REI_ENV_DIR, REI_PROJECT, REI_NET).
+  { path: "stack-env.sh", mode: 0o644 },
   { path: "smoke-exec.sh", mode: 0o755 },
   { path: "smoke-browser.sh", mode: 0o755 },
 ];
