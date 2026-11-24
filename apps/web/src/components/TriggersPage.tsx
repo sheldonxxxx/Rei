@@ -13,6 +13,7 @@ import { useNow } from "../lib/useNow.ts";
 import { Icon } from "./Icon.tsx";
 import { PageShell } from "./PageShell.tsx";
 import { TriggerDetail } from "./TriggerDetail.tsx";
+import { TriggerForm } from "./TriggerForm.tsx";
 
 interface Props {
   api: Api;
@@ -25,7 +26,7 @@ interface Props {
   onClosed: () => void;
 }
 
-/** The Triggers page: what runs on its own, and a trigger's settings and run history. Triggers are made in chat. */
+/** The Triggers page: what runs on its own, and a trigger's settings and run history. */
 export function TriggersPage({ api, agents, id, rev, onClosed }: Props) {
   if (id)
     return (
@@ -43,6 +44,7 @@ export function TriggersPage({ api, agents, id, rev, onClosed }: Props) {
 }
 
 function TriggerList({ api, agents, rev }: Pick<Props, "api" | "agents" | "rev">) {
+  const [creating, setCreating] = useState(false);
   const [triggers, setTriggers] = useState<Trigger[] | null>(null);
   const [sources, setSources] = useState<EventSourceView[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +70,31 @@ function TriggerList({ api, agents, rev }: Pick<Props, "api" | "agents" | "rev">
     load();
   }, [load, rev]);
 
+  if (creating && agents.length > 0) {
+    return (
+      <PageShell title="New trigger" className="triggers-page">
+        <TriggerForm
+          api={api}
+          agents={agents}
+          sources={sources}
+          onCancel={() => setCreating(false)}
+          onSaved={(trigger) => navigate(triggerHref(trigger.id))}
+        />
+      </PageShell>
+    );
+  }
+
   return (
-    <PageShell title="Triggers" className="triggers-page">
+    <PageShell
+      title="Triggers"
+      className="triggers-page"
+      actions={
+        <Button size="sm" type="button" disabled={agents.length === 0} onClick={() => setCreating(true)}>
+          <Icon name="plus" size={16} />
+          New trigger
+        </Button>
+      }
+    >
       {error && (
         <div
           role="alert"
@@ -84,7 +109,7 @@ function TriggerList({ api, agents, rev }: Pick<Props, "api" | "agents" | "rev">
       {!triggers && !error && <span className="spinner" role="status" aria-label="Loading" />}
       {triggers && triggers.length === 0 && (
         <Empty className="page-empty border px-5 py-8">
-          <EmptyDescription>Nothing yet.</EmptyDescription>
+          <EmptyDescription>No triggers yet.</EmptyDescription>
         </Empty>
       )}
       {sources.length > 0 && <EventSourceList sources={sources} now={now} />}

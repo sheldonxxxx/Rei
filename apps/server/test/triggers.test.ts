@@ -820,6 +820,52 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
 });
 
 describe("the Triggers page's routes", () => {
+  it("POST creates a trigger for the chosen agent, logs it and can run it by hand", async () => {
+    server = await startSignedIn();
+    const { agent: chosen } = plane().store.createAgent({ name: "Second", avatar: "S", instructions: "" });
+    const body = {
+      agentId: chosen.id,
+      name: "  Check in  ",
+      start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "UTC" } },
+      action: { kind: "notify", message: "Time to check in" },
+    };
+    const response = await server.client.call("POST", "/api/triggers", { body });
+    expect(response.status).toBe(201);
+    const created = response.body.trigger as Trigger;
+    expect(created).toMatchObject({ agentId: chosen.id, name: "Check in", status: "active", allow: [] });
+    expect(created.nextRunAt).not.toBeNull();
+    expect((await server.client.get("/api/triggers")).body.triggers).toContainEqual(created);
+    expect(await edits()).toContainEqual(
+      expect.objectContaining({
+        target: { kind: "trigger", triggerId: created.id },
+        field: "create",
+        author: "user",
+      }),
+    );
+
+    const run = await server.client.call("POST", `/api/triggers/${created.id}/run`);
+    expect(run.status).toBe(200);
+    expect(run.body.run.manual).toBe(true);
+    expect((await finished(created.id)).status).toBe("succeeded");
+  });
+
+  it("POST validates the agent, draft and permitted fields before creating anything", async () => {
+    server = await startSignedIn();
+    const draft = {
+      agentId: agent(),
+      name: "A trigger",
+      start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "UTC" } },
+      action: { kind: "notify", message: "Hello" },
+    };
+    const post = (overrides: object) =>
+      server!.client.call("POST", "/api/triggers", { body: { ...draft, ...overrides } });
+
+    expect((await post({ agentId: "missing" })).status).toBe(404);
+    expect((await post({ action: { kind: "skill", skill: "missing" } })).status).toBe(400);
+    expect((await post({ allow: [{ tool: "demo_read_inbox" }] })).status).toBe(400);
+    expect(T().store.list()).toEqual([]);
+  });
+
   it("PATCH edits a trigger from the page, logs each field, and refuses what the rules refuse", async () => {
     server = await startSignedIn();
     const t = make({ name: "Page", allow: [{ tool: "demo_add_todo" }, { tool: "demo_read_inbox" }] });

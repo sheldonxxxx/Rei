@@ -28,6 +28,7 @@ import type {
   CreateConnectorRequest,
   CreateSessionRequest,
   CreateSessionResponse,
+  CreateTriggerRequest,
   DecideApprovalGroupRequest,
   DecideApprovalRequest,
   DecideApprovalResponse,
@@ -108,6 +109,7 @@ import type {
   TimeZoneSettings,
   TitleSettings,
   TranscriptPageResponse,
+  TriggerCreatedResponse,
   TriggerResponse,
   TriggersResponse,
   TriggerUpdatedResponse,
@@ -597,6 +599,7 @@ export function createApi(options: ApiOptions = {}) {
 
     // ---- triggers and skills ----
     getTriggers: () => request<TriggersResponse>("GET", "/api/triggers"),
+    createTrigger: (req: CreateTriggerRequest) => post<TriggerCreatedResponse>("/api/triggers", req),
     /** The event sources (read-only), with the last event and the types seen lately. */
     getEventSources: () => request<EventSourcesResponse>("GET", "/api/event-sources"),
     /** The trigger and its newest 50 runs; `before` is the previous page's `next`. */

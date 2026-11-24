@@ -44,6 +44,7 @@ import {
   createAgentRoute,
   createConnectorRoute,
   createSessionRoute,
+  createTriggerRoute,
   type Device,
   decideApprovalGroupRoute,
   decideApprovalRoute,
@@ -240,7 +241,7 @@ import { GLOBAL_STREAM } from "../store/events.ts";
 import { etagOf, glance, matchesEtag } from "../store/glance.ts";
 import type { AppStore } from "../store/store.ts";
 import { forkPreview, sessionTrace, stepDetail, stepImage, stepWebDocument } from "../trace.ts";
-import { patchTrigger } from "../triggers/api.ts";
+import { createTrigger, patchTrigger } from "../triggers/api.ts";
 import type { TriggerScheduler } from "../triggers/scheduler.ts";
 import type { TriggerStore } from "../triggers/store.ts";
 import { loadedNames, readContextBreakdown } from "../usage/context-breakdown.ts";
@@ -1536,6 +1537,10 @@ export function createApp(deps: AppDeps): Hono {
     })),
   }));
   mountRoute(app, triggersRoute, contract, () => ({ triggers: triggers().store.list() }));
+  mountRoute(app, createTriggerRoute, contract, (_c, { body }) => {
+    const t = triggers();
+    return { trigger: createTrigger({ app: store, triggers: t.store, catalog: t.catalog, skills: skills() }, body) };
+  });
   mountRoute(app, triggerRoute, contract, (c, { query }) => {
     const trigger = triggerOr404(param(c, "id"));
     const page = triggers().store.runsPage(trigger.id, query.before);

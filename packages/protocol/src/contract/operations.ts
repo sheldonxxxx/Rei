@@ -23,10 +23,12 @@ import { GATEWAY_CALLER_SCOPES, type GatewayModelUsage } from "../gateway.ts";
 import type { StorageStatusResponse } from "../memory.ts";
 import type { ScriptCall, StepSummary, ToolOutputPart, WebDocumentResponse, WebFetchDetails } from "../trace.ts";
 import type {
+  CreateTriggerRequest,
   EventSourcesResponse,
   RunTriggerResponse,
   Schedule,
   Trigger,
+  TriggerCreatedResponse,
   TriggerResponse,
   TriggerRunSummary,
   TriggerStart,
@@ -159,16 +161,31 @@ export const TriggerResponseSchema = obj({
   next: nullable(str()),
 });
 true satisfies Same<Static<typeof TriggerResponseSchema>, TriggerResponse>;
-export const UpdateTriggerRequestSchema = obj({
-  name: opt(str()),
-  start: opt(TriggerStartSchema),
-  action: opt(TriggerActionSchema),
+const triggerSettings = {
   landing: opt(oneOf(["new", "ongoing"])),
   report: opt(ReportSettingSchema),
   latenessMinutes: opt(int()),
   catchUp: opt(oneOf(["once", "skip"])),
   overlap: opt(oneOf(["skip", "queue"])),
   profile: opt(TriggerProfileSchema),
+};
+
+export const CreateTriggerRequestSchema = obj({
+  agentId: str(),
+  name: str(),
+  start: TriggerStartSchema,
+  action: TriggerActionSchema,
+  ...triggerSettings,
+});
+true satisfies Same<Static<typeof CreateTriggerRequestSchema>, CreateTriggerRequest>;
+export const TriggerCreatedResponseSchema = obj({ trigger: TriggerSchema });
+true satisfies Same<Static<typeof TriggerCreatedResponseSchema>, TriggerCreatedResponse>;
+
+export const UpdateTriggerRequestSchema = obj({
+  name: opt(str()),
+  start: opt(TriggerStartSchema),
+  action: opt(TriggerActionSchema),
+  ...triggerSettings,
   allow: opt(arr(obj({ tool: str(), destination: opt(str()) }))),
   paused: opt(bool()),
 });
@@ -185,6 +202,16 @@ export const triggersRoute = defineRoute({
   tag: "triggers",
   summary: "Every trigger.",
   response: TriggersResponseSchema,
+});
+export const createTriggerRoute = defineRoute({
+  method: "POST",
+  path: "/api/triggers",
+  tag: "triggers",
+  summary: "Create a trigger for an agent.",
+  description: 'Errors: "not_found", "bad_request".',
+  body: CreateTriggerRequestSchema,
+  response: TriggerCreatedResponseSchema,
+  status: 201,
 });
 export const eventSourcesRoute = defineRoute({
   method: "GET",
@@ -718,6 +745,7 @@ export const stepImageRoute = defineRoute({
 
 export const operationRoutes = [
   triggersRoute,
+  createTriggerRoute,
   eventSourcesRoute,
   triggerRoute,
   updateTriggerRoute,
