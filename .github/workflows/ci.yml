@@ -183,6 +183,17 @@ jobs:
       - name: Skipped
         if: steps.filter.outputs.images != 'true'
         run: echo "No image-related changes; nothing to build."
+      # The control image copies the built web app (apps/web/dist) instead of building it, so build it first.
+      - if: steps.filter.outputs.images == 'true' && matrix.image == 'control'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - if: steps.filter.outputs.images == 'true' && matrix.image == 'control'
+        name: Build the web app
+        run: |
+          npm ci
+          npm run build
       - if: steps.filter.outputs.images == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - if: steps.filter.outputs.images == 'true'
