@@ -1,8 +1,8 @@
 <div align="center">
 
-# Rei レイ
+# <img src="docs/assets/rei-banner.jpg" alt="Rei レイ" width="860">
 
-**A self-hosted, inspectable AI assistant. One person's blend of an agent framework, open for anyone to borrow from.**
+**Your own AI assistant — your context, your models, every action inspectable.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node.js 26+](https://img.shields.io/badge/node-%E2%89%A526-339933?logo=nodedotjs&logoColor=white)
@@ -10,74 +10,85 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Status: personal project](https://img.shields.io/badge/status-personal%20project-orange)
 
-[Install](docs/installation.md) · [Android client](apps/android/README.md) · [User guide](docs/user-guide.md) · [Architecture](docs/architecture.md) · [All docs](docs/README.md)
-
-<img src="docs/assets/approval.png" alt="Rei asking for approval before an agent fetches a web page" width="860">
+[Install](docs/installation.md) · [Android client](apps/android/README.md) · [User guide](docs/user-guide.md) · [Architecture](#architecture) · [All docs](docs/README.md)
 
 </div>
 
-## What is Rei
+Hosted AI assistants are becoming the most personal software we use — learning how you write, what you work on, which files matter and what you want done every morning — while locking all of it inside someone else's black box.
 
-Rei is a self-hosted AI assistant that runs on your own machine with Docker. You chat with agents that have their own instructions, skills, model choice and memory. They can use tools, read the web, run commands in a sandbox and keep files and notes for you. Every model call, tool call and policy decision can be inspected, and anything sensitive can wait for your approval. Your data stays in volumes you control, and you choose the model provider.
+**Rei** is the opposite: a self-hosted assistant running on your own machine with Docker. You bring the models and keep the memory, files, knowledge and rules. Everyday chat stays quiet and fast; one click opens the full trace behind any reply — every prompt, tool call, policy decision and token count. Before anything sensitive runs, Rei stops and asks.
 
-It includes a web app (installable as a PWA), an Android client ([apps/android](apps/android/README.md)) and a command line, `rei` (`./rei` in a checkout), for setup and operations.
+It ships as a web app (PWA), a native [Android client](apps/android/README.md) and the `rei` CLI (`./rei` in a checkout) for setup, upgrades and backups.
 
-## Why Rei exists
+<img src="docs/assets/approval.png" alt="Rei asking for approval before an agent fetches a web page" width="860">
 
-AI assistants are turning into the most personal software we use. Over time they learn how you write, what you are working on, who you talk to, which files matter and what you want done every morning. The assistants from OpenAI, Meta, xAI and others are genuinely impressive products, but each one keeps that accumulated context inside its own walls.
+## Why build your own
 
-That is a bad deal for something this personal:
+ChatGPT, Claude, Gemini and other hosted assistants are impressive products, but handing your most personal context to a single vendor is a bad trade:
 
-- **Your context is the valuable part, and it is not portable.** Memory, files, routines and preferences stay with the vendor. Switching means starting over.
+- **Your context is the valuable part, and it is not portable.** Memory, files, routines and preferences stay behind the vendor's walls. Switching means starting over.
 - **Models leapfrog each other every few months.** An assistant tied to one lab cannot move to whichever model is best, cheapest or local this month.
 - **The rules are not yours.** What it remembers, which tools it may use, what it costs and when a feature disappears are decided elsewhere.
 - **You cannot see why it acted.** When an assistant does something surprising, there is rarely a way to inspect the prompt, the tool calls or the policy that allowed them.
 
-Meanwhile, building an assistant framework has never been cheaper. With AI coding agents, the framework itself is the thin, replaceable layer; what matters is that the data and the behavior belong to you. I think everyone who cares should end up with an assistant built the way they want it.
+Meanwhile, building an assistant framework has never been cheaper. With AI coding agents, the framework itself is the thin, replaceable layer; what matters is that the data and behavior belong to you. Everyone who cares should end up with an assistant built the way they want it.
 
-Rei is my version: built for myself, around how I work, with no roadmap beyond my own needs. I am publishing it so you can run it, fork it, or simply hand it to your own AI as a reference while you build yours.
+Rei is my version — built for myself, around how I work, with no roadmap beyond my own needs. Run it, fork it, or point your own coding agent at it as a reference while you build yours.
 
 ## Features
 
-- **Agents with their own instructions, skills, model choice and memory**, each with a home chat that can delegate work to worker sessions.
-- **Simple and Detail modes.** Everyday chat stays clean; Detail mode shows every model call, tool call, policy decision, token count and timing.
-- **Approvals you control.** Tool use, web access and commands can require approval just once, per chat, per agent, for a while, or always.
-- **Sandboxed execution.** Agents run commands in an isolated container and browse in a headless Chromium you can take over, with per-agent [network modes](docs/sandbox-network.md).
-- **Memory you can read and edit**: a compact profile, per-agent notes, and searchable chat history (keyword plus optional embeddings), with undo.
-- **Knowledge pages** where agents keep longer-lived research, plans and decisions.
-- **A file Library** with versions and in-browser previews for PDF, Office and Markdown files.
-- **Triggers** that run prompts or skills on a schedule and report back in chat.
-- **MCP connectors**, web search (Brave, Tavily, SearXNG or the built-in option) and self-hosted push notifications.
-- **Bring your own model**: ChatGPT sign-in, any OpenAI-compatible endpoint, or local models through [oMLX](docs/embedding-providers.md) on Apple Silicon.
+- **Dedicated agents.** Each agent keeps its own instructions, skills, model choice and memory, with a home chat that can delegate work to worker sessions.
+- **Simple and Detail modes.** Everyday chat stays clean; Detail mode reveals every model call, tool call, policy decision, token count and timing.
+- **Approvals you control.** Tool use, web access and commands can require approval just once, per chat, per agent, for a set time or always.
+- **Sandboxed execution.** Agents run commands in an isolated container and browse in a headless Chromium you can take over live, governed by per-agent [network modes](docs/sandbox-network.md).
+- **Readable, editable memory.** A compact profile, per-agent notes and searchable chat history (keyword plus optional [embeddings](docs/embedding-providers.md)), with undo.
+- **Knowledge pages and file Library.** Long-lived Markdown pages for research, plans and decisions, alongside versioned files with in-browser previews for PDF, Office and Markdown.
+- **Scheduled and event triggers.** Run prompts or skills on a schedule or when another service sends a [signed event](docs/events.md), and deliver reports back to chat.
+- **MCP connectors, web search and push.** Connect external tools over MCP, configure fallback web search (keyless Exa, Brave, Tavily, external SearXNG or ChatGPT subscription search) and receive self-hosted push notifications.
+- **Bring your own model.** Connect a ChatGPT sign-in, any OpenAI-compatible endpoint or local models on Apple Silicon through oMLX.
+- **Built-in backups.** Automated daily local backups without stopping the stack, with one-command restore ([backups](docs/backup-user.md)).
 
 <img src="docs/assets/detail.png" alt="Detail mode: a run's model calls and command, with the Inspect panel showing the tool, policy decision, input and output" width="860">
 
-Dodai · 土台 is the shared service layer (gateway, web reader, and storage: Garage and Qdrant). It runs as its own Compose project, `dodai`, so other callers keep access when Rei is stopped. See [gateway callers](docs/gateway-callers.md).
+## Architecture
+
+This repository ships **Rei** and its shared service foundation, **Dodai**, which run standalone out of the box. In my personal setup, Rei also sits at the center of a wider ecosystem of optional external services connected over MCP and signed webhooks — for example, a scheduled briefing can pull a ranked News digest over MCP, run web research for context and post the result to the agent's home chat with an inspectable trace.
+
+<img src="docs/assets/rei-architecture.png" alt="Architecture diagram: Rei (web/PWA and Android clients, triggers, control plane and agent runtime, agent state, tool policy and traces, and isolated execution) sits above Dodai, a separate full-width shared foundation containing Qdrant, Gateway, Web reader and Garage S3 storage. On the right, Rei connects over MCP to optional external services: Hashi (an open-source opt-in MCP bridge for project roots and local coding agents) and Kura (a private domain-services example with Finance and News). Kura sends signed event references back to Rei, shares Dodai via scoped gateway tokens and a dedicated S3 bucket, and can optionally call Hashi's minimal MCP mode." width="860">
+
+[Editable Excalidraw diagram](docs/assets/rei-architecture.excalidraw)
+
+- **Rei レイ** *(this repository)* owns the agent loop and decides when to call a model, run a tool or ask for approval. The Inspector records every model call, tool call and policy decision, and MCP connectors enforce Rei's permissions while routing calls through the gateway. See the [service architecture](docs/architecture.md).
+- **Dodai 土台** *(this repository, separate Compose stack)* is the shared foundation: gateway, profile-free web reader, Garage S3 storage and Qdrant vector index. It runs as its own Compose project (`dodai`) so other callers keep model, web and S3 access even while Rei is stopped. External callers receive scoped gateway tokens, per-provider concurrency budgets and dedicated Garage buckets; Qdrant stays Rei-only. See [gateway callers](docs/gateway-callers.md).
+- **Hashi 橋** *(optional, standalone open-source repo)* is an opt-in MCP bridge that lets Rei and other MCP clients inspect enabled project roots and Git diffs, prepare handoffs and launch explicitly enabled local coding agents such as Claude Code, Codex and Pi. External services can also call Hashi's minimal mode for one-off model runs without tools. See the [Hashi repository](https://github.com/sheldonxxxx/Hashi).
+- **Kura 蔵** *(optional, private example)* is the "storehouse" pattern in my own setup, where each private domain owns its records and runs fixed jobs — such as importing statements for Finance or triaging stories for News. Rei queries domain data over MCP; when something happens, Kura sends a signed, reference-only webhook (an event type and ID, never untrusted content) to start a Rei trigger, and the agent reads the details back over MCP. See [event triggers](docs/events.md).
 
 ## Quick start
 
 **Requirements**
 
-- Docker with Compose v2.20 or newer, on the machine that will run Rei. macOS or Linux; on Windows, WSL2 only. The stack is developed on macOS.
+- Docker with Compose v2.20 or newer on the machine that will run Rei (macOS or Linux; on Windows, WSL2 only — developed on macOS).
 - Node.js 26 or newer and npm.
-- Internet access for dependencies and container images, and disk space for the images and your data.
-- For real replies, an account with a supported model provider (a ChatGPT sign-in or any OpenAI-compatible endpoint), connected in the web app. [oMLX](docs/embedding-providers.md) on Apple Silicon can serve local models. See the [installation guide](docs/installation.md) for the full list.
+- Internet access for dependencies and container images, plus disk space for images and your data.
+- A supported model provider connected in the web app for real replies (ChatGPT sign-in, any OpenAI-compatible endpoint or local models via oMLX on Apple Silicon). See the [installation guide](docs/installation.md) for the full list.
 
-**Install with npm**, no clone and no build:
+**Install with npm** (no clone and no build):
 
 ```sh
-npx rei-ai setup        # or: npm i -g rei-ai && rei setup
+npx rei-ai setup                        # or: npm i -g rei-ai && rei setup
 ```
 
-Setup checks your machine, writes its files to `~/.rei`, pulls the published images of its release and starts the stack. Open the address it prints (by default <http://127.0.0.1:8787>) and create your account with the one-time code; models, memory and web search are set up in the web app.
+Setup checks your machine, writes its files to `~/.rei`, pulls the published images for its release and starts Dodai and Rei. Open the address it prints (by default <http://127.0.0.1:8787>) and create your account with the one-time code; models, memory and web search are configured in the web app.
 
 ```sh
-rei status    # summarize the services
-rei doctor    # check the installation and suggest fixes
+rei status                              # summarize Rei and Dodai services
+rei doctor                              # check the installation and suggest fixes
 npm i -g rei-ai@latest && rei upgrade   # move to a new release (keeps your data)
 ```
 
-**From source**, for working on Rei: the same commands as `./rei` from a checkout, which builds the images locally.
+*(If you ran with `npx` instead of installing globally, prefix these commands with `npx rei-ai`.)*
+
+**From source** (for working on Rei): use `./rei` from a checkout to build images locally.
 
 ```sh
 git clone https://github.com/sheldonxxxx/Rei.git
@@ -91,9 +102,10 @@ See the [installation guide](docs/installation.md) for configuration, upgrades, 
 
 - [Installation](docs/installation.md): requirements, setup, upgrades, backup and restore, reaching Rei from your phone.
 - [User guide](docs/user-guide.md): agents, approvals, memory, files, triggers and connectors.
+- [Backups](docs/backup-user.md): daily local backups and one-command restore.
 - [Architecture](docs/architecture.md) and [decision records](docs/adr/): how the services fit together and why.
-- [Android client](apps/android/README.md).
-- [All documentation](docs/README.md).
+- [Android client](apps/android/README.md): native app for chat, approvals, remote browser, files and notifications.
+- [All documentation](docs/README.md): complete index of feature guides and internals.
 
 ## Use it as a reference for your own assistant
 
@@ -115,12 +127,14 @@ Take what fits and leave the rest. Specs, decisions and vocabulary are kept in p
 ```
 apps/
   server/     control plane: API, SQLite, agent runtime, memory, library
-  web/        React/Vite frontend
+  web/        React/Vite frontend (PWA)
+  android/    native Android client (Kotlin / Jetpack Compose)
   gateway/    model, embedding, search, MCP and push gateway
+  reader/     shared profile-free web reader
   egress/     network proxy for the sandbox and browser
-  cli/        the setup and operations CLI (./rei, and the npm package rei-ai)
-packages/     shared protocol, network and logging packages
-containers/   Docker Compose stack and service images
+  cli/        setup and operations CLI (./rei, and the npm package rei-ai)
+packages/     shared protocol, network, proxy and logging packages
+containers/   Docker Compose stacks (Rei and Dodai) and service images
 docs/         user, architecture and decision docs
 tests/        end-to-end and repository quality tests
 ```
@@ -138,7 +152,7 @@ Conventions, test expectations and commit style are in [`AGENTS.md`](AGENTS.md);
 
 ## Project status
 
-Rei is a personal project in early development (v0.0.x). It is shaped by what I need, there is no roadmap, and breaking changes, including to stored data, can land at any time. It is meant to run on your own machine, bound to loopback; review the [installation guide](docs/installation.md) before exposing it to a network.
+Rei is a personal project in early development (`v0.1.x`). It is shaped by what I need, there is no roadmap, and breaking changes — including to stored data — can land at any time. It is meant to run on your own machine, bound to loopback; review the [installation guide](docs/installation.md) before exposing it to a network.
 
 ## Contributing
 
