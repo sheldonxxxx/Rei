@@ -422,6 +422,37 @@ describe("Connector detail", () => {
     await waitFor(() => expect(api.getConnectorTools).toHaveBeenCalledWith("con_1", true));
   });
 
+  it("lets a connector in error retry, and shows it connected after the tools load", async () => {
+    const broken = conn({ id: "con_3", name: "Cal", status: "error", error: "It broke" });
+    const api = makeApi({
+      getConnectors: vi
+        .fn()
+        .mockResolvedValueOnce({ connectors: [broken] })
+        .mockResolvedValue({ connectors: [conn({ id: "con_3", name: "Cal" })] }),
+    });
+    renderPage(api, "con_3");
+    // Opening the page tries the tools again, and the refresh button stays usable.
+    await waitFor(() => expect(api.getConnectorTools).toHaveBeenCalledWith("con_3", false));
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeTruthy());
+    const refresh = screen.getByRole("button", { name: "Refresh tools" }) as HTMLButtonElement;
+    expect(refresh.disabled).toBe(false);
+  });
+
+  it("keeps Refresh tools enabled while a connector is in error and still failing", async () => {
+    const api = makeApi({
+      getConnectors: vi.fn().mockResolvedValue({
+        connectors: [conn({ id: "con_3", name: "Cal", status: "error", error: "It broke" })],
+      }),
+      getConnectorTools: vi.fn().mockRejectedValue(new ApiError(502, "mcp_error", "It broke")),
+    });
+    renderPage(api, "con_3");
+    const refresh = (await screen.findByRole("button", { name: "Refresh tools" })) as HTMLButtonElement;
+    await waitFor(() => expect(api.getConnectorTools).toHaveBeenCalledWith("con_3", false));
+    await waitFor(() => expect(refresh.disabled).toBe(false));
+    fireEvent.click(refresh);
+    await waitFor(() => expect(api.getConnectorTools).toHaveBeenCalledWith("con_3", true));
+  });
+
   it("offers Sign in again when it needs sign-in, and goes to the provider", async () => {
     const api = makeApi();
     const navigate = renderPage(api, "con_2");
