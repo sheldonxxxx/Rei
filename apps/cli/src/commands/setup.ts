@@ -23,6 +23,7 @@ import { fail, ok, printRow, row, skip, warn } from "../format.ts";
 import { initSecrets } from "../init.ts";
 import { installAssets, installedVersion, markInstalled } from "../install.ts";
 import { restrictReiStorageKey } from "../storage/garage.ts";
+import { compareVersions, isVersion } from "../version.ts";
 import { showSetupCode } from "./setup-code.ts";
 
 export interface SetupOptions {
@@ -179,7 +180,9 @@ function files(ctx: Ctx): CheckResult {
   if (installed && installed !== ctx.version)
     return fail(
       `${ctx.containersDir} runs Rei ${installed}, and this is ${ctx.version}`,
-      "run rei upgrade to move it to this release (it keeps a copy of the configuration first)",
+      isVersion(installed) && isVersion(ctx.version) && compareVersions(installed, ctx.version) > 0
+        ? `install that release or a later one (npm i -g rei-ai@${installed}); Rei does not downgrade`
+        : "run rei upgrade to move it to this release (it keeps a copy of the configuration first)",
     );
   try {
     const written = installAssets(ctx);

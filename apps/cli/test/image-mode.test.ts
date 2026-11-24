@@ -109,6 +109,11 @@ describe("setup from an npm installation", () => {
     expect(rig.out.text).toContain("run rei upgrade");
     expect(rig.stack.compose.filter((c) => /pull|up/.test(c))).toEqual([]);
     expect(rig.host.writes).toEqual([]);
+
+    const newer = makeRig({ image: true, installed: "1.3.0", answers: [] });
+    expect(await setup(newer.ctx, { nonInteractive: true, skipBuild: false })).toBe(1);
+    expect(newer.out.text).toContain("npm i -g rei-ai@1.3.0");
+    expect(newer.out.text).not.toContain("run rei upgrade");
   });
 
   it("rei redeploy points an npm installation to rei upgrade", async () => {
