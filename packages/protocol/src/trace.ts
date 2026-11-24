@@ -323,6 +323,7 @@ export interface AgentSettingsPatch {
   defaultProfile?: ProfileName;
   /** Null allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
+  canCreateTriggersForOtherAgents?: boolean;
   /** The agent's system instructions; applied from its next model call. */
   instructions?: string;
 }

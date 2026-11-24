@@ -734,6 +734,58 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
     });
   });
 
+  it("opts in the creator, previews the target, and runs the trigger as the target", async () => {
+    server = await startSignedIn();
+    const { agent: target } = plane().store.createAgent({ name: "Researcher", avatar: "R", instructions: "" });
+    plane().store.updateAgentSettings(target.id, { defaultProfile: "strict" });
+    const id = await chat(server);
+    const delegated = tool("create_trigger", { ...draft, agentId: target.id });
+    expect(plane().store.getAgent(agent())!.canCreateTriggersForOtherAgents).toBe(false);
+    await say(server, id, delegated);
+    await settled(server, id, 1);
+    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Create triggers for other agents/);
+    expect(await pending(server)).toEqual([]);
+    expect(T().store.list()).toEqual([]);
+
+    const enabled = await server.client.call("PATCH", `/api/agents/${agent()}`, {
+      body: { canCreateTriggersForOtherAgents: true },
+    });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.agent.canCreateTriggersForOtherAgents).toBe(true);
+    await say(server, id, tool("list_triggers", {}));
+    await settled(server, id, 2);
+    expect(toolResults(server, id).at(-1)!.text).toContain(`Researcher (${target.id})`);
+
+    await say(server, id, delegated);
+    const [approval] = await waitPending(server, id, 1);
+    expect(approval).toMatchObject({
+      summary: 'Create the trigger "Morning check" for Researcher',
+      lengths: ["once"],
+      preview: { agentName: "Researcher", profile: "strict" },
+    });
+    expect(T().store.list()).toEqual([]);
+    await approve(server, id);
+    const [created] = T().store.list();
+    expect(created).toMatchObject({ agentId: target.id, profile: "strict" });
+    const run = T().scheduler.runNow(created!.id);
+    const runSessionId = await sessionOfRun(run.id);
+    expect(plane().store.getSessionRow(runSessionId)?.agent_id).toBe(target.id);
+    expect((await finished(created!.id)).status).toBe("succeeded");
+  });
+
+  it("rechecks delegation permission when an approved call resumes", async () => {
+    server = await startSignedIn();
+    const { agent: target } = plane().store.createAgent({ name: "Researcher", avatar: "R", instructions: "" });
+    const id = await chat(server);
+    plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: true });
+    await say(server, id, tool("create_trigger", { ...draft, agentId: target.id }));
+    await waitPending(server, id, 1);
+    plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: false });
+    await approve(server, id);
+    expect(T().store.list()).toEqual([]);
+    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Create triggers for other agents/);
+  });
+
   it("an invalid draft is refused with the reason and no card", async () => {
     server = await startSignedIn();
     const id = await chat(server);
@@ -808,6 +860,7 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
 
   it("an agent cannot change another agent's trigger", async () => {
     server = await startSignedIn();
+    plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: true });
     const made = make();
     plane().store.db.run("PRAGMA foreign_keys = OFF");
     plane().store.db.run("UPDATE triggers SET agent_id = 'agt_other' WHERE id = ?", made.id);
@@ -820,6 +873,52 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
 });
 
 describe("the Triggers page's routes", () => {
+  it("POST creates a trigger for the chosen agent, logs it and can run it by hand", async () => {
+    server = await startSignedIn();
+    const { agent: chosen } = plane().store.createAgent({ name: "Second", avatar: "S", instructions: "" });
+    const body = {
+      agentId: chosen.id,
+      name: "  Check in  ",
+      start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "UTC" } },
+      action: { kind: "notify", message: "Time to check in" },
+    };
+    const response = await server.client.call("POST", "/api/triggers", { body });
+    expect(response.status).toBe(201);
+    const created = response.body.trigger as Trigger;
+    expect(created).toMatchObject({ agentId: chosen.id, name: "Check in", status: "active", allow: [] });
+    expect(created.nextRunAt).not.toBeNull();
+    expect((await server.client.get("/api/triggers")).body.triggers).toContainEqual(created);
+    expect(await edits()).toContainEqual(
+      expect.objectContaining({
+        target: { kind: "trigger", triggerId: created.id },
+        field: "create",
+        author: "user",
+      }),
+    );
+
+    const run = await server.client.call("POST", `/api/triggers/${created.id}/run`);
+    expect(run.status).toBe(200);
+    expect(run.body.run.manual).toBe(true);
+    expect((await finished(created.id)).status).toBe("succeeded");
+  });
+
+  it("POST validates the agent, draft and permitted fields before creating anything", async () => {
+    server = await startSignedIn();
+    const draft = {
+      agentId: agent(),
+      name: "A trigger",
+      start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "UTC" } },
+      action: { kind: "notify", message: "Hello" },
+    };
+    const post = (overrides: object) =>
+      server!.client.call("POST", "/api/triggers", { body: { ...draft, ...overrides } });
+
+    expect((await post({ agentId: "missing" })).status).toBe(404);
+    expect((await post({ action: { kind: "skill", skill: "missing" } })).status).toBe(400);
+    expect((await post({ allow: [{ tool: "demo_read_inbox" }] })).status).toBe(400);
+    expect(T().store.list()).toEqual([]);
+  });
+
   it("PATCH edits a trigger from the page, logs each field, and refuses what the rules refuse", async () => {
     server = await startSignedIn();
     const t = make({ name: "Page", allow: [{ tool: "demo_add_todo" }, { tool: "demo_read_inbox" }] });

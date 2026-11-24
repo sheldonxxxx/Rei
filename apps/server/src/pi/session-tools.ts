@@ -143,7 +143,7 @@ export function createSessionExtension(
       name: "message_session",
       callers: MODEL_ONLY,
       description:
-        "Send a message to a session you started (to give it more to do, or new information). It reports back again when it finishes.",
+        "Send a message to a session you started. If it is running, your message steers it after its current tool round. It reports back when it finishes.",
       parameters: obj({ session_id: str(), text: str() }),
       replay: "safe",
       execute: (args, api) =>

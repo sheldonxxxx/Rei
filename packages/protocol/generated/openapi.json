@@ -275,6 +275,9 @@
               }
             ]
           },
+          "canCreateTriggersForOtherAgents": {
+            "type": "boolean"
+          },
           "homeSessionId": {
             "type": "string",
             "description": "The agent's pinned home chat."
@@ -5813,8 +5816,8 @@
         "tags": [
           "agents"
         ],
-        "summary": "Make a new agent from one sentence; a model writes its name, avatar and instructions.",
-        "description": "Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: \"bad_request\" (an empty or over-500-character description), \"design_failed\" (502).",
+        "summary": "Create an agent with a chosen name and avatar.",
+        "description": "Answers the agent and its home chat, and sends agent.upserted and session.upserted. Errors: \"bad_request\", \"bad_avatar\".",
         "responses": {
           "200": {
             "description": "OK",
@@ -5916,17 +5919,40 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "description": {
-                    "type": "string",
-                    "description": "One sentence: what the agent is for."
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "The chosen agent name."
+                      },
+                      "avatar": {
+                        "type": "string",
+                        "description": "The chosen agent avatar."
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "avatar"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "description": {
+                        "type": "string",
+                        "description": "Legacy description used to derive a name locally."
+                      }
+                    },
+                    "required": [
+                      "description"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Compatibility request for older clients."
                   }
-                },
-                "required": [
-                  "description"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }
@@ -6106,6 +6132,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "canCreateTriggersForOtherAgents": {
+                    "type": "boolean"
                   },
                   "instructions": {
                     "type": "string"
@@ -34951,6 +34980,223 @@
           }
         ],
         "x-rei-protocol": 1
+      },
+      "post": {
+        "tags": [
+          "triggers"
+        ],
+        "summary": "Create a trigger for an agent.",
+        "description": "Errors: \"not_found\", \"bad_request\".",
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trigger": {
+                      "$ref": "#/components/schemas/Trigger"
+                    }
+                  },
+                  "required": [
+                    "trigger"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agentId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "$ref": "#/components/schemas/TriggerStart"
+                  },
+                  "action": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "notify"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "message"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "prompt"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "prompt"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "const": "skill"
+                          },
+                          "skill": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "skill"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "landing": {
+                    "enum": [
+                      "new",
+                      "ongoing"
+                    ]
+                  },
+                  "report": {
+                    "enum": [
+                      "always",
+                      "on_change",
+                      "never"
+                    ]
+                  },
+                  "latenessMinutes": {
+                    "type": "integer"
+                  },
+                  "catchUp": {
+                    "enum": [
+                      "once",
+                      "skip"
+                    ]
+                  },
+                  "overlap": {
+                    "enum": [
+                      "skip",
+                      "queue"
+                    ]
+                  },
+                  "profile": {
+                    "enum": [
+                      "strict",
+                      "standard",
+                      "relaxed"
+                    ]
+                  }
+                },
+                "required": [
+                  "agentId",
+                  "name",
+                  "start",
+                  "action"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/triggers/{id}": {

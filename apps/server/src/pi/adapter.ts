@@ -47,7 +47,6 @@ import type { Clock } from "../util/clock.ts";
 import { badRequest, HttpError, notFound } from "../util/errors.ts";
 import { newId } from "../util/ids.ts";
 import type { Logger } from "../util/log.ts";
-import type { AgentDesign } from "./agent-designer.ts";
 import { type ApprovalConfig, ApprovalService } from "./approval-service.ts";
 import { behaviorSettings, CONFIGLESS } from "./behavior-settings.ts";
 import { type SessionHost, type SessionHostRef, statusWord, titleFromBrief } from "./session-tools.ts";
@@ -311,7 +310,7 @@ export class PiAdapter implements SessionHost {
   }
 
   /** New agent: its rows with the home chat, and the home chat's tree folder. */
-  createAgent(design: AgentDesign): { agent: Agent; session: Session } {
+  createAgent(design: { name: string; avatar: string; instructions: string }): { agent: Agent; session: Session } {
     const { agent, session, treeId } = this.#store.createAgent(design);
     this.#files.create(treeId);
     this.#log.info("agent.created", { agentId: agent.id });
@@ -939,6 +938,7 @@ export class PiAdapter implements SessionHost {
         text: input.text,
         from: { sessionId: input.caller.id, title: input.caller.title },
         assignedBy: input.caller.id,
+        whenBusy: "steer",
       });
     } catch (error) {
       if (error instanceof AdmissionDeferred)

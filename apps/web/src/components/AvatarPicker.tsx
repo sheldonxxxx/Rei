@@ -1,6 +1,6 @@
 import type { Agent } from "@rei/protocol";
 import { AGENT_BOT_AVATARS } from "@rei/protocol";
-import { useId, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/primitives/dialog.tsx";
 import { Field } from "@/components/primitives/field.tsx";
@@ -29,16 +29,11 @@ interface Props {
 export function AvatarPicker({ agent, api, onClose }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const radios = useId();
-  const textId = useId();
   const [choice, setChoice] = useState(agent.avatar);
   const [busy, setBusy] = useState(false);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const bots = AGENT_BOT_AVATARS;
-  const selectedBot = isBot(choice) ? `bot:${botIdOf(choice)}` : null;
-  const text = isBot(choice) || isPicture(choice) ? "" : choice;
   const changed = choice !== agent.avatar && choice.trim() !== "";
 
   async function pick(file: File | undefined) {
@@ -89,49 +84,7 @@ export function AvatarPicker({ agent, api, onClose }: Props) {
           <Avatar value={choice.trim() || agent.avatar} size={72} label={`${agent.name}'s new look`} />
         </div>
 
-        <fieldset className="m-0 grid min-w-0 grid-cols-3 gap-2 border-0 p-0" disabled={busy}>
-          <legend className="col-span-3 mb-2 p-0 text-xs font-medium text-muted-foreground">Pick a bot</legend>
-          {bots.map((value) => {
-            const id = value.slice(4) as keyof typeof BOT_NAMES;
-            return (
-              <label
-                key={value}
-                className="bot-option relative flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border px-1.5 pt-2.5 pb-2 text-center text-xs text-muted-foreground transition-colors hover:bg-muted has-checked:border-ring has-checked:bg-accent has-checked:font-medium has-checked:text-accent-foreground has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring has-disabled:cursor-not-allowed has-disabled:opacity-60"
-              >
-                <input
-                  type="radio"
-                  className="peer sr-only"
-                  name={radios}
-                  value={value}
-                  checked={selectedBot === value}
-                  onChange={() => setChoice(value)}
-                />
-                <Icon
-                  name="check"
-                  size={14}
-                  className="absolute top-1.5 right-1.5 hidden text-accent-foreground peer-checked:block"
-                />
-                <Avatar value={value} size={52} />
-                <span>{BOT_NAMES[id]}</span>
-              </label>
-            );
-          })}
-        </fieldset>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <Field className="min-w-44 flex-1 gap-2">
-            <Label htmlFor={textId}>Or an emoji or a few letters</Label>
-            <Input
-              id={textId}
-              type="text"
-              value={text}
-              maxLength={TEXT_MAX}
-              placeholder="🙂"
-              autoComplete="off"
-              disabled={busy}
-              onChange={(e) => setChoice(e.target.value)}
-            />
-          </Field>
+        <AvatarChoices choice={choice} disabled={busy} onChange={setChoice}>
           <div>
             <input
               ref={fileInput}
@@ -152,7 +105,7 @@ export function AvatarPicker({ agent, api, onClose }: Props) {
               {reading ? "Reading…" : "Upload a picture"}
             </Button>
           </div>
-        </div>
+        </AvatarChoices>
 
         {error && <DialogError>{error}</DialogError>}
         <DialogFooter>
@@ -165,5 +118,70 @@ export function AvatarPicker({ agent, api, onClose }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface AvatarChoicesProps {
+  choice: string;
+  disabled: boolean;
+  onChange: (choice: string) => void;
+  children?: ReactNode;
+}
+
+/** The same built-in icons and text field for creating an agent and changing its look. */
+export function AvatarChoices({ choice, disabled, onChange, children }: AvatarChoicesProps) {
+  const radios = useId();
+  const textId = useId();
+  const selectedBot = isBot(choice) ? `bot:${botIdOf(choice)}` : null;
+  const text = isBot(choice) || isPicture(choice) ? "" : choice;
+
+  return (
+    <>
+      <fieldset className="m-0 grid min-w-0 grid-cols-3 gap-2 border-0 p-0" disabled={disabled}>
+        <legend className="col-span-3 mb-2 p-0 text-xs font-medium text-muted-foreground">Pick a bot</legend>
+        {AGENT_BOT_AVATARS.map((value) => {
+          const id = value.slice(4) as keyof typeof BOT_NAMES;
+          return (
+            <label
+              key={value}
+              className="bot-option relative flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border px-1.5 pt-2.5 pb-2 text-center text-xs text-muted-foreground transition-colors hover:bg-muted has-checked:border-ring has-checked:bg-accent has-checked:font-medium has-checked:text-accent-foreground has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring has-disabled:cursor-not-allowed has-disabled:opacity-60"
+            >
+              <input
+                type="radio"
+                className="peer sr-only"
+                name={radios}
+                value={value}
+                checked={selectedBot === value}
+                onChange={() => onChange(value)}
+              />
+              <Icon
+                name="check"
+                size={14}
+                className="absolute top-1.5 right-1.5 hidden text-accent-foreground peer-checked:block"
+              />
+              <Avatar value={value} size={52} />
+              <span>{BOT_NAMES[id]}</span>
+            </label>
+          );
+        })}
+      </fieldset>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <Field className="min-w-44 flex-1 gap-2">
+          <Label htmlFor={textId}>Or an emoji or a few letters</Label>
+          <Input
+            id={textId}
+            type="text"
+            value={text}
+            maxLength={TEXT_MAX}
+            placeholder="🙂"
+            autoComplete="off"
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </Field>
+        {children}
+      </div>
+    </>
   );
 }

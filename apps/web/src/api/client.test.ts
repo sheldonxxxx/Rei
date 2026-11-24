@@ -252,15 +252,15 @@ describe("agent look", () => {
 });
 
 describe("agent create and delete", () => {
-  it("POSTs the description and DELETEs by id, with the CSRF header", async () => {
+  it("POSTs the chosen identity and DELETEs by id, with the CSRF header", async () => {
     const fetchMock = vi.fn(async () => json(200, {}));
     const api = createApi({ fetch: fetchMock as unknown as typeof fetch });
-    await api.createAgent("a social media manager");
+    await api.createAgent({ name: "News Reporter", avatar: "📰" });
     await api.deleteAgent("a/2");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
     expect(calls[0]![0]).toBe("/api/agents");
     expect(calls[0]![1].method).toBe("POST");
-    expect(calls[0]![1].body).toBe(JSON.stringify({ description: "a social media manager" }));
+    expect(calls[0]![1].body).toBe(JSON.stringify({ name: "News Reporter", avatar: "📰" }));
     expect(header(calls[0]![1], "x-rei")).toBe("1");
     expect(calls[1]![0]).toBe("/api/agents/a%2F2");
     expect(calls[1]![1].method).toBe("DELETE");
@@ -270,8 +270,9 @@ describe("agent create and delete", () => {
   it("words the refusals", () => {
     expect(describeError(new ApiError(409, "default_agent", ""))).toMatch(/default agent can't be deleted/);
     expect(describeAgentError(new ApiError(404, "not_found", ""))).toMatch(/agent no longer exists/);
-    expect(describeAgentError(new ApiError(400, "bad_request", ""))).toMatch(/1 to 500/);
-    expect(describeAgentError(new ApiError(502, "design_failed", ""))).toMatch(/Nothing was created/);
+    expect(describeAgentError(new ApiError(400, "bad_request", "The name must be 1 to 40 characters."))).toMatch(
+      /1 to 40/,
+    );
     expect(describeAgentError(new ApiError(0, NETWORK_ERROR, ""))).toMatch(/Can't reach the server/);
   });
 });

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import type { Api } from "../api/client.ts";
 import { ApiError } from "../api/client.ts";
+import { triggerHref } from "../lib/route.ts";
 import { skillSummary, trigger, triggerRun } from "../test/fixtures.ts";
 import { TriggersPage } from "./TriggersPage.tsx";
 
@@ -120,10 +121,10 @@ describe("TriggersPage: the list", () => {
     expect((await screen.findByRole("link", { name: /Morning check/ })).textContent).toContain("Rex");
   });
 
-  it("explains how to make one when there are none, with no create button", async () => {
+  it("offers to create a trigger when there are none", async () => {
     setup({ getTriggers: vi.fn().mockResolvedValue({ triggers: [] }) });
-    expect(await screen.findByText("Nothing yet.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /new|add|create/i })).toBeNull();
+    expect(await screen.findByText("No triggers yet.")).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "New trigger" }).disabled).toBe(false);
   });
 
   it("shows an error with Try again, and refetches when the stream says something changed", async () => {
@@ -137,6 +138,80 @@ describe("TriggersPage: the list", () => {
     await screen.findByRole("link", { name: /Morning check/ });
     rerender(1);
     await waitFor(() => expect(getTriggers).toHaveBeenCalledTimes(3));
+  });
+});
+
+describe("TriggersPage: creation", () => {
+  it("creates a scheduled trigger and opens its detail", async () => {
+    const createTrigger = vi.fn().mockResolvedValue({ trigger: trigger() });
+    const previousPath = window.location.href;
+    setup({ getTriggers: vi.fn().mockResolvedValue({ triggers: [] }), createTrigger });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "New trigger" }));
+      const form = within(screen.getByRole("form", { name: "New trigger" }));
+      const submit = form.getByRole<HTMLButtonElement>("button", { name: "Create trigger" });
+      expect(submit.disabled).toBe(true);
+      expect(document.activeElement).toBe(form.getByLabelText("Name"));
+      fireEvent.change(form.getByLabelText("Name"), { target: { value: "Morning check" } });
+      fireEvent.change(form.getByLabelText("Prompt"), { target: { value: "Check the weather." } });
+      fireEvent.change(form.getByLabelText("Time zone"), { target: { value: "Asia/Macau" } });
+      fireEvent.click(submit);
+      await waitFor(() => expect(window.location.pathname).toBe(triggerHref("trg1")));
+      expect(createTrigger).toHaveBeenCalledWith({
+        agentId: "a1",
+        name: "Morning check",
+        start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "Asia/Macau" } },
+        action: { kind: "prompt", prompt: "Check the weather." },
+        landing: "new",
+        report: "on_change",
+        catchUp: "once",
+        overlap: "skip",
+        profile: "standard",
+      });
+    } finally {
+      window.history.replaceState(null, "", previousPath);
+    }
+  });
+
+  it("keeps an event trigger draft when creation fails and cancels without another request", async () => {
+    const createTrigger = vi.fn().mockRejectedValue(new ApiError(400, "bad_request", "The event source changed."));
+    setup(
+      {
+        getTriggers: vi.fn().mockResolvedValue({ triggers: [] }),
+        getEventSources: vi.fn().mockResolvedValue({
+          sources: [{ id: "feed", name: "Feed", status: "active", lastEventAt: null, types: [] }],
+        }),
+        createTrigger,
+      },
+      null,
+      0,
+      [...agents, { ...agents[0]!, id: "a2", name: "Rei", defaultProfile: "strict" }],
+    );
+    await screen.findByRole("list", { name: "Event sources" });
+    fireEvent.click(screen.getByRole("button", { name: "New trigger" }));
+    const form = within(screen.getByRole("form", { name: "New trigger" }));
+    fireEvent.change(form.getByLabelText("Agent"), { target: { value: "a2" } });
+    fireEvent.change(form.getByLabelText("Name"), { target: { value: "Feed update" } });
+    fireEvent.change(form.getByLabelText("Starts"), { target: { value: "event" } });
+    fireEvent.change(form.getByLabelText("Event source"), { target: { value: "feed" } });
+    fireEvent.change(form.getByLabelText("Event types"), { target: { value: "items.new" } });
+    fireEvent.change(form.getByLabelText("Action"), { target: { value: "notify" } });
+    fireEvent.change(form.getByLabelText("Message"), { target: { value: "The feed changed." } });
+    fireEvent.click(form.getByRole("button", { name: "Create trigger" }));
+    expect((await form.findByRole("alert")).textContent).toBe("The event source changed.");
+    expect(createTrigger).toHaveBeenCalledWith({
+      agentId: "a2",
+      name: "Feed update",
+      start: { kind: "event", source: "feed", types: ["items.new"] },
+      action: { kind: "notify", message: "The feed changed." },
+      landing: "new",
+      report: "on_change",
+      profile: "strict",
+    });
+    expect(form.getByLabelText<HTMLInputElement>("Name").value).toBe("Feed update");
+    fireEvent.click(form.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("heading", { name: "Triggers" })).toBeTruthy();
+    expect(createTrigger).toHaveBeenCalledTimes(1);
   });
 });
 

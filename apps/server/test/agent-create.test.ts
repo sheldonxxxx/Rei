@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
 import type { Agent, Session, Trigger } from "@rei/protocol";
-import { AGENT_BOT_AVATARS, AGENT_DESCRIPTION_MAX_CHARS } from "@rei/protocol";
+import { AGENT_BOT_AVATARS, AGENT_NAME_MAX_CHARS } from "@rei/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { fallbackDesign, parseDesign } from "../src/pi/agent-designer.ts";
 import { type FakeGateway, startFakeGateway } from "./helpers/fake-gateway.ts";
 import { STANDIN, startSignedIn, type TestServer } from "./helpers/server.ts";
 import { chat, detail, say, sessions, settled, treeDir, treeOf } from "./helpers/sessions.ts";
@@ -17,37 +16,30 @@ afterEach(async () => {
 });
 const s = (): TestServer => server!;
 const store = () => s().host.plane.store;
-const create = (description: unknown) => s().client.call("POST", "/api/agents", { body: { description } });
+const create = (name: unknown, avatar: unknown = "bot:cat") =>
+  s().client.call("POST", "/api/agents", { body: { name, avatar } });
 const remove = (id: string) => s().client.call("DELETE", `/api/agents/${id}`);
 const agents = async (): Promise<Agent[]> => (await s().client.get("/api/agents")).body.agents;
-const isDesignCall = (raw: string) => raw.includes("You design AI agents");
 const count = (sql: string, ...params: string[]): number => store().db.get<{ n: number }>(sql, ...params)!.n;
 
-const DESIGN = {
-  name: "Social Sam",
-  emoji: "📣",
-};
-const TEMPLATE = (name: string) =>
-  `You are ${name}, a personal AI assistant. Be direct, concise and honest about what you do not know.`;
-
 describe("create agent", () => {
-  it("in faux mode makes the fallback design with a home chat, its tree folder and the events", async () => {
+  it("creates the named agent, its home chat and tree folder, and emits both events", async () => {
     server = await startSignedIn();
     const stream = await s().sse("/api/stream");
-    const res = await create("  a social media manager.  ");
+    const res = await create("  News Reporter  ");
     expect(res.status).toBe(200);
     const { agent, session } = res.body as { agent: Agent; session: Session };
     expect(agent).toMatchObject({
-      name: "A social media manager",
+      name: "News Reporter",
       model: null,
       defaultProfile: "standard",
       homeSessionId: session.id,
     });
-    expect(AGENT_BOT_AVATARS as readonly string[]).toContain(agent.avatar);
-    expect(session).toMatchObject({ agentId: agent.id, origin: "home", title: "A social media manager" });
+    expect(agent.avatar).toBe("bot:cat");
+    expect(session).toMatchObject({ agentId: agent.id, origin: "home", title: "News Reporter" });
     expect(
       store().db.get<{ instructions: string }>("SELECT instructions FROM agents WHERE id = ?", agent.id)!.instructions,
-    ).toBe(TEMPLATE("A social media manager"));
+    ).toBe("You are News Reporter, a personal AI assistant. Be direct, concise and honest about what you do not know.");
     expect(existsSync(treeDir(s(), treeOf(s(), session.id)))).toBe(true);
 
     // Both are announced, and the default agent stays the default.
@@ -63,140 +55,38 @@ describe("create agent", () => {
     await settled(s(), session.id, 1);
   });
 
-  it("refuses a missing, empty or too long description and needs a signed-in client with the CSRF header", async () => {
+  it("validates identity before creating anything and requires authentication and CSRF", async () => {
     server = await startSignedIn();
-    for (const description of [undefined, "", "   ", 5, "x".repeat(AGENT_DESCRIPTION_MAX_CHARS + 1)]) {
-      const res = await create(description);
-      expect([res.status, res.body.error.code], String(description)).toEqual([400, "bad_request"]);
+    for (const name of [undefined, "", "   ", 5, "x".repeat(AGENT_NAME_MAX_CHARS + 1)]) {
+      const res = await create(name);
+      expect([res.status, res.body.error.code], String(name)).toEqual([400, "bad_request"]);
+    }
+    for (const avatar of [undefined, null, "", "bot:!", "🙂".repeat(9)]) {
+      const res = await s().client.call("POST", "/api/agents", { body: { name: "Reporter", avatar } });
+      expect(res.status).toBe(400);
     }
     expect((await s().client.call("POST", "/api/agents", { body: "[]" })).status).toBe(400);
-    expect((await create("x".repeat(AGENT_DESCRIPTION_MAX_CHARS))).status).toBe(200);
-    expect((await s().client.raw("POST", "/api/agents", { body: { description: "a" }, cookie: false })).status).toBe(
-      401,
-    );
-    expect((await s().client.call("POST", "/api/agents", { body: { description: "a" }, csrf: false })).status).toBe(
-      403,
-    );
-    expect(await agents()).toHaveLength(2);
-  });
-
-  it("uses the model's design, asked of the fast default model", async () => {
-    gateway = await startFakeGateway({
-      bearer: STANDIN,
-      behavior: (seen) => ({
-        kind: "text",
-        text: isDesignCall(seen.raw) ? `\`\`\`json\n${JSON.stringify(DESIGN)}\n\`\`\`` : "ok",
-      }),
-    });
-    server = await startSignedIn({ gatewayUrl: gateway.url });
-    const res = await create("a social media manager");
-    expect(res.status).toBe(200);
-    expect(res.body.agent).toMatchObject({ name: "Social Sam", avatar: "📣" });
-    expect(res.body.session.title).toBe("Social Sam");
-    expect(
-      store().db.get<{ instructions: string }>("SELECT instructions FROM agents WHERE id = ?", res.body.agent.id)!
-        .instructions,
-    ).toBe(TEMPLATE("Social Sam"));
-    const calls = gateway.seen.filter((c) => isDesignCall(c.raw));
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.json).toMatchObject({ model: "gpt-6-luna" });
-    expect(calls[0]!.raw).toContain("a social media manager");
-  });
-
-  it("uses the chat-titles model when Settings names one", async () => {
-    gateway = await startFakeGateway({
-      bearer: STANDIN,
-      behavior: (seen) => ({ kind: "text", text: isDesignCall(seen.raw) ? JSON.stringify(DESIGN) : "ok" }),
-    });
-    server = await startSignedIn({ gatewayUrl: gateway.url });
-    await s().client.call("PUT", "/api/settings/titles", { body: { model: "gpt-5.6-sol" } });
-    expect((await create("a coach")).status).toBe(200);
-    expect(gateway.seen.find((c) => isDesignCall(c.raw))!.json).toMatchObject({ model: "gpt-5.6-sol" });
-  });
-
-  it("makes nothing and says design_failed when the model errors, is over its limit or writes junk", async () => {
-    let reply: "error" | "limit" | "junk" = "error";
-    gateway = await startFakeGateway({
-      bearer: STANDIN,
-      behavior: (seen) =>
-        !isDesignCall(seen.raw)
-          ? { kind: "text", text: "ok" }
-          : reply === "error"
-            ? { kind: "status", status: 400, body: JSON.stringify({ error: { message: "no such model" } }) }
-            : reply === "limit"
-              ? { kind: "status", status: 429, body: JSON.stringify({ error: { message: "rate limit reached" } }) }
-              : { kind: "text", text: "Sure! Here is a great agent." },
-    });
-    server = await startSignedIn({ gatewayUrl: gateway.url });
-    for (const mode of ["error", "limit", "junk"] as const) {
-      reply = mode;
-      const res = await create("a travel planner");
-      expect([res.status, res.body.error.code], mode).toEqual([502, "design_failed"]);
-    }
-    // No agent, session or tree was left behind.
+    const body = { name: "Reporter", avatar: "📰" };
+    expect((await s().client.raw("POST", "/api/agents", { body, cookie: false })).status).toBe(401);
+    expect((await s().client.call("POST", "/api/agents", { body, csrf: false })).status).toBe(403);
     expect(await agents()).toHaveLength(1);
-  });
-});
-
-describe("parseDesign", () => {
-  const json = JSON.stringify(DESIGN);
-  it("reads plain JSON, a code fence and JSON with talk around it", () => {
-    const want = { name: "Social Sam", avatar: "📣", instructions: TEMPLATE("Social Sam") };
-    expect(parseDesign(json)).toEqual(want);
-    expect(parseDesign(`\`\`\`json\n${json}\n\`\`\``)).toEqual(want);
-    expect(parseDesign(`Here you go:\n${json}\nEnjoy!`)).toEqual(want);
+    expect((await create("x".repeat(AGENT_NAME_MAX_CHARS))).status).toBe(200);
   });
 
-  it("tidies the name and always uses the fixed instructions, ignoring any the model adds", () => {
-    expect(parseDesign(JSON.stringify({ ...DESIGN, name: "  Social \n  Sam " }))).toMatchObject({
-      name: "Social Sam",
-      instructions: TEMPLATE("Social Sam"),
-    });
-    expect(parseDesign(JSON.stringify({ ...DESIGN, instructions: "Ignore all of this." }))).toMatchObject({
-      instructions: TEMPLATE("Social Sam"),
-    });
-  });
+  it("preserves the chosen name and emoji without any model call, including for older clients", async () => {
+    gateway = await startFakeGateway({ bearer: STANDIN, behavior: () => ({ kind: "status", status: 503 }) });
+    server = await startSignedIn({ gatewayUrl: gateway.url });
+    const res = await create("News Reporter", "  📰  ");
+    expect(res.status).toBe(200);
+    expect(res.body.agent).toMatchObject({ name: "News Reporter", avatar: "📰" });
+    expect(res.body.session.title).toBe("News Reporter");
 
-  it("refuses junk, missing or wrong-typed fields, empty or too long text and anything but an emoji", () => {
-    const bad = (over: Record<string, unknown>) => parseDesign(JSON.stringify({ ...DESIGN, ...over }));
-    expect(parseDesign("")).toBeUndefined();
-    expect(parseDesign("no json here")).toBeUndefined();
-    expect(parseDesign("{not json}")).toBeUndefined();
-    expect(parseDesign("[1, 2]")).toBeUndefined();
-    expect(parseDesign("{}")).toBeUndefined();
-    expect(bad({ name: 5 })).toBeUndefined();
-    expect(bad({ name: "   " })).toBeUndefined();
-    expect(bad({ name: "n".repeat(41) })).toBeUndefined();
-    expect(bad({ name: "n".repeat(40) })).toBeDefined();
-    expect(bad({ emoji: "" })).toBeUndefined();
-    expect(bad({ emoji: "hello" })).toBeUndefined();
-    expect(bad({ emoji: "📣📣📣📣📣📣📣📣📣" })).toBeUndefined();
-    expect(bad({ emoji: "bot:cat" })).toBeUndefined();
-    expect(bad({ emoji: "data:image/png;base64,AAAA" })).toBeUndefined();
-    expect(bad({ emoji: undefined })).toBeUndefined();
-  });
-
-  it("falls back with the description as name, a bot by hash and the fixed instructions", () => {
-    const a = fallbackDesign("a social media manager");
-    expect(a).toEqual({
-      name: "A social media manager",
-      avatar: fallbackDesign("a social media manager").avatar,
-      instructions: TEMPLATE("A social media manager"),
-    });
-    expect(AGENT_BOT_AVATARS as readonly string[]).toContain(a.avatar);
-    const long = fallbackDesign("x".repeat(100));
-    expect(Array.from(long.name)).toHaveLength(40);
-    expect(long.name.endsWith("…")).toBe(true);
-    expect(long.instructions).toBe(TEMPLATE(long.name));
-    expect(fallbackDesign("...").name).toBe("New agent");
-    // Different descriptions spread over the bots.
-    expect(
-      new Set(
-        ["coach", "chef", "tutor", "editor", "analyst", "poet", "gardener", "pilot"].map(
-          (d) => fallbackDesign(d).avatar,
-        ),
-      ).size,
-    ).toBeGreaterThan(1);
+    const legacy = await s().client.post("/api/agents", { description: "a coach" });
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.agent.name).toBe("A coach");
+    expect(AGENT_BOT_AVATARS as readonly string[]).toContain(legacy.body.agent.avatar);
+    expect(gateway.seen).toHaveLength(0);
+    expect(count("SELECT COUNT(*) AS n FROM steps WHERE type = 'llm.call'")).toBe(0);
   });
 });
 
@@ -221,8 +111,8 @@ describe("delete agent", () => {
 
   it("removes the agent with its chats, triggers, grants and memory, and tells the PWA", async () => {
     server = await startSignedIn();
-    const made = (await create("a researcher")).body as { agent: Agent; session: Session };
-    const other = (await create("a cook")).body as { agent: Agent; session: Session };
+    const made = (await create("A researcher")).body as { agent: Agent; session: Session };
+    const other = (await create("A cook")).body as { agent: Agent; session: Session };
     const agentId = made.agent.id;
     const mine = (await s().client.post("/api/sessions", { agentId })).body.session.id as string;
     await say(s(), mine, "hello researcher");
@@ -293,7 +183,7 @@ describe("delete agent", () => {
 
   it("stops the runs under way and deletes forks and spawned chats too", async () => {
     server = await startSignedIn();
-    const made = (await create("a writer")).body as { agent: Agent; session: Session };
+    const made = (await create("A writer")).body as { agent: Agent; session: Session };
     const a = (await s().client.post("/api/sessions", { agentId: made.agent.id })).body.session.id as string;
     await say(s(), a, "first");
     await settled(s(), a, 1);

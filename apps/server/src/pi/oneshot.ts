@@ -5,7 +5,7 @@ import type { Deadlines } from "./model-config.ts";
 import type { ModelRuntime } from "./models.ts";
 import type { StepRecorder } from "./steps.ts";
 
-/** A call outside any chat (a title, a new agent's design) is short: it is cut off sooner than a chat turn. */
+/** A call outside any chat (such as a title) is short: it is cut off sooner than a chat turn. */
 export const ONESHOT_DEADLINES: Deadlines = { firstEventMs: 30_000, idleMs: 30_000, totalMs: 60_000 };
 
 export interface OneShotDeps {
@@ -21,22 +21,7 @@ export type OneShotResult =
   | { ok: true; text: string }
   | { ok: false; reason: "unknown_model" | "aborted" | "error"; message: string };
 
-/**
- * One model call with no tools and no chat behind it: the system prompt and one user message in, the reply text out.
- * Undefined when the model is unknown or the call failed or was cut off (the callers have a fallback for that).
- */
-export async function askModel(
-  d: OneShotDeps,
-  modelId: string,
-  system: string,
-  prompt: string,
-  purpose: UsagePurpose,
-): Promise<string | undefined> {
-  const result = await askModelResult(d, modelId, system, prompt, purpose);
-  return result.ok ? result.text : undefined;
-}
-
-/** `askModel`, with the reason (already scrubbed of secrets) when there is no reply. */
+/** Sends a system prompt and a single user message, with no tools or chat history. */
 export async function askModelResult(
   d: OneShotDeps,
   modelId: string,

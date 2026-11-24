@@ -28,6 +28,7 @@ import type {
   CreateConnectorRequest,
   CreateSessionRequest,
   CreateSessionResponse,
+  CreateTriggerRequest,
   DecideApprovalGroupRequest,
   DecideApprovalRequest,
   DecideApprovalResponse,
@@ -108,6 +109,7 @@ import type {
   TimeZoneSettings,
   TitleSettings,
   TranscriptPageResponse,
+  TriggerCreatedResponse,
   TriggerResponse,
   TriggersResponse,
   TriggerUpdatedResponse,
@@ -253,9 +255,8 @@ export function createApi(options: ApiOptions = {}) {
     listPasskeys: () => request<import("@rei/protocol").PasskeysResponse>("GET", "/api/auth/passkeys"),
     removePasskey: (id: string) => request<void>("DELETE", `/api/auth/passkeys/${enc(id)}`),
     getAgents: () => request<AgentsResponse>("GET", "/api/agents"),
-    /** Make an agent from one sentence; a model writes its name, look and instructions. Answers the agent and its home chat; the global stream announces both. */
-    createAgent: (description: string) =>
-      post<CreateAgentResponse>("/api/agents", { description } satisfies CreateAgentRequest),
+    /** Create an agent and its home chat with the chosen identity. */
+    createAgent: (body: CreateAgentRequest) => post<CreateAgentResponse>("/api/agents", body),
     /** Delete an agent with its chats, triggers, grants and memory (not the default agent). The global stream sends `agent.removed` and a `session.removed` per chat. */
     deleteAgent: (agentId: string) => request<OkResponse>("DELETE", `/api/agents/${enc(agentId)}`),
     /** Change an agent: its look (avatar), name, model and default profile. The global stream announces the change as `agent.upserted`. */
@@ -597,6 +598,7 @@ export function createApi(options: ApiOptions = {}) {
 
     // ---- triggers and skills ----
     getTriggers: () => request<TriggersResponse>("GET", "/api/triggers"),
+    createTrigger: (req: CreateTriggerRequest) => post<TriggerCreatedResponse>("/api/triggers", req),
     /** The event sources (read-only), with the last event and the types seen lately. */
     getEventSources: () => request<EventSourcesResponse>("GET", "/api/event-sources"),
     /** The trigger and its newest 50 runs; `before` is the previous page's `next`. */
@@ -784,9 +786,7 @@ export function describeCompactError(e: unknown): string {
 /** User-facing text for an error from the create or delete agent endpoints ("not_found" there is an agent, not a chat). */
 export function describeAgentError(e: unknown): string {
   if (e instanceof ApiError && e.code === "not_found") return "That agent no longer exists.";
-  if (e instanceof ApiError && e.code === "bad_request") return "Describe the agent in 1 to 500 characters.";
-  if (e instanceof ApiError && e.code === "design_failed")
-    return "The model couldn't design the agent just now (it may be busy or over its limit). Nothing was created; try again in a moment.";
+  if (e instanceof ApiError && e.code === "bad_request" && e.message) return e.message;
   return describeError(e);
 }
 

@@ -131,6 +131,7 @@ interface AgentRow {
   thinking_level: ThinkingLevel;
   network_mode: SandboxNetworkMode;
   allowed_connector_ids: string | null;
+  can_create_triggers_for_other_agents: number;
   default_profile: string;
   instructions: string;
   home_session_id: string | null;
@@ -237,6 +238,7 @@ const toAgent = (r: AgentRow): Agent => ({
   thinkingLevel: r.thinking_level,
   networkMode: r.network_mode,
   allowedConnectorIds: r.allowed_connector_ids === null ? null : JSON.parse(r.allowed_connector_ids),
+  canCreateTriggersForOtherAgents: r.can_create_triggers_for_other_agents === 1,
   defaultProfile: interactiveProfile(r.default_profile),
   homeSessionId: r.home_session_id ?? "",
 });
@@ -778,7 +780,7 @@ export class AppStore {
       const row = this.getAgentRow(agentId);
       if (!row) return undefined;
       const now = this.clock.now();
-      const fields: [string, string, string | null, string | null | undefined][] = [
+      const fields: [string, string, string | number | null, string | number | null | undefined][] = [
         ["name", "name", row.name, patch.name],
         [
           "allowedConnectorIds",
@@ -793,6 +795,14 @@ export class AppStore {
         ["model", "model", row.model, patch.model],
         ["thinkingLevel", "thinking_level", row.thinking_level, patch.thinkingLevel],
         ["networkMode", "network_mode", row.network_mode, patch.networkMode],
+        [
+          "canCreateTriggersForOtherAgents",
+          "can_create_triggers_for_other_agents",
+          row.can_create_triggers_for_other_agents,
+          patch.canCreateTriggersForOtherAgents === undefined
+            ? undefined
+            : Number(patch.canCreateTriggersForOtherAgents),
+        ],
         [
           "defaultProfile",
           "default_profile",
@@ -810,8 +820,8 @@ export class AppStore {
           now,
           agentId,
           field,
-          before,
-          after,
+          before === null ? null : String(before),
+          after === null ? null : String(after),
         );
         // The home chat carries the agent's name as its title.
         if (field === "name" && row.home_session_id) {

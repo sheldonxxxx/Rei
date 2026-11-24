@@ -191,6 +191,23 @@ export interface EventSourcesResponse {
 export interface TriggersResponse {
   triggers: Trigger[];
 }
+/** POST /api/triggers: create a scheduled or event-driven trigger from the trusted UI. */
+export interface CreateTriggerRequest {
+  agentId: string;
+  name: string;
+  start: TriggerStart;
+  action: TriggerAction;
+  landing?: "new" | "ongoing";
+  report?: ReportSetting;
+  latenessMinutes?: number;
+  catchUp?: "once" | "skip";
+  overlap?: "skip" | "queue";
+  profile?: Exclude<ProfileName, "yolo">;
+}
+export interface TriggerCreatedResponse {
+  trigger: Trigger;
+}
+
 /** GET /api/triggers/:id[?before=<runId>]: the trigger and its newest 50 runs. Errors: "not_found". */
 export interface TriggerResponse {
   trigger: Trigger;

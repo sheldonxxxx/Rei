@@ -544,19 +544,9 @@ describe("Usage API and real Pi instrumentation", () => {
     expect(custom.body).toMatchObject({ period: "custom", from: custom.body.trackingSince.slice(0, 10) });
     expect((await server.client.get<UsageResponse>("/api/usage?period=today")).body.period).toBe("today");
   });
-  it("tags actual designer calls as other and automated messages, spawned work and triggers as agent_task", async () => {
-    gateway = await startFakeGateway({
-      bearer: STANDIN,
-      behavior: (seen) => ({
-        kind: "text",
-        text: seen.raw.includes("You design AI agents")
-          ? JSON.stringify({ name: "Helper", emoji: "🤖", instructions: "Help with tasks." })
-          : "ok",
-        usage: raw,
-      }),
-    });
+  it("tags automated messages, spawned work and triggers as agent_task", async () => {
+    gateway = await startFakeGateway({ bearer: STANDIN, behavior: () => ({ kind: "text", text: "ok", usage: raw }) });
     server = await startSignedIn({ gatewayUrl: gateway.url });
-    expect((await server.client.post("/api/agents", { description: "a helper" })).status).toBe(200);
     const plane = server.host.plane;
     const id = await chat(server);
     await say(server, id, "Hello");
@@ -621,7 +611,6 @@ describe("Usage API and real Pi instrumentation", () => {
       expect(rows.every((s) => s.usage_purpose === "agent_task")).toBe(true);
     }
     const usage = (await server.client.get<UsageResponse>("/api/usage?period=all")).body;
-    expect(usage.byPurpose.find((p) => p.purpose === "other")?.usage.modelCalls).toBe(1);
     expect(usage.byPurpose.find((p) => p.purpose === "chat")?.usage.modelCalls).toBe(1);
     expect(usage.byPurpose.find((p) => p.purpose === "agent_task")!.usage.modelCalls).toBeGreaterThanOrEqual(4);
   });

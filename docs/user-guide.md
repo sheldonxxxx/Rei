@@ -88,6 +88,8 @@ Plugins are optional packages of skills and connectors that are shared or instal
 
 Use **Settings → Triggers** to configure recurring or one-time work, its agent, timing, and reporting behavior. Check the next run and time zone, then pause or edit the trigger when your needs change. Reports arrive in chat and can be inspected like other agent work.
 
+To have one agent set up work for another, enable **Create triggers for other agents** in the agent settings of the agent that will set up the work. Then ask it to create a trigger and name the agent that should run it. The chat's permissions govern approval for creation, and the approval card shows which agent will run the trigger. The trigger belongs to the selected agent and uses its model when it runs. Turning off the switch prevents new delegated creations.
+
 A trigger can also start when another service on your network says something happened, instead of on a schedule. Make a source with `./rei sources add <id>`, give its secret to the sender, then ask an agent to start a trigger on events from it, or choose **When an event arrives** in the trigger's settings. Events that arrive while a run is going gather into one waiting run. The Triggers page lists the sources and shows the events each run was started for. [Events](events.md) has the sender's contract.
 
 In **Settings → General**, use the notification controls to enable browser notifications and choose whether previews show what happened. On devices that require it, add Rei to the Home Screen before enabling browser notifications. Delivery depends on browser permissions and your device's notification settings.

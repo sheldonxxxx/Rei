@@ -13,32 +13,36 @@ const created: CreateAgentResponse = {
 };
 
 describe("NewAgentDialog", () => {
-  it("needs a description, then creates the agent and hands back the result", async () => {
+  it("requires a name and a bot, then creates the agent and hands back the result", async () => {
     const createAgent = vi.fn().mockResolvedValue(created);
     const onCreated = vi.fn();
     render(<NewAgentDialog api={asApi({ createAgent })} onClose={() => {}} onCreated={onCreated} />);
     const create = screen.getByRole("button", { name: "Create" }) as HTMLButtonElement;
     expect(create.disabled).toBe(true);
-    const box = screen.getByLabelText("What kind of agent do you want?") as HTMLTextAreaElement;
-    expect(box.maxLength).toBe(500);
-    fireEvent.change(box, { target: { value: "  a social media manager " } });
+    const box = screen.getByLabelText("Name") as HTMLInputElement;
+    expect(box.maxLength).toBe(40);
+    fireEvent.change(box, { target: { value: "  News Reporter " } });
+    expect(create.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "Lucky Cat" }));
     fireEvent.click(create);
-    await waitFor(() => expect(createAgent).toHaveBeenCalledWith("a social media manager"));
+    await waitFor(() => expect(createAgent).toHaveBeenCalledWith({ name: "News Reporter", avatar: "bot:cat" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
   });
 
-  it("shows the setting-up text while it works, and cannot be dismissed then", async () => {
+  it("shows progress while it works and cannot be dismissed then", async () => {
     let finish: (r: CreateAgentResponse) => void = () => {};
     const createAgent = vi.fn(() => new Promise<CreateAgentResponse>((r) => (finish = r)));
     const onClose = vi.fn();
     const onCreated = vi.fn();
     render(<NewAgentDialog api={asApi({ createAgent })} onClose={onClose} onCreated={onCreated} />);
-    fireEvent.change(screen.getByLabelText("What kind of agent do you want?"), { target: { value: "a tutor" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Tutor" } });
+    fireEvent.change(screen.getByLabelText("Or an emoji or a few letters"), { target: { value: "📚" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    expect(await screen.findByText("Setting up your agent…")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Creating…" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
+    expect(createAgent).toHaveBeenCalledWith({ name: "Tutor", avatar: "📚" });
     finish(created);
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
   });
@@ -47,7 +51,8 @@ describe("NewAgentDialog", () => {
     const createAgent = vi.fn().mockRejectedValue(new ApiError(0, "network_error", ""));
     const onCreated = vi.fn();
     render(<NewAgentDialog api={asApi({ createAgent })} onClose={() => {}} onCreated={onCreated} />);
-    fireEvent.change(screen.getByLabelText("What kind of agent do you want?"), { target: { value: "a tutor" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Tutor" } });
+    fireEvent.change(screen.getByLabelText("Or an emoji or a few letters"), { target: { value: "📚" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(onCreated).not.toHaveBeenCalled();
