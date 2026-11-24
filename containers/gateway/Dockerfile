@@ -8,7 +8,7 @@
 #   docker run --rm -it -p 127.0.0.1:1455:1455 -v rei-gateway-data:/data rei/gateway:dev node src/cli.ts login
 
 # ---- production dependencies of the gateway workspace only (the lockfile pins every version) --------------------------
-FROM node:24.22.1-alpine3.24 AS deps
+FROM node:26.13.1-alpine3.24 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/protocol/package.json packages/protocol/
@@ -24,7 +24,7 @@ RUN rm -rf node_modules/@anthropic-ai node_modules/@google node_modules/@aws-sdk
  && node --input-type=module -e "const m = await import('@earendil-works/pi-ai/models'); const p = await import('@earendil-works/pi-ai/providers/openai'); const ms = m.createModels(); ms.setProvider(p.openaiProvider()); await import('@earendil-works/pi-ai/api/openai-responses'); if (!ms.getModels('openai').length) process.exit(1);"
 
 # ---- runtime ------------------------------------------------------------------------------------------------------
-FROM node:24.22.1-alpine3.24
+FROM node:26.13.1-alpine3.24
 # A dedicated unix user, distinct from the control plane's, so neither can read the other's files.
 RUN addgroup -g 1100 -S gateway \
  && adduser -u 1100 -G gateway -S -H -h /nonexistent -s /sbin/nologin gateway \

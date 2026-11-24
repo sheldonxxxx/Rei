@@ -107,7 +107,7 @@ await build({
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node24",
+  target: "node26",
   legalComments: "eof",
   define: { __REI_CLI_VERSION__: JSON.stringify(version) },
   // Clack's dependencies are CommonJS; a bundled `require` of a Node built-in needs a real one.
@@ -152,7 +152,7 @@ writeFileSync(
       type: "module",
       bin: { rei: "dist/rei.mjs" },
       files: ["dist/", "assets/"],
-      engines: { node: ">=24" },
+      engines: { node: ">=26" },
       repository: { type: "git", url: `git+${repoUrl.replace(/^git\+/, "").replace(/(\.git)?$/, ".git")}` },
       homepage: repoUrl.replace(/^git\+/, "").replace(/\.git$/, ""),
       bugs: { url: `${repoUrl.replace(/^git\+/, "").replace(/\.git$/, "")}/issues` },

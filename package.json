@@ -4,7 +4,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "workspaces": [
     "packages/*",
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
     "@secretlint/secretlint-rule-preset-recommend": "13.1.0",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.1.1",
     "dependency-cruiser": "18.8.0",
     "esbuild": "0.28.2",

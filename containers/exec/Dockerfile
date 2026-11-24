@@ -6,13 +6,13 @@
 # route to the internet: the egress proxy is the only way out (see containers/compose.yaml).
 # The same image runs once as root (exec-keys) to generate the ssh keys into the two key volumes.
 #
-# Preinstalled for the agent's real work: Node 24 with npm, npx and corepack; uv (uv, uvx, uv tool run) with a Python it
+# Preinstalled for the agent's real work: Node 26 with npm, npx and corepack; uv (uv, uvx, uv tool run) with a Python it
 # can use; and common CLI, document, and data tools. The root filesystem is read-only at run time, so everything the
 # agent installs goes to its home (uv and npm caches) or /workspace; nothing can be installed system-wide at run time.
 # The caches live in /home/agent/.cache, a volume compose mounts there (the rest of the home is a tmpfs), and the
 # directory is created here owned by the agent so a fresh volume starts writable.
 
-FROM node:24-trixie-slim AS node
+FROM node:26-trixie-slim AS node
 
 FROM ghcr.io/astral-sh/uv:0.13.9 AS uv
 
@@ -27,7 +27,7 @@ RUN apt-get update \
  && sed -i 's/^agent:!:/agent:*:/' /etc/shadow \
  && mkdir /workspace && chown 1000:1000 /workspace \
  && rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
-# Node 24 from the official image: node, npm, npx, corepack, yarn. The directories are copied whole so npm's relative
+# Node 26 from the official image: node, npm, npx, corepack, yarn. The directories are copied whole so npm's relative
 # symlinks keep resolving; the official image's /usr/local is otherwise the same as this base.
 COPY --from=node /usr/local/bin /usr/local/bin
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules

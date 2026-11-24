@@ -305,7 +305,7 @@ export class FakeHost implements Host {
   readonly files = new Map<string, { text: string; mode: number }>();
   readonly writes: { path: string; text: string; mode: number | undefined }[] = [];
   readonly dirs: string[] = [];
-  nodeVersion = "24.22.1";
+  nodeVersion = "26.13.1";
   timeZone = "Asia/Macau";
   free: number | undefined = 100 * 1024 ** 3;
   portIsFree = true;

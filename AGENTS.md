@@ -16,7 +16,7 @@ This repository is a public, MIT-licensed npm workspace monorepo using TypeScrip
 
 ## Build, Test, and Development Commands
 
-Use Node.js 24 or newer. Run commands from the repository root:
+Use Node.js 26 or newer. Run commands from the repository root:
 
 - `npm ci`: install locked workspace dependencies and the local pre-commit hook.
 - `npm run verify`: run local quality gates, all tests, and the production web build (no deployment). It is `npm run check:static && npm run test:coverage && npm run build`.

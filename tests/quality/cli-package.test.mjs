@@ -30,7 +30,7 @@ describe("the rei-ai package", { timeout: 60_000 }, () => {
   const dir = refs("refs-ok", "1.2.3");
   const { out, result } = pack("pkg", "--version", "1.2.3", "--tag", "v1.2.3", "--refs", dir, "--require-digests");
 
-  it("is a package of its own: the bin, Node 24, only dist/ and assets/, the repository for provenance", () => {
+  it("is a package of its own: the bin, Node 26, only dist/ and assets/, the repository for provenance", () => {
     expect(result.status, result.stderr).toBe(0);
     const manifest = JSON.parse(readFileSync(join(out, "package.json"), "utf8"));
     expect(manifest).toMatchObject({
@@ -39,7 +39,7 @@ describe("the rei-ai package", { timeout: 60_000 }, () => {
       license: "MIT",
       bin: { rei: "dist/rei.mjs" },
       files: ["dist/", "assets/"],
-      engines: { node: ">=24" },
+      engines: { node: ">=26" },
       repository: { type: "git", url: "git+https://github.com/sheldonxxxx/Rei.git" },
     });
     expect(manifest.dependencies).toBeUndefined();

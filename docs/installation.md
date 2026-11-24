@@ -7,7 +7,7 @@ The rest of this guide writes commands for a checkout. In an npm installation, t
 ## Requirements
 
 - Docker and Docker Compose v2.20 or newer, on the machine that will run Rei.
-- Node.js 24 or newer, with npm.
+- Node.js 26 or newer, with npm.
 - macOS or Linux. On Windows, use WSL2 only: install Docker and Node inside the WSL2 distribution (or Docker Desktop's WSL2 integration) and run every command there.
 - Internet access to download dependencies, container images, and any model selected through oMLX.
 - Disk space for the images, optional oMLX model weights, conversations, and saved files. Setup checks available space; allow additional room as your Library grows.
