@@ -44,7 +44,7 @@
     "knip": "6.47.0",
     "lint-staged": "17.6.1",
     "secretlint": "14.0.1",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "vitest": "5.1.1",
     "yaml": "2.9.1"
   },
