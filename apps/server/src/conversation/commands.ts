@@ -70,7 +70,7 @@ export interface AdmitInput {
   keepTitle?: boolean;
   /**
    * What the input does if a run is going: `steer` joins it after its current tool round, `queue` (default) starts the
-   * next run. Only your own message in one of your chats can steer; anything else always queues.
+   * next run. Steering is available for your own chat messages and explicit messages from a session's parent.
    */
   whenBusy?: SendWhenBusy;
 }
@@ -94,15 +94,16 @@ export function isBackgroundInput(input: { role: InputRole; from?: unknown }): b
   return input.role === "report" || input.role === "trigger" || input.from !== undefined;
 }
 
-/** Whether an input steers a running reply: only your own typed message, in one of your chats, when asked to. */
-export function steers(input: Pick<AdmitInput, "role" | "from" | "assignedBy" | "whenBusy">, origin: string): boolean {
-  return (
-    input.whenBusy === "steer" &&
-    input.role === "user" &&
-    input.from === undefined &&
-    input.assignedBy === undefined &&
-    USER_CHAT_ORIGINS.includes(origin)
-  );
+/** Whether an input is eligible to steer a running reply. */
+export function steers(
+  input: Pick<AdmitInput, "role" | "from" | "assignedBy" | "whenBusy">,
+  origin: string,
+  parentSessionId: string | null = null,
+): boolean {
+  if (input.whenBusy !== "steer" || input.role !== "user") return false;
+  if (origin === "spawned" && parentSessionId !== null)
+    return input.from?.sessionId === parentSessionId && input.assignedBy === parentSessionId;
+  return input.from === undefined && input.assignedBy === undefined && USER_CHAT_ORIGINS.includes(origin);
 }
 
 export interface AdmitResult {
@@ -188,7 +189,7 @@ export class ConversationCommands {
         !input.keepTitle &&
         input.role === "user" &&
         !Object.values(ts.sync.ledger.byId).some((r) => r.role === "user" && r.kind === "input");
-      const steer = steers(input, row.origin);
+      const steer = steers(input, row.origin, row.parent_session_id);
       const data: InputData = {
         runId,
         role: input.role,

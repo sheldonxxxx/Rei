@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { steers } from "../src/conversation/commands.ts";
+import { tool } from "./helpers/approvals.ts";
 import { until, ViewReader } from "./helpers/client.ts";
 import { bash, type ExecServer, startExecServer } from "./helpers/exec.ts";
-import { chat, detail, settled } from "./helpers/sessions.ts";
+import { chat, childrenOf, detail, homeChat, settled } from "./helpers/sessions.ts";
 
 let server: ExecServer | undefined;
 afterEach(async () => {
@@ -120,6 +121,27 @@ describe("steering a running reply", () => {
     ]);
   });
 
+  it("steers a busy child through message_session even when user messages default to queue", async () => {
+    server = await startExecServer();
+    const s = server;
+    expect((await setWhenBusy(s, "queue")).status).toBe(200);
+    const parent = homeChat(s);
+    const { adapter, store } = s.host.plane;
+    await adapter.startSession({ caller: store.getSessionRow(parent)!, callId: "start", brief: SLOW });
+    const [child] = await childrenOf(s, parent);
+    const before = await toolRunning(s, child!.id);
+    await send(s, parent, tool("message_session", { session_id: child!.id, text: "change course" }));
+
+    const d = await settled(s, child!.id, 2);
+    expect(d.messages.map((m) => [m.role, m.runId])).toEqual([
+      ["user", before.runs[0]!.id],
+      ["user", d.runs[1]!.id],
+      ["assistant", d.runs[1]!.id],
+    ]);
+    expect(d.messages[1]).toMatchObject({ steer: true, from: { sessionId: parent }, text: "change course" });
+    expect(d.messages[2]?.text).toContain("Echo: change course");
+  });
+
   it("withdraws a waiting steer on Stop, like a queued message", async () => {
     server = await startExecServer();
     const s = server;
@@ -150,10 +172,18 @@ describe("who can steer", () => {
     for (const origin of ["spawned", "trigger"]) expect(steers(own, origin)).toBe(false);
     expect(steers({ ...own, whenBusy: "queue" }, "user")).toBe(false);
     expect(steers({ role: "user" }, "user")).toBe(false);
-    // Background input always queues: a report, a trigger result, another agent's message, a parent's brief.
+    // Unrelated background input queues.
     expect(steers({ ...own, role: "report" }, "home")).toBe(false);
     expect(steers({ ...own, role: "trigger" }, "home")).toBe(false);
     expect(steers({ ...own, from: { sessionId: "ses_1", title: "Worker" } }, "user")).toBe(false);
     expect(steers({ ...own, assignedBy: "ses_parent" }, "user")).toBe(false);
+  });
+
+  it("lets a parent explicitly steer its spawned session", () => {
+    const parent = "ses_parent";
+    const message = { role: "user" as const, from: { sessionId: parent, title: "Parent" }, assignedBy: parent };
+    expect(steers({ ...message, whenBusy: "steer" }, "spawned", parent)).toBe(true);
+    expect(steers(message, "spawned", parent)).toBe(false);
+    expect(steers({ ...message, whenBusy: "steer" }, "spawned", "ses_other")).toBe(false);
   });
 });
