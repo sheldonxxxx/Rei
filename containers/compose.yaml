@@ -1,0 +1,283 @@
+# The Rei レイ stack, on the machine where docker runs. It is one of two compose projects: Dodai · 土台 (gateway and reader)
+# are in compose.dodai.yaml, their own project, so they keep serving other callers while Rei is stopped. Rei needs them
+# up first; ./rei does both in the right order. From the repository root:
+#   ./rei setup      one command from a fresh checkout to a running, checked stack (safe to run again)
+#   ./rei doctor     what is wrong and how to fix it (changes nothing)
+#   ./rei status     a quick summary
+#
+# Secrets: containers/.secrets/secrets.env is interpolated into each service's own environment (a service gets only the
+# variables it uses), so every compose call needs both env files: ./rei and the smoke scripts pass them; by hand add
+#   --env-file containers/.env --env-file containers/.secrets/secrets.env
+# (or export COMPOSE_ENV_FILES=containers/.env,containers/.secrets/secrets.env).
+#
+# By hand (what ./rei setup does). Build the web app first (npm run build -w @rei/web), then from the repository root:
+#   containers/init.sh
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.dodai.yaml up -d --build --wait
+#   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env -f containers/compose.yaml up -d --build
+#   docker compose -f containers/compose.yaml logs control | grep "setup code"
+#   then sign in to a model provider in the web app (Settings, Providers)
+#   then open http://<vm>:8787 (REI_PUBLISH, default 127.0.0.1:8787)
+#   containers/smoke-exec.sh        checks the sandbox wiring once the stack is up (the exec-keys service makes the ssh keys)
+#   containers/smoke-browser.sh     checks the browser wiring: hardening, the allow-gated egress path, and a page load
+#   containers/smoke-render/run.sh  checks rendering in the shared reader (ADR 0020): hostile pages against Moli or Chromium
+#
+# Web search defaults to keyless Exa. Optional paid providers are configured in Rei's setup guide.
+# An external SearXNG endpoint can still be supplied explicitly through GATEWAY_SEARXNG_URL.
+#
+# Networks (D30): the gateway (compose.dodai.yaml) and the egress proxy are the only containers that reach the internet.
+# The edge forwards the published port to the control plane and holds nothing.
+#   internal   control, edge. No route out.
+#   gateway-admin  control, and the gateway in the shared project, which owns this network (rei-gateway-admin). No route
+#              out. The control plane's only path to the gateway; its HTTP server does not listen here (REI_HOST).
+#   storage    control, and Garage and Qdrant in Dodai, which owns this network (rei-storage). No route out, and nothing
+#              published. Rei's file bytes and its search indexes live there, and the control plane is the only container
+#              of Rei's that can reach them: the sandbox (exec-net), the agent browser (browser-net) and the gateway have
+#              no path to them at all. Outside callers reach Garage on a second network, rei-storage-shared, never this one.
+#   front      edge. The published port.
+#   exec-net   control, exec, egress. No route out. The agent's shell runs in exec; its only way out is the proxy, which
+#              asks the control plane (over a unix socket in the egress-sock volume, never on a network) for every host.
+#   egress-out egress. The internet, for hosts the user has allowed.
+#   browser-net control, browser, egress. No route out. The agent computer's Chromium; its only way out is the egress
+#              proxy's browser listener (EGRESS_BROWSER_LISTEN, 10.89.232.3:3129), which asks the control plane for every
+#              host like the sandbox's does, and only while the browser is in use (a running run, a takeover, recent work).
+#              The control plane drives Chromium over the DevTools port (browser:9223), which starts Chromium on demand;
+#              nothing else listens anywhere.
+# The proxy (both listeners) reaches the user's own network (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7) but refuses
+# loopback, link-local (cloud metadata), reserved ranges, OrbStack's 198.18.0.0/15 and the stack's own subnets.
+# The sandbox shares exec-net with the control plane, so the control plane's HTTP server listens on its internal address
+# only (REI_HOST); on exec-net nothing listens on control.
+#
+# Service logs: REI_LOG_LEVEL (debug, info, warn, error; default info) sets all three Rei services; REI_CONTROL_LOG_LEVEL,
+# REI_GATEWAY_LOG_LEVEL and REI_EGRESS_LOG_LEVEL override one. debug adds events (every request, call and allowed host),
+# never content: the lines carry ids, counts and codes at every level (docs/adr/0003).
+name: rei
+
+# Every service's stdout, bounded: the local driver (compressed), 5 files of 10 MB, so at most about 50 MB per container
+# before the oldest lines go. Service logs are for operating the stack; the Trace is the record of what an agent did.
+x-logging: &logging
+  driver: local
+  options: { max-size: 10m, max-file: "5" }
+
+# One image for the sandbox and for the one-shot service that makes its ssh keys.
+x-exec-image: &exec-image
+  image: rei/exec:dev
+  build: { context: .., dockerfile: containers/exec/Dockerfile }
+
+services:
+  control:
+    logging: *logging
+    image: rei/control:dev
+    build: { context: .., dockerfile: containers/control/Dockerfile }
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      GATEWAY_URL: http://gateway:8780
+      REI_LOG_LEVEL: ${REI_CONTROL_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
+      REI_COOKIE_SECURE: ${REI_COOKIE_SECURE:-0}
+      REI_PUBLIC_URL: ${REI_PUBLIC_URL:-}
+      REI_FCM_ENABLED: ${REI_FCM_ENABLED:-0}
+      REI_ANDROID_PASSKEY_ORIGINS: ${REI_ANDROID_PASSKEY_ORIGINS:-}
+      # Dev-only demo connector (tools with no real effect) for trying approvals with the real model.
+      REI_DEMO_TOOLS: ${REI_DEMO_TOOLS:-0}
+      REI_CODEX_IMAGES: ${REI_CODEX_IMAGES:-0}
+      # Tokens the codemode prompt section may spend on tool declarations (default 1500); the Code mode eval sweeps it.
+      REI_CODEMODE_INLINE_BUDGET: ${REI_CODEMODE_INLINE_BUDGET-}
+      # The user's time zone, for dates the server writes (rei setup sets it from the host).
+      TZ: ${REI_TZ:-UTC}
+      # The sandbox. The control plane reaches exec over ssh with the client key, pinning the host key from exec-client.
+      REI_EXEC: ssh
+      REI_EXEC_HOST: exec
+      REI_EXEC_PORT: "2222"
+      REI_EXEC_KEYS: /run/exec-keys
+      REI_EGRESS_SOCKET: /run/egress/decide.sock
+      REI_EGRESS_PROXY: egress:3128
+      # Must match control's fixed address on internal below: listening there only keeps the HTTP server off exec-net.
+      REI_HOST: 10.89.231.10
+      # The agent computer: the control plane drives Chromium over CDP on browser-net. "off" turns the tools off.
+      REI_BROWSER: ${REI_BROWSER:-cdp}
+      REI_BROWSER_CDP: http://browser:9223
+      # A window closes after this long without use (ms, default 3600000); 0 keeps windows open.
+      REI_BROWSER_IDLE_MS: ${REI_BROWSER_IDLE_MS-}
+      # Optional history search provider. No endpoint means keyword-only search.
+      REI_EMBEDDER_URL: ${REI_EMBEDDER_URL-}
+      REI_EMBEDDER_PROVIDER: ${REI_EMBEDDER_PROVIDER-}
+      REI_EMBEDDER_MODEL: ${REI_EMBEDDER_MODEL-}
+      REI_EMBEDDER_API_MODEL: ${REI_EMBEDDER_API_MODEL-}
+      REI_EMBEDDER_PROFILE: ${REI_EMBEDDER_PROFILE-}
+      REI_EMBEDDER_REMOTE: ${REI_EMBEDDER_REMOTE-}
+      # The object store and the retrieval service, in Dodai (compose.dodai.yaml), reached over rei-storage by their
+      # aliases. The control plane talks to both directly; the Gateway is not in this path, and the keys it reads here
+      # never reach the sandbox, the browser or a model.
+      REI_GARAGE_ENDPOINT: http://rei-garage:3900
+      REI_GARAGE_REGION: garage
+      REI_GARAGE_BUCKET: rei-files
+      REI_QDRANT_URL: http://rei-qdrant:6333
+      # From secrets.env (interpolated: see the header). Each service is given only the variables it uses.
+      REI_STANDIN: ${REI_STANDIN:?run containers/init.sh}
+      REI_EVENTS_KEY: ${REI_EVENTS_KEY:?run containers/init.sh}
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:?run containers/init.sh}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?run containers/init.sh}
+      QDRANT__SERVICE__API_KEY: ${QDRANT__SERVICE__API_KEY:?run containers/init.sh}
+    volumes:
+      - control-data:/data
+      - exec-client:/run/exec-keys:ro
+      - egress-sock:/run/egress
+    networks:
+      internal: { ipv4_address: 10.89.231.10 }
+      gateway-admin: {}
+      exec-net: {}
+      browser-net: { ipv4_address: 10.89.232.10 }
+      storage: {}
+    # The gateway is in the shared project (compose.dodai.yaml), which must be up first: compose cannot wait on a
+    # service of another project, so ./rei starts that project and waits for it before this one.
+    depends_on:
+      exec-keys: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  edge:
+    logging: *logging
+    image: rei/control:dev
+    read_only: true
+    user: "1000:1000"
+    command: ["node", "/edge/forward.mjs"]
+    environment:
+      EDGE_TARGET: control:8787
+      EDGE_PORT: "8787"
+    volumes: ["./edge/forward.mjs:/edge/forward.mjs:ro"]
+    ports: ["${REI_PUBLISH:-127.0.0.1:8787}:8787"]
+    networks: [internal, front]
+    depends_on: [control]
+    restart: unless-stopped
+
+  # The sandbox: sshd as uid 1000 on 2222, reachable from the control plane only. Nothing is writable except the workspace
+  # and cache volumes and the tmpfs mounts; /home/agent is exec because pi-env deploys its daemon there, /tmp is not.
+  exec:
+    logging: *logging
+    <<: *exec-image
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 2g
+    memswap_limit: 2g
+    pids_limit: 512
+    cpus: 2
+    tmpfs:
+      - /home/agent:rw,nosuid,nodev,exec,uid=1000,gid=1000,mode=0700,size=256m
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    volumes:
+      - exec-workspace:/workspace
+      # uv and npm caches, so reinstalling after a restart reuses the downloaded wheels and tarballs. The rest of
+      # /home/agent stays a tmpfs (pi-env is redeployed there at every start, so it always matches the control plane).
+      - exec-cache:/home/agent/.cache
+      - exec-host:/etc/exec-keys:ro
+    networks: [exec-net]
+    depends_on:
+      exec-keys: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  # Makes the ssh keys once (a re-run keeps them): host key + authorized_keys into exec-host (exec reads), client key +
+  # a copy of the host public key into exec-client (control reads). Root only for this, and nothing else of root's.
+  exec-keys:
+    logging: *logging
+    <<: *exec-image
+    user: "0"
+    command: ["/usr/local/bin/exec-keys-init"]
+    read_only: true
+    cap_drop: [ALL]
+    # chown to uid 1000, and read or chmod the keys it already handed over on a re-run.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - exec-host:/host
+      - exec-client:/client
+    network_mode: none
+    restart: "no"
+
+  # The sandbox's only way out. No dependencies, no secrets; asks the control plane per destination host.
+  egress:
+    logging: *logging
+    image: rei/egress:dev
+    build: { context: .., dockerfile: containers/egress/Dockerfile }
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 128
+    environment:
+      REI_LOG_LEVEL: ${REI_EGRESS_LOG_LEVEL:-${REI_LOG_LEVEL:-info}}
+      # The browser's way out: no auth, the source network is the identity. Fixed address on browser-net below.
+      EGRESS_BROWSER_LISTEN: 10.89.232.3:3129
+      # The listeners reach the user's own network (LAN, Tailscale) but never loopback, link-local or the stack itself:
+      # the subnets of the proxy's own interfaces (exec-net, egress-out, browser-net) are refused automatically, and these
+      # are the stack's fixed ones (internal, browser-net), so a page cannot reach DevTools (10.89.232.2:9223) or control,
+      # and Dodai's internal networks (compose.dodai.yaml: gateway, reader, storage), so nothing an agent drives can reach the
+      # gateway, the reader, Garage or Qdrant.
+      EGRESS_REFUSE_CIDRS: 10.89.231.0/24,10.89.232.0/24,10.89.234.0/24,10.89.235.0/24,10.89.236.0/24,10.89.237.0/24,10.89.238.0/24
+    volumes: [egress-sock:/run/egress]
+    networks:
+      exec-net: {}
+      egress-out: {}
+      browser-net: { ipv4_address: 10.89.232.3 }
+    restart: unless-stopped
+
+  # The agent computer's browser: headed Chromium on Xvfb with your persistent profile, driven by the control plane
+  # over CDP. The container stays up but Chromium runs on demand: a DevTools connection starts it, and it stops after
+  # BROWSER_IDLE_STOP_S with no client (the control plane drops its connection when no window is left, and closes a window
+  # after REI_BROWSER_IDLE_MS without use). Nothing restarts it on its own. Its only network is browser-net (internal): the egress proxy's browser listener is the only way out, so every
+  # host is decided by the control plane, and the listener answers only while the browser is in use. Chromium's own sandbox
+  # needs user namespaces, which the hardening below takes away, so it runs --no-sandbox inside the container instead
+  # (non-root, no capabilities, read-only root); the container is the sandbox. /dev/shm is bigger than the 64m default.
+  browser:
+    logging: *logging
+    image: rei/browser:dev
+    build: { context: ./browser }
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 2g
+    memswap_limit: 2g
+    pids_limit: 1024
+    cpus: 3
+    shm_size: 512m
+    environment:
+      BROWSER_PROXY: http://10.89.232.3:3129
+      BROWSER_IDLE_STOP_S: ${BROWSER_IDLE_STOP_S:-60}
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+      - /home/browser:rw,nosuid,nodev,noexec,uid=1000,gid=1000,mode=0700,size=64m
+    volumes:
+      - browser-profile:/profile
+    networks:
+      browser-net: { ipv4_address: 10.89.232.2 }
+    depends_on: [egress]
+    restart: unless-stopped
+
+networks:
+  internal:
+    internal: true
+    # Fixed so that the control plane can have a fixed address (see its REI_HOST).
+    ipam: { config: [{ subnet: 10.89.231.0/24, ip_range: 10.89.231.128/25 }] }
+  # Owned by the shared project (compose.dodai.yaml), which must exist before this one starts.
+  gateway-admin:
+    external: true
+    name: rei-gateway-admin
+  front: {}
+  exec-net: { internal: true }
+  egress-out: {}
+  # control 10.89.232.10, browser .2, egress .3 (the proxy's browser listener).
+  browser-net:
+    internal: true
+    ipam: { config: [{ subnet: 10.89.232.0/24, ip_range: 10.89.232.128/25 }] }
+  # Owned by Dodai (compose.dodai.yaml), which must exist before this one starts.
+  storage:
+    external: true
+    name: rei-storage
+
+volumes:
+  control-data: {}
+  exec-host: {}
+  exec-client: {}
+  exec-workspace: {}
+  exec-cache: {}
+  egress-sock: {}
+  browser-profile: {}

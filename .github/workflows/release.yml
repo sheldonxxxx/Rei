@@ -1,0 +1,384 @@
+name: Release
+
+# Runs when a tag vX.Y.Z (or vX.Y.Z-suffix, a pre-release) is pushed. The release procedure and the one-time setup
+# (keystore secrets, the `release` environment, package visibility) are in docs/versioning.md.
+#
+#   gate       ci (the CI workflow, called) + verify-version (tag == every package.json) -> approve (`release` environment)
+#   publish    multi-arch images to GHCR, and the signed Android APK + update feed
+#   release    one GitHub Release with the APK, the feed and the image references
+#
+# Nothing is published before a reviewer approves the `release` environment. The approval job and the Android job both
+# wait on it at the same time, so one approval covers the whole release. The Android job has the signing secrets,
+# which belong to the environment, so it references it itself; every later job runs only after `approve`.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: "0"
+
+jobs:
+  ci:
+    name: ci
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  verify-version:
+    name: verify-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      minor: ${{ steps.check.outputs.minor }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # Fails unless the tag, without the v, equals the version in the root and every workspace package.json.
+      - id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/check-release-version.mjs "$TAG" | tee -a "$GITHUB_OUTPUT"
+
+  # The single approval of the release. Set required reviewers on the `release` environment (docs/versioning.md).
+  approve:
+    name: approve
+    needs: [ci, verify-version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Approved
+        env:
+          VERSION: ${{ needs.verify-version.outputs.version }}
+        run: echo "Release $VERSION approved."
+
+  # The control image copies the built web app, which is not in git, so it is built once here for both architectures.
+  web:
+    name: web
+    needs: [ci, verify-version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-dist
+          path: apps/web/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Each image is built natively per architecture (no QEMU) and pushed by digest only. images-merge then joins the two
+  # digests into one multi-arch tag. This is Docker's "distribute build across multiple runners" pattern.
+  images-build:
+    name: image ${{ matrix.image }} (${{ matrix.target }})
+    needs: [verify-version, approve, web]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [control, gateway, reader, egress, exec, browser]
+        target: [amd64, arm64]
+        include:
+          - { target: amd64, runner: ubuntu-24.04, platform: linux/amd64 }
+          - { target: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
+          # The browser image has its own build context; the others build from the repository root.
+          - { image: browser, context: containers/browser }
+    env:
+      REPOSITORY_OWNER: ${{ github.repository_owner }}
+      IMAGE_NAME: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the built web app
+        if: matrix.image == 'control'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - name: Name the image
+        run: echo "REGISTRY_IMAGE=ghcr.io/${REPOSITORY_OWNER,,}/rei-${IMAGE_NAME}" >> "$GITHUB_ENV"
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+          labels: |
+            org.opencontainers.image.title=rei-${{ matrix.image }}
+            org.opencontainers.image.description=Rei ${{ matrix.image }} image
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.verify-version.outputs.version }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context || '.' }}
+          file: containers/${{ matrix.image }}/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.target }},ignore-error=true
+      - name: Export the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  images-merge:
+    name: image ${{ matrix.image }}
+    needs: [verify-version, images-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # packages: push the tags. id-token and attestations: sign the provenance attestation. Only this job has them.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [control, gateway, reader, egress, exec, browser]
+    env:
+      REPOSITORY_OWNER: ${{ github.repository_owner }}
+      IMAGE_NAME: ${{ matrix.image }}
+      VERSION: ${{ needs.verify-version.outputs.version }}
+    steps:
+      - name: Name the image
+        run: echo "REGISTRY_IMAGE=ghcr.io/${REPOSITORY_OWNER,,}/rei-${IMAGE_NAME}" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          # X.Y.Z always; X.Y and latest only for a stable release (a pre-release gets its full version only).
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.verify-version.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ needs.verify-version.outputs.prerelease == 'false' }}
+          annotations: |
+            org.opencontainers.image.title=rei-${{ matrix.image }}
+            org.opencontainers.image.description=Rei ${{ matrix.image }} image
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.verify-version.outputs.version }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create the multi-arch manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r tag; do args+=(-t "$tag"); done < <(jq -r '.tags[]' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          while IFS= read -r annotation; do args+=(--annotation "$annotation"); done < <(jq -r '.annotations[]' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          sources=()
+          for digest in *; do sources+=("${REGISTRY_IMAGE}@sha256:${digest}"); done
+          [ "${#sources[@]}" -eq 2 ] || { echo "Expected one digest per architecture, found ${#sources[@]}." >&2; exit 1; }
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+      - name: Inspect the result
+        id: inspect
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "${REGISTRY_IMAGE}:${VERSION}"
+          digest=$(docker buildx imagetools inspect "${REGISTRY_IMAGE}:${VERSION}" --format '{{json .Manifest}}' | jq -r .digest)
+          [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Unexpected digest: $digest" >&2; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/ref"
+          printf '%s|%s:%s|%s\n' "$IMAGE_NAME" "$REGISTRY_IMAGE" "$VERSION" "$digest" > "$RUNNER_TEMP/ref/$IMAGE_NAME.txt"
+      # The attestation is for the multi-arch digest that the tags point at, so `gh attestation verify` works on a tag.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.REGISTRY_IMAGE }}
+          subject-digest: ${{ steps.inspect.outputs.digest }}
+          push-to-registry: true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-ref-${{ matrix.image }}
+          path: ${{ runner.temp }}/ref/${{ matrix.image }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs with the release key, which lives in secrets of the `release` environment. The script is the same one a
+  # maintainer runs locally (apps/android/tools/release-apk.sh).
+  android:
+    name: android
+    needs: [ci, verify-version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.verify-version.outputs.version }}
+      FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/android-update.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # A release reads the Gradle cache that main wrote and never writes one.
+          cache-read-only: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # The app packages the web client's Office/PDF viewer and Mermaid from the root npm install.
+      - run: npm ci
+      - name: Decode the release keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          [ -n "$ANDROID_KEYSTORE_B64" ] || { echo "Secret ANDROID_KEYSTORE_B64 is empty or missing." >&2; exit 1; }
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          [ -s "$RUNNER_TEMP/release.keystore" ] || { echo "The decoded keystore is empty." >&2; exit 1; }
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+      - name: Build, sign and verify the APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          REI_RELEASE_NOTES: Rei for Android ${{ needs.verify-version.outputs.version }}.
+        run: apps/android/tools/release-apk.sh "$VERSION" "$FEED_URL"
+      - name: Delete the keystore
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-release
+          path: |
+            apps/android/build/release/rei-${{ needs.verify-version.outputs.version }}.apk
+            apps/android/build/release/android-update.json
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: release
+    needs: [verify-version, approve, android, images-merge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job that can write to the repository. It runs no repository code and has no checkout.
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.verify-version.outputs.version }}
+      PRERELEASE: ${{ needs.verify-version.outputs.prerelease }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: android-release
+          path: ${{ runner.temp }}/assets
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-ref-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/refs
+      - name: Write the release notes
+        run: |
+          set -euo pipefail
+          {
+            echo "## Container images"
+            echo
+            echo "Multi-architecture (linux/amd64 and linux/arm64), signed with a build provenance attestation."
+            echo
+            echo "| Image | Reference | Digest |"
+            echo "| --- | --- | --- |"
+            for file in "$RUNNER_TEMP"/refs/*.txt; do
+              IFS='|' read -r name ref digest < "$file"
+              echo "| ${name} | \`${ref}\` | \`${digest}\` |"
+            done
+            echo
+            echo "Verify one with \`gh attestation verify oci://<reference> --repo ${GH_REPO}\`."
+            echo
+            echo "## Android"
+            echo
+            echo "\`rei-${VERSION}.apk\` and its update feed \`android-update.json\` are attached."
+            echo
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: Create the release
+        run: |
+          set -euo pipefail
+          # A pre-release is published but never becomes the latest release (the Android feed follows "latest").
+          flags=(--latest)
+          if [ "$PRERELEASE" = true ]; then flags=(--prerelease); fi
+          gh release create "$TAG" \
+            "$RUNNER_TEMP/assets/rei-${VERSION}.apk" \
+            "$RUNNER_TEMP/assets/android-update.json" \
+            --title "Rei ${VERSION}" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            --verify-tag \
+            "${flags[@]}"

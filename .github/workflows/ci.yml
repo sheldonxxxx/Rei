@@ -1,0 +1,196 @@
+name: CI
+
+# Runs on pushes to main and on pull requests, and is called by release.yml as the first gate of a release. It uses no
+# secrets and never runs on `pull_request_target`, so code from a fork is only ever tested with a read-only token.
+# Every job runs the same npm scripts as `npm run verify`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: "0"
+  # Pinned gitleaks release. To update, change both values; the checksum comes from the release's
+  # gitleaks_<version>_checksums.txt.
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+jobs:
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Scan the tree before `npm ci`, so node_modules is not part of it.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks" gitleaks
+      - name: Scan the working tree for secrets
+        run: '"$RUNNER_TEMP/gitleaks/gitleaks" dir . --redact --no-banner --exit-code 1'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check:static
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  # The job always runs and reports a result. The filter step decides whether the real work happens, so the check is
+  # green (not missing) on changes that cannot affect the Android app.
+  android:
+    name: android
+    # A release tag builds, signs and checks the real APK in release.yml, so it is not built twice.
+    if: ${{ github.ref_type != 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detect Android-related changes
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # No token: changes are found with git, so the job needs no permission beyond contents: read.
+          token: ""
+          filters: |
+            android:
+              - 'apps/android/**'
+              - 'apps/web/src/**'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+      - name: Skipped
+        if: steps.filter.outputs.android != 'true'
+        run: echo "No Android-related changes; nothing to build."
+      - if: steps.filter.outputs.android == 'true'
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - if: steps.filter.outputs.android == 'true'
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          # Only main writes the Gradle cache; pull requests read it.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - if: steps.filter.outputs.android == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # The app packages the web client's Office/PDF viewer and Mermaid from the root npm install.
+      - if: steps.filter.outputs.android == 'true'
+        run: npm ci
+      - if: steps.filter.outputs.android == 'true'
+        working-directory: apps/android
+        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --console=plain
+
+  # Builds every Compose image to prove the Dockerfiles still work. Nothing is pushed or published.
+  images:
+    name: images (${{ matrix.image }})
+    # A release tag builds every image natively on both architectures in release.yml, so they are not built twice.
+    if: ${{ github.ref_type != 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: control, context: ".", file: containers/control/Dockerfile }
+          - { image: gateway, context: ".", file: containers/gateway/Dockerfile }
+          - { image: reader, context: ".", file: containers/reader/Dockerfile }
+          - { image: egress, context: ".", file: containers/egress/Dockerfile }
+          - { image: exec, context: ".", file: containers/exec/Dockerfile }
+          - { image: browser, context: containers/browser, file: containers/browser/Dockerfile }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Detect image-related changes
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          token: ""
+          filters: |
+            images:
+              - 'apps/**'
+              - 'packages/**'
+              - 'containers/**'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+      - name: Skipped
+        if: steps.filter.outputs.images != 'true'
+        run: echo "No image-related changes; nothing to build."
+      - if: steps.filter.outputs.images == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - if: steps.filter.outputs.images == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          tags: rei/${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }},ignore-error=true

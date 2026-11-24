@@ -1,0 +1,3 @@
+# Agents author and place Knowledge pages; the system never does
+
+Agents write Knowledge on their own initiative, but every write is an explicit tool call to a parent the agent chose (Inbox included, deliberately). The Knowledge service validates, versions and indexes; it never infers a placement, moves a page, creates a page, or distils chats in the background. We rejected a background distiller (like Memory's reviewer) because it makes Knowledge something nobody authored and nobody can explain; periodic reflection is instead a user-configured trigger, which goes through the existing `configure` approval. Clutter is kept in check by "search before create" guidance, similar-title hints on create, and a per-agent activity overview — not by write quotas.

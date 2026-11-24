@@ -1,0 +1,317 @@
+{
+  "note": "Conversation-shaped fixture for the memory eval (set B): short user and assistant messages in English, Traditional and Simplified Chinese, Cantonese and Japanese, with near-duplicate distractors. Written by hand; no real data.",
+  "entries": [
+    {
+      "id": "e01",
+      "lang": "en",
+      "kind": "user",
+      "text": "Booking code for the Osaka trip is XK7P2Q, flight departs 14 March at 09:40 from HKG."
+    },
+    {
+      "id": "e02",
+      "lang": "en",
+      "kind": "assistant",
+      "text": "Noted. Your Osaka flight leaves Hong Kong on 14 March at 09:40, booking reference XK7P2Q. Want me to remind you to check in the day before?"
+    },
+    {
+      "id": "e03",
+      "lang": "en",
+      "kind": "user",
+      "text": "My dentist, Dr. Whitcombe, moved my cleaning to Thursday 3 April at 2pm."
+    },
+    {
+      "id": "e04",
+      "lang": "en",
+      "kind": "user",
+      "text": "The car is due for its annual inspection in June; the garage on Elm Street quoted 480 for the service."
+    },
+    {
+      "id": "e05",
+      "lang": "en",
+      "kind": "user",
+      "text": "I decided to go with PostgreSQL rather than MySQL for the invoicing side project because of the JSON support."
+    },
+    {
+      "id": "e06",
+      "lang": "en",
+      "kind": "assistant",
+      "text": "Good call: PostgreSQL's jsonb columns and partial indexes suit invoice line items. I'd start with a single invoices table and a line_items table."
+    },
+    {
+      "id": "e07",
+      "lang": "en",
+      "kind": "user",
+      "text": "Reminder: my sister's birthday is on 22 August, she likes ceramics and green tea."
+    },
+    {
+      "id": "e08",
+      "lang": "en",
+      "kind": "user",
+      "text": "I'm allergic to penicillin, please remember that when suggesting anything health related."
+    },
+    {
+      "id": "e09",
+      "lang": "en",
+      "kind": "user",
+      "text": "Wifi password at the flat is fjord-maple-2291, router is the grey one in the hallway."
+    },
+    {
+      "id": "e10",
+      "lang": "en",
+      "kind": "user",
+      "text": "My passport expires in November 2029, so renewal has to start by next summer."
+    },
+    {
+      "id": "e11",
+      "lang": "en",
+      "kind": "user",
+      "text": "I switched my morning coffee to oat milk flat whites; no sugar."
+    },
+    {
+      "id": "e12",
+      "lang": "en",
+      "kind": "user",
+      "text": "Sprint retro notes: deploy pipeline is too slow, 22 minutes; goal is under 10 by the end of Q3."
+    },
+    {
+      "id": "e13",
+      "lang": "en",
+      "kind": "assistant",
+      "text": "To cut the pipeline time: cache node_modules, split the test job into shards, and skip the e2e stage on docs-only changes."
+    },
+    {
+      "id": "e14",
+      "lang": "en",
+      "kind": "user",
+      "text": "Landlord Mr. Tanaka's number is 6203 4418, rent is due on the 1st."
+    },
+    {
+      "id": "e15",
+      "lang": "en",
+      "kind": "user",
+      "text": "The Berlin conference talk is titled 'Local-first software for small teams' and is scheduled for 9 October."
+    },
+    {
+      "id": "e16",
+      "lang": "en",
+      "kind": "user",
+      "text": "Gym membership with PureFit costs 389 a month, I want to cancel before the contract renews in January."
+    },
+    {
+      "id": "e17",
+      "lang": "en",
+      "kind": "user",
+      "text": "Ordered the standing desk from Fernhill Furniture, order number FH-77120-A, delivery between 5 and 8 pm."
+    },
+    {
+      "id": "e18",
+      "lang": "en",
+      "kind": "user",
+      "text": "I'm learning Japanese; this week I covered the te-form and ordering food at restaurants."
+    },
+    {
+      "id": "e19",
+      "lang": "en",
+      "kind": "assistant",
+      "text": "For the te-form drill: take 食べる -> 食べて, 飲む -> 飲んで, 行く -> 行って. Try ten verbs and I'll check them."
+    },
+    {
+      "id": "e20",
+      "lang": "en",
+      "kind": "user",
+      "text": "The Kyoto ryokan reservation reference is RY-3391, check-in 16 March, two nights."
+    },
+    {
+      "id": "e21",
+      "lang": "en",
+      "kind": "user",
+      "text": "Dr. Alvarez at the clinic said the knee needs physiotherapy twice a week for six weeks."
+    },
+    {
+      "id": "e22",
+      "lang": "en",
+      "kind": "user",
+      "text": "Vet appointment for Biscuit the cat is on Friday 11 April at 10am, vaccinations due."
+    },
+    {
+      "id": "e23",
+      "lang": "en",
+      "kind": "user",
+      "text": "Q3 budget review: marketing is 12 percent over, travel is under by 8 percent."
+    },
+    {
+      "id": "e24",
+      "lang": "en",
+      "kind": "user",
+      "text": "Recipe idea: miso-glazed aubergine with sesame rice, 25 minutes, serves two."
+    },
+    {
+      "id": "e25",
+      "lang": "hant",
+      "kind": "user",
+      "text": "下星期三下午三點要跟林經理開會，討論新產品的發佈時間，記得帶報價單。"
+    },
+    {
+      "id": "e26",
+      "lang": "hant",
+      "kind": "user",
+      "text": "我決定用 SQLite 做第一版的記憶功能，因為部署簡單，不需要另外開資料庫伺服器。"
+    },
+    {
+      "id": "e27",
+      "lang": "hant",
+      "kind": "assistant",
+      "text": "好的，SQLite 的全文檢索 FTS5 可以處理關鍵字搜尋，向量部分可以先在記憶體裡計算。"
+    },
+    {
+      "id": "e28",
+      "lang": "hant",
+      "kind": "user",
+      "text": "媽媽的生日是十一月三日，她喜歡蘭花和桂花茶。"
+    },
+    {
+      "id": "e29",
+      "lang": "hant",
+      "kind": "user",
+      "text": "我對花生過敏，點餐的時候要提醒我。"
+    },
+    {
+      "id": "e30",
+      "lang": "hant",
+      "kind": "user",
+      "text": "公司停車位的號碼是B2層47號，卡片放在抽屜裡。"
+    },
+    {
+      "id": "e31",
+      "lang": "hans",
+      "kind": "user",
+      "text": "下周五要去深圳出差，订了早上八点的高铁，座位在三号车厢。"
+    },
+    {
+      "id": "e32",
+      "lang": "hans",
+      "kind": "user",
+      "text": "房东说空调坏了，已经联系师傅周二上门维修。"
+    },
+    {
+      "id": "e33",
+      "lang": "ja",
+      "kind": "user",
+      "text": "来月の京都旅行では、清水寺と伏見稲荷に行きたい。朝早く行って混雑を避ける予定。"
+    },
+    {
+      "id": "e34",
+      "lang": "ja",
+      "kind": "user",
+      "text": "歯医者の予約は四月三日の午後二時、山田先生です。"
+    },
+    {
+      "id": "e35",
+      "lang": "ja",
+      "kind": "user",
+      "text": "新しい絵本の締め切りを三月末に延ばしてもらうよう、編集者の田中さんにメールする。"
+    },
+    {
+      "id": "e36",
+      "lang": "ja",
+      "kind": "assistant",
+      "text": "田中さんへのメール案：『お世話になっております。絵本の締め切りについてご相談です。三月末まで延ばしていただくことは可能でしょうか。』"
+    },
+    {
+      "id": "e37",
+      "lang": "yue",
+      "kind": "user",
+      "text": "聽日朝早要去醫院覆診，記得帶藥單，九點鐘喺門口等我。"
+    },
+    {
+      "id": "e38",
+      "lang": "yue",
+      "kind": "user",
+      "text": "我哋決定咗星期六去大嶼山行山，帶多啲水同防曬，見面時間係早上八點半。"
+    },
+    {
+      "id": "e39",
+      "lang": "yue",
+      "kind": "user",
+      "text": "屋企部雪櫃壞咗，聽日師傅上嚟睇，要預留成個下午。"
+    },
+    {
+      "id": "e40",
+      "lang": "mixed",
+      "kind": "user",
+      "text": "Meeting with 王小姐 about the logo redesign on Tuesday 2pm, bring the three mockups."
+    },
+    {
+      "id": "e41",
+      "lang": "mixed",
+      "kind": "user",
+      "text": "我嘅 GitHub 帳戶 username 係 alex-dev，二步驗證用 authenticator app。"
+    },
+    {
+      "id": "e42",
+      "lang": "en",
+      "kind": "user",
+      "text": "Tracking number for the headphones is SF1398276450123, expected Wednesday."
+    },
+    {
+      "id": "e43",
+      "lang": "en",
+      "kind": "user",
+      "text": "Tracking number for the keyboard is YT8830021177, it's stuck in customs."
+    },
+    {
+      "id": "e44",
+      "lang": "en",
+      "kind": "user",
+      "text": "Table booked at Ume restaurant for 7:30 on Saturday, reservation under Chiu, party of four."
+    },
+    {
+      "id": "e45",
+      "lang": "en",
+      "kind": "user",
+      "text": "Promo code SPRING25 gives 25 percent off at the bookstore until 30 April."
+    },
+    {
+      "id": "e46",
+      "lang": "en",
+      "kind": "user",
+      "text": "Invoice INV-2026-0418 from the printing shop is still unpaid, due 30 April."
+    },
+    {
+      "id": "e47",
+      "lang": "en",
+      "kind": "user",
+      "text": "Invoice INV-2026-0397 for the web hosting was paid on 2 April."
+    },
+    {
+      "id": "e48",
+      "lang": "en",
+      "kind": "user",
+      "text": "Started the book 'Thinking in Systems'; the chapter on feedback loops was the best so far."
+    },
+    {
+      "id": "e49",
+      "lang": "en",
+      "kind": "user",
+      "text": "Running plan: 5 km on Tuesday and Thursday, a long run of 10 km on Sunday morning."
+    },
+    {
+      "id": "e50",
+      "lang": "en",
+      "kind": "user",
+      "text": "Mortgage rate review is on 12 May; the bank offered 3.9 percent fixed for five years."
+    },
+    {
+      "id": "e51",
+      "lang": "hant",
+      "kind": "user",
+      "text": "上個月的水電費是四百二十元，比前個月多了一點，因為冷氣開比較久。"
+    },
+    {
+      "id": "e52",
+      "lang": "en",
+      "kind": "assistant",
+      "text": "Your electricity usage was higher because of the air conditioning; setting it to 26 degrees can save roughly ten percent."
+    }
+  ]
+}

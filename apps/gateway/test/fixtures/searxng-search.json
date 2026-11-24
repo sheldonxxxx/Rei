@@ -1,0 +1,51 @@
+{
+  "query": "latest openai news",
+  "number_of_results": 0,
+  "results": [
+    {
+      "title": "OpenAI News | OpenAI",
+      "content": "Stay up to speed on the rapid advancement of AI technology and the benefits it offers to humanity.",
+      "publishedDate": "2026-10-29T06:48:27",
+      "url": "https://openai.com/news/",
+      "engine": "brave",
+      "engines": ["brave", "duckduckgo"],
+      "category": "general",
+      "score": 4
+    },
+    {
+      "title": "Reuters OpenAI News | Today's Latest Stories | Reuters",
+      "content": "A Canadian mother sued OpenAI and its CEO Sam Altman ​in U.S. court on Thursday alleging that ChatGPT encouraged her daughter to commit suicide, the latest lawsuit to accuse the company ‌of failing to address dangerous conversations between ...",
+      "publishedDate": "2026-10-29T23:48:27",
+      "url": "https://www.reuters.com/technology/openai/",
+      "engine": "brave",
+      "engines": ["brave"],
+      "category": "general",
+      "score": 0.5
+    },
+    {
+      "title": "Anthropic IPO filing reveals AI security breaches, training halt ...",
+      "content": "OpenAI announced Monday that its artificial intelligence models produced three potentially groundbreaking scientific discoveries in mathematics, computer science and physics, including findings that could challenge longstanding theories about ...",
+      "publishedDate": "2026-10-27T23:13:03",
+      "url": "https://www.foxnews.com/live-news/ai-news-anthropic-claude-openai-chatgpt-10-27-26",
+      "engine": "brave",
+      "engines": ["brave"],
+      "category": "general",
+      "score": 0.3333333333333333
+    },
+    {
+      "title": "Node.js — Node.js 24.0.0 (Current)",
+      "content": "We’re excited to announce the release of Node.js 24! This release brings several significant updates, including the upgrade of the V8 JavaScript engine to version 13.6 and npm to version 11.",
+      "publishedDate": null,
+      "url": "https://nodejs.org/en/blog/release/v24.0.0",
+      "engine": "brave",
+      "engines": ["brave"],
+      "category": "general",
+      "score": 1
+    }
+  ],
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "suggestions": [],
+  "unresponsive_engines": [["duckduckgo", "CAPTCHA"]]
+}

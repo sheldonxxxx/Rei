@@ -1,0 +1,33 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Larkspur Orders API", "version": "2026-10-01" },
+  "servers": [{ "url": "https://api.larkspur.example/v2" }],
+  "paths": {
+    "/orders": {
+      "get": {
+        "summary": "List orders",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["pending", "paid", "shipped", "cancelled"] }
+          }
+        ],
+        "responses": { "200": { "description": "A page of orders" } }
+      },
+      "post": { "summary": "Create an order", "responses": { "201": { "description": "Created" } } }
+    },
+    "/orders/{id}/refunds": {
+      "post": {
+        "summary": "Refund an order",
+        "description": "Refunds are allowed within 60 days of payment.",
+        "responses": { "201": { "description": "Refund created" } }
+      }
+    }
+  }
+}

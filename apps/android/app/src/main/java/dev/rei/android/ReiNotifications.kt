@@ -1,0 +1,124 @@
+package dev.rei.android
+
+import android.Manifest
+import android.app.Application
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import dev.rei.android.data.CredentialStore
+import dev.rei.android.data.ReiApi
+import dev.rei.android.data.optionalString
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+class ReiApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        ReiFirebase.initialize(this)
+    }
+}
+
+internal data class NotificationTarget(val sessionId: String, val messageId: String?)
+
+internal object ReiNotifications {
+    private const val Channel = "rei_activity"
+    private const val Open = "dev.rei.android.OPEN_NOTIFICATION"
+    private const val Device = "device"
+    private const val Session = "session"
+    private const val Message = "message"
+    private const val Enabled = "enabled"
+    private const val ChannelId = "channelId"
+    private const val Server = "server"
+    private val updates = Mutex()
+
+    private fun preferences(context: Context) = context.getSharedPreferences("rei_notifications", Context.MODE_PRIVATE)
+    fun enabled(context: Context): Boolean = preferences(context).getBoolean(Enabled, false)
+    fun hasPermission(context: Context): Boolean =
+        (Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+            context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
+
+    fun setEnabled(context: Context, enabled: Boolean) {
+        preferences(context).edit().putBoolean(Enabled, enabled).apply()
+        if (enabled) ReiFirebase.sync(context) else {
+            context.getSystemService(NotificationManager::class.java).cancelAll()
+            ReiFirebase.disable(context)
+        }
+    }
+
+    fun signedOut(context: Context) {
+        preferences(context).edit().remove(Device).remove(Server).remove(ChannelId).apply()
+        context.getSystemService(NotificationManager::class.java).cancelAll()
+    }
+
+    suspend fun register(context: Context, token: String) = updates.withLock {
+        if (!enabled(context) || !hasPermission(context)) return@withLock
+        val saved = CredentialStore(context).load() ?: return@withLock
+        val credential = saved.token ?: return@withLock
+        val api = ReiApi(saved.serverUrl, credential)
+        val auth = api.request("GET", listOf("api", "auth", "state"))
+        val device = auth.optionalString("deviceId") ?: return@withLock
+        val reply = api.request("POST", listOf("api", "devices", "current", "channels"), buildJsonObject {
+            put("kind", "fcm")
+            put("token", token)
+        })["channel"] as? JsonObject ?: return@withLock
+        val current = CredentialStore(context).load()
+        if (current?.token != credential || current.serverUrl != saved.serverUrl) return@withLock
+        preferences(context).edit().putString(Device, device).putString(Server, saved.serverUrl)
+            .putString(ChannelId, reply.optionalString("id")).apply()
+    }
+
+    suspend fun unregister(context: Context) = updates.withLock {
+        val prefs = preferences(context)
+        val id = prefs.getString(ChannelId, null) ?: return@withLock
+        val saved = CredentialStore(context).load() ?: return@withLock
+        if (saved.token == null || saved.serverUrl != prefs.getString(Server, null)) return@withLock
+        ReiApi(saved.serverUrl, saved.token).request("DELETE", listOf("api", "devices", "current", "channels", id))
+        prefs.edit().remove(ChannelId).apply()
+    }
+
+    private fun matchesDevice(context: Context, device: String?): Boolean =
+        device != null && device == preferences(context).getString(Device, null) &&
+            CredentialStore(context).load()?.let { it.token != null && it.serverUrl == preferences(context).getString(Server, null) } == true
+
+    fun open(context: Context, intent: Intent): NotificationTarget? {
+        if (intent.action != Open || !matchesDevice(context, intent.getStringExtra(Device))) return null
+        val session = intent.getStringExtra(Session).orEmpty()
+        return NotificationTarget(session, intent.getStringExtra(Message))
+    }
+
+    fun show(context: Context, data: Map<String, String>) {
+        if (!enabled(context) || !hasPermission(context) || !matchesDevice(context, data["deviceId"])) return
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(Channel, "Rei activity", NotificationManager.IMPORTANCE_DEFAULT))
+        val session = data["sessionId"].orEmpty()
+        val message = data["messageId"]
+        val id = (session + (message ?: "") + data["event"]).hashCode()
+        val destination = Intent(context, MainActivity::class.java).apply {
+            action = Open
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(Device, data["deviceId"])
+            putExtra(Session, session)
+            putExtra(Message, message)
+        }
+        val action = PendingIntent.getActivity(context, id, destination, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val title = data["title"].orEmpty().ifBlank { "Rei" }
+        val body = data["body"].orEmpty()
+        manager.notify(id, Notification.Builder(context, Channel)
+            .setSmallIcon(dev.rei.android.R.drawable.ic_rei_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setContentIntent(action)
+            .build())
+    }
+}

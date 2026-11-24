@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Router keeps dropping Wi-Fi every evening - HomeNet Forums</title></head>
+<body>
+<header><a href="/">HomeNet Forums</a> &gt; <a href="/f/routers">Routers</a></header>
+<main>
+<h1>Router keeps dropping Wi-Fi every evening</h1>
+<div class="post"><div class="author">jules_k</div><div class="body"><p>Every evening around 8pm my router drops all wireless clients for a minute or two. Wired is fine. Any ideas?</p></div></div>
+<div class="post"><div class="author">netguy42</div><div class="body"><p>Probably channel congestion when your neighbours get home. What channel are you on?</p></div></div>
+<div class="post"><div class="author">jules_k</div><div class="body"><p>Auto, I think. It shows channel 6 right now.</p></div></div>
+<div class="post"><div class="author">mira_w</div><div class="body"><p>Check the system log for DFS events if you are on 5 GHz.</p></div></div>
+<div class="post"><div class="author">jules_k</div><div class="body"><p>Log shows "radar detected, switching channel" at 20:02 most days.</p></div></div>
+<div class="post"><div class="author">netguy42</div><div class="body"><p>That is it. Your router is hearing weather radar on a DFS channel and has to vacate. Pin the 5 GHz band to channel 36 or 44, which are not DFS channels, and the drops will stop.</p></div></div>
+<div class="post"><div class="author">jules_k</div><div class="body"><p>Pinned to 36 last night, no drop this evening. Thanks!</p></div></div>
+</main>
+<aside><h3>Similar threads</h3><a href="/t/1">Mesh nodes disconnecting</a> <a href="/t/2">Slow upload speeds</a></aside>
+</body></html>

@@ -1,0 +1,1822 @@
+{
+  "$comment": "Rei rendering conformance fixtures (docs/rendering.md). Each case: input Markdown -> expected structure.",
+  "version": 1,
+  "markdown": [
+    {
+      "name": "heading-and-paragraph",
+      "input": "# Title\n\nA paragraph\nwith a line break.",
+      "expected": [
+        {
+          "t": "h",
+          "level": 1,
+          "slug": "title",
+          "children": [
+            {
+              "t": "text",
+              "text": "Title"
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "A paragraph"
+            },
+            {
+              "t": "br"
+            },
+            {
+              "t": "text",
+              "text": "with a line break."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "emphasis",
+      "input": "**bold**, *em*, ***both***, ~~gone~~ and `code`; snake_case_name stays text.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "strong",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "bold"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ", "
+            },
+            {
+              "t": "em",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "em"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ", "
+            },
+            {
+              "t": "strong",
+              "children": [
+                {
+                  "t": "em",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "both"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ", "
+            },
+            {
+              "t": "del",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "gone"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": " and "
+            },
+            {
+              "t": "code",
+              "text": "code"
+            },
+            {
+              "t": "text",
+              "text": "; snake_case_name stays text."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "escapes",
+      "input": "\\*not em\\* and \\`not code\\`",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "*not em* and `not code`"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "links",
+      "input": "[site](https://example.com), <mailto> [mail](mailto:a@b.c), bare https://example.com/path. and [js](javascript:alert(1))",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "link",
+              "href": "https://example.com",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "site"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ", <mailto> "
+            },
+            {
+              "t": "link",
+              "href": "mailto:a@b.c",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "mail"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ", bare "
+            },
+            {
+              "t": "link",
+              "href": "https://example.com/path",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "https://example.com/path"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": ". and "
+            },
+            {
+              "t": "text",
+              "text": "js"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page-link",
+      "input": "See [the plan](page:pg_123).",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "See "
+            },
+            {
+              "t": "page",
+              "pageId": "pg_123",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "the plan"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page-section-link",
+      "input": "See [week 2](page:pg_123#week-2).",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "See "
+            },
+            {
+              "t": "page",
+              "pageId": "pg_123",
+              "anchor": "week-2",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "week 2"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page-section-link-cjk",
+      "input": "[進度](page:pg_123#第二週-進度)",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "page",
+              "pageId": "pg_123",
+              "anchor": "第二週-進度",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "進度"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page-link-empty-anchor",
+      "input": "[plan](page:pg_123#)",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "page",
+              "pageId": "pg_123",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "plan"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "file-link-takes-no-anchor",
+      "input": "[report](file:f_abc#intro)",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "report"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "file-link",
+      "input": "Open [report](file:f_abc) or [v2](file:f_abc@v_2).",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Open "
+            },
+            {
+              "t": "file",
+              "fileId": "f_abc",
+              "versionId": null,
+              "children": [
+                {
+                  "t": "text",
+                  "text": "report"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": " or "
+            },
+            {
+              "t": "file",
+              "fileId": "f_abc",
+              "versionId": "v_2",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "v2"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "file-image",
+      "input": "![chart](file:f_img@v_1) and ![remote](https://example.com/x.png)",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "image",
+              "fileId": "f_img",
+              "versionId": "v_1",
+              "alt": "chart"
+            },
+            {
+              "t": "text",
+              "text": " and "
+            },
+            {
+              "t": "webimage",
+              "src": "https://example.com/x.png",
+              "alt": "remote"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "web-image",
+      "input": "![logo](https://example.com/logo.png \"Logo\") ![x](javascript:alert(1)) ![](data:image/png;base64,AA)",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "webimage",
+              "src": "https://example.com/logo.png",
+              "alt": "logo"
+            },
+            {
+              "t": "text",
+              "text": " "
+            },
+            {
+              "t": "text",
+              "text": "x"
+            },
+            {
+              "t": "text",
+              "text": " "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "setext-headings",
+      "input": "Title\n=====\n\nTwo\nlines\n---\n\nPara\n\n---",
+      "expected": [
+        {
+          "t": "h",
+          "level": 1,
+          "slug": "title",
+          "children": [
+            {
+              "t": "text",
+              "text": "Title"
+            }
+          ]
+        },
+        {
+          "t": "h",
+          "level": 2,
+          "slug": "two-lines",
+          "children": [
+            {
+              "t": "text",
+              "text": "Two"
+            },
+            {
+              "t": "br"
+            },
+            {
+              "t": "text",
+              "text": "lines"
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Para"
+            }
+          ]
+        },
+        {
+          "t": "hr"
+        }
+      ]
+    },
+    {
+      "name": "indented-code",
+      "input": "Text\n    continues\n\n    code line\n\n      more\n\nAfter",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Text"
+            },
+            {
+              "t": "br"
+            },
+            {
+              "t": "text",
+              "text": "continues"
+            }
+          ]
+        },
+        {
+          "t": "code",
+          "lang": "",
+          "text": "code line\n\n  more",
+          "open": false
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "After"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lists",
+      "input": "- one\n- two\n  - nested\n\n1. first\n2. second\n\n3) third",
+      "expected": [
+        {
+          "t": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "one"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "two"
+                  }
+                ]
+              },
+              {
+                "t": "list",
+                "ordered": false,
+                "start": 1,
+                "items": [
+                  [
+                    {
+                      "t": "p",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "nested"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ]
+          ]
+        },
+        {
+          "t": "list",
+          "ordered": true,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "first"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "second"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "third"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "task-list",
+      "input": "- [ ] open task\n- [x] done task\n  - [X] nested done\n- plain item",
+      "expected": [
+        {
+          "t": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "open task"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "done task"
+                  }
+                ]
+              },
+              {
+                "t": "list",
+                "ordered": false,
+                "start": 1,
+                "items": [
+                  [
+                    {
+                      "t": "p",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "nested done"
+                        }
+                      ]
+                    }
+                  ]
+                ],
+                "tasks": [
+                  {
+                    "done": true,
+                    "index": 2
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "plain item"
+                  }
+                ]
+              }
+            ]
+          ],
+          "tasks": [
+            {
+              "done": false,
+              "index": 0
+            },
+            {
+              "done": true,
+              "index": 1
+            },
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tasks-in-quote",
+      "input": "- [ ] counted\n\n> - [ ] not reachable\n\n- [x] counted too",
+      "expected": [
+        {
+          "t": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "counted"
+                  }
+                ]
+              }
+            ]
+          ],
+          "tasks": [
+            {
+              "done": false,
+              "index": 0
+            }
+          ]
+        },
+        {
+          "t": "quote",
+          "blocks": [
+            {
+              "t": "list",
+              "ordered": false,
+              "start": 1,
+              "items": [
+                [
+                  {
+                    "t": "p",
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": "not reachable"
+                      }
+                    ]
+                  }
+                ]
+              ],
+              "tasks": [
+                {
+                  "done": false,
+                  "index": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "counted too"
+                  }
+                ]
+              }
+            ]
+          ],
+          "tasks": [
+            {
+              "done": true,
+              "index": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "task-chips",
+      "input": "- [ ] Draft the brief @rei 📅 2026-11-20\n- [x] Ship @ops.bot",
+      "expected": [
+        {
+          "t": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "Draft the brief @rei 📅 2026-11-20"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "p",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "Ship @ops.bot"
+                  }
+                ]
+              }
+            ]
+          ],
+          "tasks": [
+            {
+              "done": false,
+              "index": 0
+            },
+            {
+              "done": true,
+              "index": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "callouts",
+      "input": "> [!NOTE]\n> Plain note.\n\n> [!warning] Custom title\n> Body text.",
+      "expected": [
+        {
+          "t": "callout",
+          "kind": "note",
+          "fold": null,
+          "title": [],
+          "blocks": [
+            {
+              "t": "p",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "Plain note."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "callout",
+          "kind": "warning",
+          "fold": null,
+          "title": [
+            {
+              "t": "text",
+              "text": "Custom title"
+            }
+          ],
+          "blocks": [
+            {
+              "t": "p",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "Body text."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "toggles",
+      "input": "> [!TIP]- Folded closed\n> Hidden body.\n\n> [!caution]+ Folded open\n> Shown body.",
+      "expected": [
+        {
+          "t": "callout",
+          "kind": "tip",
+          "fold": "closed",
+          "title": [
+            {
+              "t": "text",
+              "text": "Folded closed"
+            }
+          ],
+          "blocks": [
+            {
+              "t": "p",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "Hidden body."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "callout",
+          "kind": "caution",
+          "fold": "open",
+          "title": [
+            {
+              "t": "text",
+              "text": "Folded open"
+            }
+          ],
+          "blocks": [
+            {
+              "t": "p",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "Shown body."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "quote",
+      "input": "> quoted *text*\n> more",
+      "expected": [
+        {
+          "t": "quote",
+          "blocks": [
+            {
+              "t": "p",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "quoted "
+                },
+                {
+                  "t": "em",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "text"
+                    }
+                  ]
+                },
+                {
+                  "t": "br"
+                },
+                {
+                  "t": "text",
+                  "text": "more"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "code-fence",
+      "input": "```ts\nconst x = 1;\n```\n\n~~~\nplain\n~~~",
+      "expected": [
+        {
+          "t": "code",
+          "lang": "ts",
+          "text": "const x = 1;",
+          "open": false
+        },
+        {
+          "t": "code",
+          "lang": "",
+          "text": "plain",
+          "open": false
+        }
+      ]
+    },
+    {
+      "name": "unclosed-fence",
+      "input": "Before\n\n```py\nprint('streaming')",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Before"
+            }
+          ]
+        },
+        {
+          "t": "code",
+          "lang": "py",
+          "text": "print('streaming')",
+          "open": true
+        }
+      ]
+    },
+    {
+      "name": "table",
+      "input": "| Name | Qty | Note |\n|:-----|----:|:----:|\n| a | 1 | `x\\|y` |\n| b | 2 |",
+      "expected": [
+        {
+          "t": "table",
+          "align": ["left", "right", "center"],
+          "head": [
+            [
+              {
+                "t": "text",
+                "text": "Name"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "text": "Qty"
+              }
+            ],
+            [
+              {
+                "t": "text",
+                "text": "Note"
+              }
+            ]
+          ],
+          "rows": [
+            [
+              [
+                {
+                  "t": "text",
+                  "text": "a"
+                }
+              ],
+              [
+                {
+                  "t": "text",
+                  "text": "1"
+                }
+              ],
+              [
+                {
+                  "t": "code",
+                  "text": "x|y"
+                }
+              ]
+            ],
+            [
+              [
+                {
+                  "t": "text",
+                  "text": "b"
+                }
+              ],
+              [
+                {
+                  "t": "text",
+                  "text": "2"
+                }
+              ],
+              []
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rule",
+      "input": "above\n\n---\n\nbelow",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "above"
+            }
+          ]
+        },
+        {
+          "t": "hr"
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "below"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "html-is-text",
+      "input": "<b>not bold</b> <script>x</script>",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "<b>not bold</b> <script>x</script>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ui-fence-is-code",
+      "input": "Here:\n\n```ui\n{\"component\":\"card\",\"v\":1,\"id\":\"c1\",\"props\":{\"title\":\"Hi\"}}\n```",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Here:"
+            }
+          ]
+        },
+        {
+          "t": "code",
+          "lang": "ui",
+          "text": "{\"component\":\"card\",\"v\":1,\"id\":\"c1\",\"props\":{\"title\":\"Hi\"}}",
+          "open": false
+        }
+      ]
+    },
+    {
+      "name": "footnote-basic",
+      "input": "Claim one.[^a] Claim two.[^b] Again.[^a]\n\n[^b]: Second *source*.\n[^a]: First source: [report](https://example.com/r).",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Claim one."
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": " Claim two."
+            },
+            {
+              "t": "fnref",
+              "n": 2,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": " Again."
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 2
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 2,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "First source: "
+                    },
+                    {
+                      "t": "link",
+                      "href": "https://example.com/r",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "report"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": "."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": 2,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Second "
+                    },
+                    {
+                      "t": "em",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "source"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": "."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-continuation",
+      "input": "Text[^n] here.\n\n[^n]: First line\n    continued line\n\n    Second paragraph.\n\nAfter.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Text"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": " here."
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "After."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "First line"
+                    },
+                    {
+                      "t": "br"
+                    },
+                    {
+                      "t": "text",
+                      "text": "continued line"
+                    }
+                  ]
+                },
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Second paragraph."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-definition-before-use",
+      "input": "[^x]: Defined first.\n\nUsed later[^x].",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Used later"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Defined first."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-no-definition-stays-text",
+      "input": "No note[^missing] here.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "No note[^missing] here."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-unused-definition-listed",
+      "input": "Used[^b].\n\n[^a]: Never referenced.\n[^b]: Referenced.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Used"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Referenced."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "n": 2,
+              "uses": 0,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Never referenced."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-not-in-code",
+      "input": "`[^a]` and\n\n```\n[^a]: not a note\n[^a]\n```\n\nReal[^a].\n\n[^a]: Note.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "code",
+              "text": "[^a]"
+            },
+            {
+              "t": "text",
+              "text": " and"
+            }
+          ]
+        },
+        {
+          "t": "code",
+          "lang": "",
+          "text": "[^a]: not a note\n[^a]",
+          "open": false
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Real"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Note."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-in-link-text-stays-text",
+      "input": "[see[^a]](https://example.com) and real[^a].\n\n[^a]: Note.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "link",
+              "href": "https://example.com",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "see[^a]"
+                }
+              ]
+            },
+            {
+              "t": "text",
+              "text": " and real"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Note."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-rei-links-and-formatting",
+      "input": "Source[^s].\n\n[^s]: **Bold**, `code`, [page](page:pg_1#week-2), [file](file:fl_1), http://example.com/x and a ref[^s].",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Source"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "strong",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "Bold"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": ", "
+                    },
+                    {
+                      "t": "code",
+                      "text": "code"
+                    },
+                    {
+                      "t": "text",
+                      "text": ", "
+                    },
+                    {
+                      "t": "page",
+                      "pageId": "pg_1",
+                      "anchor": "week-2",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "page"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": ", "
+                    },
+                    {
+                      "t": "file",
+                      "fileId": "fl_1",
+                      "versionId": null,
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": ", "
+                    },
+                    {
+                      "t": "link",
+                      "href": "http://example.com/x",
+                      "children": [
+                        {
+                          "t": "text",
+                          "text": "http://example.com/x"
+                        }
+                      ]
+                    },
+                    {
+                      "t": "text",
+                      "text": " and a ref[^s]."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-duplicate-definition-stays-text",
+      "input": "Used[^a].\n\n[^a]: First.\n\n[^a]: Second.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Used"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "[^a]: Second."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "First."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "footnote-escaped-reference",
+      "input": "Not a note \\[^a] here[^a].\n\n[^a]: Note.",
+      "expected": [
+        {
+          "t": "p",
+          "children": [
+            {
+              "t": "text",
+              "text": "Not a note [^a] here"
+            },
+            {
+              "t": "fnref",
+              "n": 1,
+              "use": 1
+            },
+            {
+              "t": "text",
+              "text": "."
+            }
+          ]
+        },
+        {
+          "t": "footnotes",
+          "items": [
+            {
+              "n": 1,
+              "uses": 1,
+              "blocks": [
+                {
+                  "t": "p",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "Note."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "chips": [
+    {
+      "name": "mention",
+      "input": "Ask @rei today",
+      "expected": [
+        {
+          "t": "text",
+          "text": "Ask "
+        },
+        {
+          "t": "mention",
+          "name": "rei"
+        },
+        {
+          "t": "text",
+          "text": " today"
+        }
+      ]
+    },
+    {
+      "name": "due-date",
+      "input": "Due 📅 2026-11-20",
+      "expected": [
+        {
+          "t": "text",
+          "text": "Due "
+        },
+        {
+          "t": "due",
+          "date": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "name": "both",
+      "input": "@ops.bot 📅2026-01-02 tail",
+      "expected": [
+        {
+          "t": "mention",
+          "name": "ops.bot"
+        },
+        {
+          "t": "text",
+          "text": " "
+        },
+        {
+          "t": "due",
+          "date": "2026-01-02"
+        },
+        {
+          "t": "text",
+          "text": " tail"
+        }
+      ]
+    },
+    {
+      "name": "no-chips",
+      "input": "email a@b.c, no date",
+      "expected": [
+        {
+          "t": "text",
+          "text": "email a@b.c, no date"
+        }
+      ]
+    }
+  ],
+  "slugs": [
+    {
+      "name": "slug-plain",
+      "input": "# Plan\n\n## Week 2: Shipping!\n\n### snake_case, _em_ and `code` with [a link](page:pg_1)",
+      "expected": ["plan", "week-2-shipping", "snake_case-em-and-code-with-a-link"],
+      "lookups": [
+        {
+          "anchor": "week-2-shipping",
+          "index": 1
+        },
+        {
+          "anchor": "Week-2-Shipping",
+          "index": 1
+        },
+        {
+          "anchor": "nope",
+          "index": null
+        },
+        {
+          "anchor": "",
+          "index": null
+        }
+      ]
+    },
+    {
+      "name": "slug-cjk",
+      "input": "# 計劃\n\n## 第二週 進度\n\n## 日本語の見出し（メモ）",
+      "expected": ["計劃", "第二週-進度", "日本語の見出しメモ"],
+      "lookups": [
+        {
+          "anchor": "第二週-進度",
+          "index": 1
+        },
+        {
+          "anchor": "%E7%AC%AC%E4%BA%8C%E9%80%B1-%E9%80%B2%E5%BA%A6",
+          "index": 1
+        }
+      ]
+    },
+    {
+      "name": "slug-duplicates",
+      "input": "## Notes\n\n## Notes\n\n## Notes\n\n## Notes 1",
+      "expected": ["notes", "notes-1", "notes-2", "notes-1-1"],
+      "lookups": [
+        {
+          "anchor": "notes-2",
+          "index": 2
+        }
+      ]
+    },
+    {
+      "name": "slug-ignores-code-and-quotes",
+      "input": "# Real\n\n```\n# not a heading\n```\n\n> ## Quoted\n\n## Also real",
+      "expected": ["real", "also-real"]
+    },
+    {
+      "name": "slug-setext",
+      "input": "Plan\n====\n\n## Notes\n\nNotes\n-----\n\n- item\n---\n\nText\n\n---",
+      "expected": ["plan", "notes", "notes-1"]
+    }
+  ]
+}

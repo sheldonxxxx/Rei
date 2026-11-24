@@ -1,0 +1,89 @@
+/* Injected into the renderer's shadow roots. Only viewer chrome is themed: document pages,
+   images, cell text/backgrounds and canvas drawing styles retain the source renderer's colours. */
+.file-viewer-web-shell {
+  --file-viewer-bg: var(--muted);
+  --file-viewer-content-bg: var(--muted);
+  --file-viewer-text: var(--foreground);
+  --file-viewer-muted: var(--muted-foreground);
+  --file-viewer-border: var(--border);
+  --file-viewer-toolbar-bg: var(--card);
+  --file-viewer-toolbar-border: var(--border);
+  --file-viewer-button-color: var(--foreground);
+  --file-viewer-button-hover-bg: var(--accent);
+  --file-viewer-button-hover-color: var(--accent-foreground);
+  --file-viewer-focus-ring: var(--ring);
+  --file-viewer-font: 14px / 1.5 var(--sans);
+}
+/* Rei's worksheet picker replaces the native tabs (and their native-title tooltips). */
+.excel-wrapper[data-file-viewer-spreadsheet-root] > .toolbar {
+  display: none;
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading {
+  background: var(--card);
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-card {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-brand {
+  color: var(--foreground);
+  background: var(--muted);
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-kicker,
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-copy strong {
+  color: var(--foreground);
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-copy p,
+.excel-wrapper[data-file-viewer-spreadsheet-root] .sheet-loading-summary {
+  color: var(--muted-foreground);
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .loading .loading-spinner {
+  border-color: var(--border);
+  border-top-color: var(--foreground);
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .sheet-loading {
+  color: var(--foreground);
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .sheet-loading-dot {
+  background: var(--foreground);
+  box-shadow: none;
+}
+.excel-wrapper[data-file-viewer-spreadsheet-root] .excel-image-lightbox button:focus-visible {
+  outline-color: var(--ring);
+}
+/* Presentation controls and status surfaces are chrome; slide content keeps its original colours. */
+.pptx-slideshow-button {
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: none;
+}
+.pptx-slideshow-button:hover {
+  border-color: var(--ring);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.pptx-slideshow-button:focus-visible {
+  outline-color: var(--ring);
+}
+.pptx-slideshow-button-key {
+  background: var(--muted);
+}
+.pptx-loading,
+.pptx-error {
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: none;
+}
+.pptx-loading-dot {
+  background: var(--foreground);
+  box-shadow: none;
+}
+.pptx-error p {
+  color: var(--muted-foreground);
+}

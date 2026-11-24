@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Configuring webhooks — Larkspur Docs</title></head>
+<body>
+<header class="docs-header"><a href="/">Larkspur</a> <input type="search" placeholder="Search docs (Ctrl+K)"> <a href="/changelog">Changelog</a> <a href="https://github.com/example/larkspur">GitHub</a></header>
+<div class="docs">
+<nav class="docs-sidebar" aria-label="Documentation">
+<h4>Getting started</h4><ul><li><a href="/docs/install">Installation</a></li><li><a href="/docs/quickstart">Quickstart</a></li><li><a href="/docs/concepts">Concepts</a></li></ul>
+<h4>Guides</h4><ul><li><a href="/docs/auth">Authentication</a></li><li><a href="/docs/webhooks">Webhooks</a></li><li><a href="/docs/pagination">Pagination</a></li><li><a href="/docs/errors">Errors</a></li><li><a href="/docs/rate-limits">Rate limits</a></li><li><a href="/docs/idempotency">Idempotency</a></li><li><a href="/docs/testing">Testing</a></li></ul>
+<h4>Reference</h4><ul><li><a href="/docs/api">API reference</a></li><li><a href="/docs/cli">CLI</a></li><li><a href="/docs/sdks">SDKs</a></li></ul>
+</nav>
+<main class="docs-content">
+<h1>Configuring webhooks</h1>
+<p>Larkspur sends an HTTP POST to your endpoint whenever an event you subscribe to happens. This guide covers creating an endpoint, verifying signatures, and handling retries.</p>
+<h2 id="create">Create an endpoint</h2>
+<p>Endpoints are created per project. Each project can have up to 16 webhook endpoints.</p>
+<pre><code class="language-bash">larkspur webhooks create --url https://example.com/hooks --events order.created,order.paid</code></pre>
+<h2 id="verify">Verify signatures</h2>
+<p>Every delivery carries a <code>Larkspur-Signature</code> header. It is an HMAC-SHA256 of the raw request body, keyed with the endpoint's signing secret.</p>
+<pre><code class="language-ts">import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function verify(body: string, header: string, secret: string): boolean {
+  const expected = createHmac("sha256", secret).update(body).digest("hex");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(header));
+}</code></pre>
+<div class="admonition warning"><p class="title">Warning</p><p>Compute the signature over the raw body bytes. Parsing and re-serialising JSON changes whitespace and breaks the check.</p></div>
+<h2 id="retries">Retries</h2>
+<p>A delivery that does not get a 2xx response within 10 seconds is retried with exponential backoff for up to 3 days. After the final attempt the event is marked failed and shown in the dashboard.</p>
+<h2 id="ordering">Ordering</h2>
+<p>Deliveries are not guaranteed to arrive in order. Use the event's <code>created_at</code> timestamp to discard stale updates.</p>
+<nav class="pager"><a href="/docs/auth">Previous: Authentication</a> <a href="/docs/pagination">Next: Pagination</a></nav>
+</main>
+</div>
+<footer>Was this page helpful? Yes / No · Edit this page on GitHub</footer>
+</body></html>

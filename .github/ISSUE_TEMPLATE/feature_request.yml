@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an idea or improvement
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rei is a personal project that follows its maintainer's needs, so not every request will be taken on. A clear problem statement helps most, and forking to adapt Rei for yourself is encouraged.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Rei makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: How should it work? Mention the part of Rei it touches (web, Android, CLI, agents, tools, memory, ...).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to work on this myself

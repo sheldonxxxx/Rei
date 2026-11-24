@@ -1,0 +1,18 @@
+# Only what the image needs: manifests for the install layer, the sources that run, and the built web app.
+**
+!package.json
+!package-lock.json
+!packages/protocol/package.json
+!packages/protocol/src
+!packages/protocol/catalog
+!packages/protocol/vendor
+!packages/logging/package.json
+!packages/logging/src
+!packages/network/package.json
+!packages/network/src
+!apps/server/package.json
+!apps/server/src
+!apps/gateway/package.json
+!apps/egress/package.json
+!apps/web/package.json
+!apps/web/dist

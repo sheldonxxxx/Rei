@@ -1,0 +1,133 @@
+/*
+ * Motion: one token set and one arrival grammar for the whole app.
+ *
+ * The grammar — every entrance in Rei is one of four kinds, and the kind says what happened:
+ *   rise  — something the run produced is now present: an answer, a tool row, a memory chip. 180ms, 4px.
+ *   card  — an overlay asking you to act (approval, takeover): a little more travel. 200ms, 6px.
+ *   fade  — punctuation and loading, not content moving: notices, markers, a status flip. No travel,
+ *           so nothing implies movement that did not happen.
+ *   scale — a surface taking the screen: dialogs, sheets. 260ms, 0.98 scale.
+ *
+ * The rules these tokens keep, in order of importance:
+ *   1. Motion never delays information: no element waits behind another element's animation.
+ *   2. Motion never blocks input: only opacity and transform, never pointer-events or size.
+ *   3. Motion never changes layout: a reveal that reflows would fight the transcript's scroll anchoring.
+ *   4. Nothing exceeds --motion-ceiling, and leaving is faster than arriving (--motion-exit).
+ *   5. A row decides its arrival once, at mount: inside a region that was already on screen when it first painted
+ *      (a chat's loaded history) it gets no data-enter at all, so it arrives instead of replaying.
+ */
+
+:root {
+  /* Speed budget. --motion-scale is the single dial: 0.5 for a calmer app, 0 for none at all. */
+  --motion-scale: 1;
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-card: 200ms;
+  --motion-slow: 260ms;
+  --motion-exit: 120ms;
+  --motion-ceiling: 300ms;
+  /* Sequence budget: 24ms between siblings, never more than 120ms of accumulated delay. */
+  --motion-step: 24ms;
+  --motion-stagger-cap: 120ms;
+  /* A reveal glides in; a dismissal snaps away. */
+  --motion-ease-in: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Travel, kept at the size of a line of text so nothing flies. */
+  --motion-rise: 4px;
+  --motion-rise-card: 6px;
+  --motion-scale-from: 0.98;
+}
+
+/* One attribute turns motion off without touching a component. */
+[data-motion="flat"] {
+  --motion-scale: 0;
+}
+
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+}
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes motion-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise-card));
+  }
+}
+@keyframes motion-scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise-card)) scale(var(--motion-scale-from));
+  }
+}
+@keyframes motion-caret {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+[data-enter="rise"] {
+  animation: motion-rise-in calc(var(--motion-base) * var(--motion-scale)) var(--motion-ease-in) both;
+  animation-delay: min(calc(var(--enter-i, 0) * var(--motion-step)), var(--motion-stagger-cap));
+}
+[data-enter="fade"] {
+  animation: motion-fade-in calc(var(--motion-base) * var(--motion-scale)) var(--motion-ease-in) both;
+  animation-delay: min(calc(var(--enter-i, 0) * var(--motion-step)), var(--motion-stagger-cap));
+}
+[data-enter="card"] {
+  animation: motion-card-in calc(var(--motion-card) * var(--motion-scale)) var(--motion-ease-in) both;
+  animation-delay: min(calc(var(--enter-i, 0) * var(--motion-step)), var(--motion-stagger-cap));
+}
+[data-enter="scale"] {
+  animation: motion-scale-in calc(var(--motion-slow) * var(--motion-scale)) var(--motion-ease-in) both;
+}
+
+/* The live tail of an answer: a quiet block caret, gone the moment the run ends. */
+.md.streaming > p:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1.05em;
+  margin-inline-start: 2px;
+  /* Takes no room: the caret must not wrap a line early or leave one behind when the run ends. */
+  margin-inline-end: -0.5em;
+  border-radius: 1px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: motion-caret 1s ease-in-out infinite;
+}
+
+/* Reduced motion: app.css already ends every animation and transition app-wide, so arrivals become instant rather than
+   fades. The tokens and the caret are made consistent anyway, for JS that reads them and for the non-blinking caret. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-scale: 0;
+    --motion-step: 0ms;
+    --motion-rise: 0px;
+    --motion-rise-card: 0px;
+    --motion-scale-from: 1;
+  }
+  .md.streaming > p:last-child::after {
+    opacity: 0.4;
+  }
+}
+
+/* Opening a chat: the transcript stays invisible while it loads and settles to the bottom, then fades in once. Opacity
+   only, so the scroll position underneath is never disturbed. */
+.msg-list {
+  transition: opacity calc(var(--motion-slow) * var(--motion-scale)) var(--motion-ease-in);
+}
+.msg-list[data-opening="true"] {
+  opacity: 0;
+  transition: none;
+}

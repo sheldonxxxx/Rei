@@ -1,0 +1,509 @@
+{
+  "note": "Hand-written Knowledge pages for the Knowledge eval. No real data. `parent` names another page's key (absent: top level). The eval adds generated distractor pages (meeting notes, weekly reviews, reading notes) so the corpus passes 200 pages.",
+  "pages": [
+    {
+      "key": "personal",
+      "title": "Personal",
+      "description": "Health, home, money and travel"
+    },
+    {
+      "key": "health",
+      "parent": "personal",
+      "title": "Health",
+      "description": "Doctors, allergies, medication"
+    },
+    {
+      "key": "allergies",
+      "parent": "health",
+      "title": "Allergies and medication",
+      "description": "What to avoid and what I take",
+      "body": "## Allergies\n- Penicillin: hives in 2019, use azithromycin instead\n- Shellfish: mild, avoid prawns and crab\n\n## Medication\n- Cetirizine 10mg in spring (hay fever)\n- Vitamin D 1000 IU daily from October to March"
+    },
+    {
+      "key": "physio",
+      "parent": "health",
+      "title": "Knee physiotherapy",
+      "description": "Exercises after the October knee strain",
+      "body": "Physio: Dr. Amelia Ward at Riverside Clinic.\n\n## Exercises\n- [ ] Straight leg raises, 3×12, twice a day\n- [ ] Wall sits, 3×30s\n- [x] Ice after running for the first two weeks\n\n> [!WARNING]\n> No downhill running until the six-week review on 2026-12-04."
+    },
+    {
+      "key": "fitness",
+      "parent": "personal",
+      "title": "Fitness",
+      "description": "Running and strength"
+    },
+    {
+      "key": "training",
+      "parent": "fitness",
+      "title": "Half marathon training plan",
+      "description": "12 weeks to the March half marathon",
+      "body": "Goal: finish the Lantau half marathon under 2 hours on 2027-03-14.\n\n## Weekly shape\n- Tuesday intervals: 6×800m at 5:10/km\n- Thursday tempo 6 km\n- Sunday long run, adding 1.5 km a week up to 18 km\n\n## Shoes\nRotate the Pegasus (long runs) and the Endorphin (tempo). Replace the Pegasus after 700 km."
+    },
+    {
+      "key": "gym",
+      "parent": "fitness",
+      "title": "Strength routine",
+      "description": "Twice-weekly gym session",
+      "body": "Monday and Friday at the Wan Chai gym.\n- Goblet squat 3×10 at 20 kg\n- Romanian deadlift 3×8 at 40 kg\n- Push-ups 3×15\n- Plank 3×45s"
+    },
+    {
+      "key": "home",
+      "parent": "personal",
+      "title": "Home",
+      "description": "Flat, landlord, repairs, utilities"
+    },
+    {
+      "key": "landlord",
+      "parent": "home",
+      "title": "Landlord and lease",
+      "description": "Who to call and what the lease says",
+      "body": "Landlord: Mr. Henry Cheung, call or WhatsApp +852 5550 1234 (weekdays after 6pm).\nLease runs to 2027-08-31; two months' notice to leave. Rent HK$18,500, paid on the 1st by FPS.\nThe landlord pays for appliance repairs over HK$500."
+    },
+    {
+      "key": "wifi",
+      "parent": "home",
+      "title": "Internet and router",
+      "description": "Broadband plan and router settings",
+      "body": "Broadband: 1000M fibre, contract ends 2027-02. Support line 1833 888.\nRouter admin page is 192.168.1.1; the guest network is called Flat-Guest.\nIf the connection drops, restart the ONT first, then the router."
+    },
+    {
+      "key": "plants",
+      "parent": "home",
+      "title": "Balcony plants",
+      "description": "Watering schedule",
+      "body": "- Basil: water daily in summer, every two days in winter\n- Monstera: water when the top 3 cm of soil is dry, about weekly\n- Rosemary: little water, full sun"
+    },
+    {
+      "key": "finance",
+      "parent": "personal",
+      "title": "Money",
+      "description": "Budget, tax, insurance"
+    },
+    {
+      "key": "tax",
+      "parent": "finance",
+      "title": "Salaries tax checklist",
+      "description": "Filing the tax return every May",
+      "body": "## Every May\n- [ ] Download the employer's IR56B\n- [ ] Claim MPF voluntary contributions (TVC) receipts\n- [ ] Claim the self-education deduction for the Japanese course\n- [ ] File online on GovHK before the deadline\n\nLast year's tax was paid in two instalments, January and April."
+    },
+    {
+      "key": "insurance",
+      "parent": "finance",
+      "title": "Insurance policies",
+      "description": "Health, travel and home contents cover",
+      "body": "- Health: AXA plan, policy ending 4471, renews every July\n- Travel: annual policy, covers skiing, renews in December\n- Home contents: HK$300,000 cover, excess HK$1,000"
+    },
+    {
+      "key": "travel",
+      "parent": "personal",
+      "title": "Travel",
+      "description": "Trips, bookings and packing"
+    },
+    {
+      "key": "tokyo",
+      "parent": "travel",
+      "title": "東京行程 Tokyo trip",
+      "description": "Five days in Tokyo in December",
+      "body": "## 航班 Flights\nCX 548 去程 12月18日 08:45 出發，回程 CX 509 12月23日。\n\n## 酒店 Hotel\n新宿 Hotel Gracery，訂單號 GR-88412。\n\n## 想去 Places\n- 築地場外市場吃早餐\n- teamLab Planets\n- 淺草寺"
+    },
+    {
+      "key": "packing",
+      "parent": "travel",
+      "title": "Packing list",
+      "description": "What to bring on every trip",
+      "body": "- [ ] Passport and HKID\n- [ ] Universal adapter (Japan uses type A)\n- [ ] Running shoes\n- [ ] Cetirizine and plasters\n- [ ] Octopus card and some yen"
+    },
+    {
+      "key": "projects",
+      "title": "Projects",
+      "description": "Side projects and their decisions"
+    },
+    {
+      "key": "invoicing",
+      "parent": "projects",
+      "title": "Invoicing app",
+      "description": "Small invoicing tool for freelance work",
+      "body": "## Decisions\n- Database: PostgreSQL, because invoices need transactions and reporting queries; SQLite was too limiting for the multi-user plan.\n- Hosting: a single Hetzner VM with Docker Compose.\n- PDF invoices rendered with Typst.\n\n## Open\n- [ ] Add GST-style tax lines\n- [ ] Email reminders for overdue invoices"
+    },
+    {
+      "key": "deploy",
+      "parent": "invoicing",
+      "title": "Deploy runbook",
+      "description": "How the invoicing app ships",
+      "body": "1. `make release` builds the image and tags it with the git SHA.\n2. `docker compose pull && docker compose up -d` on the VM.\n3. Run migrations with `make migrate`.\n\nSpeed-up idea: cache the npm layer in CI; builds dropped from 9 to 3 minutes when tried."
+    },
+    {
+      "key": "garden",
+      "parent": "projects",
+      "title": "Community garden website",
+      "description": "Volunteer site for the Sai Kung garden",
+      "body": "Static site on Netlify, built with Astro. Contact for the garden committee: Grace Lam.\nVolunteer sign-ups go to a Google Form; the form link is on the Join page."
+    },
+    {
+      "key": "work",
+      "title": "Work",
+      "description": "Team, processes and how things are done"
+    },
+    {
+      "key": "oncall",
+      "parent": "work",
+      "title": "On-call handbook",
+      "description": "What to do when paged",
+      "body": "## First five minutes\n- Acknowledge the page in PagerDuty\n- Check the status dashboard and recent deploys\n- Post in #incidents with what you see\n\n## Escalation\nAfter 30 minutes without a fix, escalate to the secondary on-call, then to the engineering manager, Priya."
+    },
+    {
+      "key": "release",
+      "parent": "work",
+      "title": "Release process",
+      "description": "How a release goes out",
+      "body": "Releases go out on Tuesdays and Thursdays before 3pm. Freeze from 20 December to 3 January.\nEvery release needs a changelog entry and a passing staging smoke test."
+    },
+    {
+      "key": "team",
+      "parent": "work",
+      "title": "Team contacts",
+      "description": "Who does what",
+      "body": "| Name | Role |\n| --- | --- |\n| Priya Nair | Engineering manager |\n| Tom Becker | Backend lead |\n| 陳嘉欣 | Designer |\n| Marco Rossi | QA |"
+    },
+    {
+      "key": "study",
+      "title": "學習 Learning",
+      "description": "Courses and study notes"
+    },
+    {
+      "key": "japanese",
+      "parent": "study",
+      "title": "日語學習 Japanese study",
+      "description": "JLPT N3 preparation",
+      "body": "目標：2027年7月考 JLPT N3。\n\n## 每週 Weekly\n- 星期一、三：WaniKani 漢字 30 分鐘\n- 星期六：Genki II 一課\n- 每日：Anki 單字 20 張\n\n老師 Tanaka 先生，Zoom 課逢星期四晚上八點。"
+    },
+    {
+      "key": "cantonese_recipes",
+      "parent": "study",
+      "title": "煲湯筆記 Soup notes",
+      "description": "Cantonese soups I have learned",
+      "body": "## 西洋菜湯\n西洋菜一斤、豬骨半斤、蜜棗兩粒，煲兩小時。\n\n## 蓮藕湯\n蓮藕、花生、豬骨，煲三小時，最後先落鹽。"
+    },
+    {
+      "key": "recipes",
+      "title": "Recipes",
+      "description": "Things I cook"
+    },
+    {
+      "key": "bread",
+      "parent": "recipes",
+      "title": "Sourdough bread",
+      "description": "My usual loaf",
+      "body": "500 g bread flour, 350 g water, 100 g starter, 10 g salt.\nBulk ferment 5 hours at 24°C with four sets of stretch and folds. Bake at 250°C covered for 20 minutes, then 230°C uncovered for 25."
+    },
+    {
+      "key": "curry",
+      "parent": "recipes",
+      "title": "Japanese curry",
+      "description": "Weeknight curry with S&B roux",
+      "body": "Onions browned for 20 minutes, carrots and potatoes, chicken thigh. Half a box of S&B Golden Curry medium. Grate in half an apple at the end."
+    },
+    {
+      "key": "stale",
+      "parent": "home",
+      "title": "Cleaner schedule",
+      "description": "When the cleaner comes",
+      "body": "The cleaner, Ana, comes every Wednesday morning. Pay HK$400 in cash."
+    },
+    {
+      "key": "misfiled",
+      "parent": "recipes",
+      "title": "Car insurance renewal",
+      "description": "Filed under Recipes by mistake",
+      "body": "Car insurance with Zurich renews on 2027-01-15. Policy number ZC-302918. No-claims discount 40%."
+    },
+    {
+      "key": "mixed",
+      "parent": "work",
+      "title": "Design review 設計評審",
+      "description": "Notes from the onboarding redesign review",
+      "body": "評審結論：onboarding 改成三步，第一步只問名字。陳嘉欣 will prepare the Figma prototype by Friday. Tom 擔心 API rate limit，要先做 caching。"
+    }
+  ],
+  "updates": [
+    {
+      "key": "stale",
+      "body": "The cleaner, Ana, now comes every Friday afternoon (changed in November). Pay HK$450 by FPS."
+    }
+  ],
+  "questions": [
+    {
+      "id": "k01",
+      "cat": "exact",
+      "lang": "en",
+      "q": "penicillin",
+      "gold": ["allergies"]
+    },
+    {
+      "id": "k02",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "landlord phone number",
+      "gold": ["landlord"]
+    },
+    {
+      "id": "k03",
+      "cat": "exact",
+      "lang": "en",
+      "q": "router admin 192.168.1.1",
+      "gold": ["wifi"]
+    },
+    {
+      "id": "k04",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "which database for invoicing",
+      "gold": ["invoicing"]
+    },
+    {
+      "id": "k05",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "speed up CI builds",
+      "gold": ["deploy"]
+    },
+    {
+      "id": "k06",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "half marathon long run",
+      "gold": ["training"]
+    },
+    {
+      "id": "k07",
+      "cat": "exact",
+      "lang": "en",
+      "q": "Romanian deadlift",
+      "gold": ["gym"]
+    },
+    {
+      "id": "k08",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "knee exercises physio",
+      "gold": ["physio"]
+    },
+    {
+      "id": "k09",
+      "cat": "exact",
+      "lang": "en",
+      "q": "IR56B tax return",
+      "gold": ["tax"]
+    },
+    {
+      "id": "k10",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "travel insurance skiing",
+      "gold": ["insurance"]
+    },
+    {
+      "id": "k11",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "escalate when paged",
+      "gold": ["oncall"]
+    },
+    {
+      "id": "k12",
+      "cat": "exact",
+      "lang": "en",
+      "q": "release freeze December",
+      "gold": ["release"]
+    },
+    {
+      "id": "k13",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "who is the backend lead",
+      "gold": ["team"]
+    },
+    {
+      "id": "k14",
+      "cat": "exact",
+      "lang": "en",
+      "q": "sourdough starter flour",
+      "gold": ["bread"]
+    },
+    {
+      "id": "k15",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "how often to water the monstera",
+      "gold": ["plants"]
+    },
+    {
+      "id": "k16",
+      "cat": "exact",
+      "lang": "en",
+      "q": "Astro Netlify garden",
+      "gold": ["garden"]
+    },
+    {
+      "id": "k17",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "東京 酒店",
+      "gold": ["tokyo"]
+    },
+    {
+      "id": "k18",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "航班",
+      "gold": ["tokyo"]
+    },
+    {
+      "id": "k19",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "日語 考試",
+      "gold": ["japanese"]
+    },
+    {
+      "id": "k20",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "西洋菜湯",
+      "gold": ["cantonese_recipes"]
+    },
+    {
+      "id": "k21",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "蓮藕",
+      "gold": ["cantonese_recipes"]
+    },
+    {
+      "id": "k22",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "漢字",
+      "gold": ["japanese"]
+    },
+    {
+      "id": "k23",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "onboarding 評審",
+      "gold": ["mixed"]
+    },
+    {
+      "id": "k24",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "Tokyo hotel 訂單號",
+      "gold": ["tokyo"]
+    },
+    {
+      "id": "k25",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "陳嘉欣 designer",
+      "gold": ["team", "mixed"]
+    },
+    {
+      "id": "k26",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "JLPT N3 老師",
+      "gold": ["japanese"]
+    },
+    {
+      "id": "k27",
+      "cat": "stale",
+      "lang": "en",
+      "q": "cleaner Friday",
+      "gold": ["stale"]
+    },
+    {
+      "id": "k28",
+      "cat": "misfiled",
+      "lang": "en",
+      "q": "car insurance Zurich",
+      "gold": ["misfiled"]
+    },
+    {
+      "id": "k29",
+      "cat": "exact",
+      "lang": "en",
+      "q": "cetirizine",
+      "gold": ["allergies", "packing"]
+    },
+    {
+      "id": "k30",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "what to pack adapter",
+      "gold": ["packing"]
+    },
+    {
+      "id": "m1",
+      "cat": "meaning",
+      "lang": "en",
+      "q": "automobile",
+      "gold": ["misfiled"]
+    },
+    {
+      "id": "m2",
+      "cat": "meaning",
+      "lang": "en",
+      "q": "sedan",
+      "gold": ["misfiled"]
+    },
+    {
+      "id": "m3",
+      "cat": "meaning",
+      "lang": "zh",
+      "q": "汽車",
+      "gold": ["misfiled"]
+    },
+    {
+      "id": "m4",
+      "cat": "meaning",
+      "lang": "en",
+      "q": "physiotherapist",
+      "gold": ["physio"]
+    },
+    {
+      "id": "m5",
+      "cat": "meaning",
+      "lang": "en",
+      "q": "pager",
+      "gold": ["oncall"]
+    },
+    {
+      "id": "k31",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "dentist appointment",
+      "gold": []
+    },
+    {
+      "id": "k32",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "kayak rental",
+      "gold": []
+    },
+    {
+      "id": "k33",
+      "cat": "no-answer",
+      "lang": "zh",
+      "q": "牙醫",
+      "gold": []
+    },
+    {
+      "id": "k34",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "bitcoin wallet seed",
+      "gold": []
+    }
+  ]
+}

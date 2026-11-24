@@ -1,0 +1,9 @@
+# Motion is a CSS token layer, not a motion library
+
+Arrivals in the app are one token set in `apps/web/src/styles/motion.css` plus a `data-enter` attribute per element, not a dependency such as Motion (Framer Motion). The grammar has four kinds — rise, fade, card, scale — sized by a fixed budget (`--motion-base` 180ms, `--motion-card` 200ms, `--motion-slow` 260ms, 24ms stagger capped at 120ms, 300ms ceiling, exits at `--motion-exit`). A row decides its arrival once, at mount: inside a region that was already on screen when it first painted it gets no `data-enter` at all, so loaded history arrives instead of replaying. `useRegionLive` closes a region for its first frames, keyed on the chat or on the first page of history landing.
+
+The alternative was adopting a motion library, which buys springs, exit orchestration and layout animation that CSS cannot do. It was rejected because pass 1 needed none of those (no element is held on screen to animate out, no list reorders), the repo already carries `tw-animate-css` for the overlay primitives, and every dependency has to earn its place against `check:architecture`, `knip` and `check:security`. The one thing that would change the answer is animating the expand and collapse of a tool-activity group, which needs measured height.
+
+## Consequences
+
+The seam is small: `data-enter` on elements, `useArrival` in the component that owns one, and `MotionRegion`/`useRegionLive` on regions, with `enterIndex` for stagger position. Swapping in a library later means changing those call sites, so they are the thing to keep small — no component computes its own durations or delays, and CSS owns every number. Reduced motion and the `data-motion="flat"` kill switch are central rules, so a new component inherits both by using the attributes rather than by remembering to check.

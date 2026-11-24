@@ -1,0 +1,4 @@
+# Only the two files the image copies in.
+**
+!containers/exec/sshd_config
+!containers/exec/keys-init.sh

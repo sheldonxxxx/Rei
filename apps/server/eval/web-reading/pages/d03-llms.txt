@@ -1,0 +1,14 @@
+# Larkspur
+
+> Larkspur is an order-management API for small online shops. These links point to the Markdown versions of the docs.
+
+## Docs
+
+- [Quickstart](https://docs.larkspur.example/quickstart.md): create a project and place a test order in five minutes
+- [Authentication](https://docs.larkspur.example/auth.md): API keys, scopes and key rotation
+- [Webhooks](https://docs.larkspur.example/webhooks.md): endpoints, signatures and retries
+- [Rate limits](https://docs.larkspur.example/rate-limits.md): 100 requests per second per project, burst of 200
+
+## Optional
+
+- [Changelog](https://docs.larkspur.example/changelog.md)

@@ -1,0 +1,2765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rei event streams",
+  "description": "The JSON data of every server-sent event, by stream and event name. The SSE framing is described in docs/contract.md.",
+  "x-rei-protocol": 1,
+  "streams": {
+    "global": {
+      "summary": "Agents, the session list, pending approvals and takeovers, and change notices.",
+      "path": "/api/stream",
+      "events": {
+        "snapshot": {
+          "$ref": "#/$defs/GlobalSnapshot"
+        },
+        "agent.upserted": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "agent.upserted"
+            },
+            "agent": {
+              "$ref": "#/$defs/Agent"
+            }
+          },
+          "required": [
+            "type",
+            "agent"
+          ],
+          "additionalProperties": false
+        },
+        "agent.removed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "agent.removed"
+            },
+            "agentId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "agentId"
+          ],
+          "additionalProperties": false
+        },
+        "session.upserted": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "session.upserted"
+            },
+            "session": {
+              "$ref": "#/$defs/Session"
+            }
+          },
+          "required": [
+            "type",
+            "session"
+          ],
+          "additionalProperties": false
+        },
+        "session.removed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "session.removed"
+            },
+            "sessionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "sessionId"
+          ],
+          "additionalProperties": false
+        },
+        "approval.upserted": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "approval.upserted"
+            },
+            "approval": {
+              "$ref": "#/$defs/Approval"
+            }
+          },
+          "required": [
+            "type",
+            "approval"
+          ],
+          "additionalProperties": false
+        },
+        "takeover.upserted": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "takeover.upserted"
+            },
+            "takeover": {
+              "$ref": "#/$defs/Takeover"
+            }
+          },
+          "required": [
+            "type",
+            "takeover"
+          ],
+          "additionalProperties": false
+        },
+        "memory.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "memory.changed"
+            },
+            "what": {
+              "enum": [
+                "lines",
+                "index"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "what"
+          ],
+          "additionalProperties": false
+        },
+        "triggers.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "triggers.changed"
+            },
+            "triggerId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "triggerId"
+          ],
+          "additionalProperties": false
+        },
+        "skills.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "skills.changed"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "plugins.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "plugins.changed"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "knowledge.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "knowledge.changed"
+            },
+            "pageId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "pageId"
+          ],
+          "additionalProperties": false
+        },
+        "background.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "background.changed"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "companion.changed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "companion.changed"
+            },
+            "companion": {
+              "$ref": "#/$defs/Companion"
+            }
+          },
+          "required": [
+            "type",
+            "companion"
+          ],
+          "additionalProperties": false
+        },
+        "ping": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    "session": {
+      "summary": "One session's Conversation View: a snapshot, then patches.",
+      "path": "/api/sessions/:id/stream",
+      "events": {
+        "snapshot": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "snapshot"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "rev": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "view": {
+              "$ref": "#/$defs/ConversationView"
+            }
+          },
+          "required": [
+            "type",
+            "epoch",
+            "rev",
+            "view"
+          ],
+          "additionalProperties": false
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "patch"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "rev": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "upsert": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Message"
+              }
+            },
+            "remove": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "order": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "runs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Run"
+              }
+            },
+            "live": {
+              "$ref": "#/$defs/ConversationLive"
+            },
+            "overlays": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ConversationOverlay"
+              }
+            },
+            "session": {
+              "$ref": "#/$defs/Session"
+            },
+            "before": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "epoch",
+            "rev"
+          ],
+          "additionalProperties": false
+        },
+        "resync_required": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "resync_required"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "rev": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "type",
+            "epoch",
+            "rev"
+          ],
+          "additionalProperties": false
+        },
+        "session.removed": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "session.removed"
+            },
+            "sessionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "sessionId"
+          ],
+          "additionalProperties": false
+        },
+        "ping": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "A2uiComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "component": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "component"
+      ],
+      "description": "An A2UI v1.0 component from Rei's catalog; its properties follow the catalog.",
+      "title": "A2uiComponent"
+    },
+    "A2uiCreateSurface": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "1.0"
+        },
+        "createSurface": {
+          "type": "object",
+          "properties": {
+            "surfaceId": {
+              "type": "string"
+            },
+            "catalogId": {
+              "type": "string"
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/A2uiComponent"
+              }
+            },
+            "dataModel": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "sendDataModel": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "surfaceId",
+            "catalogId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "createSurface"
+      ],
+      "additionalProperties": false,
+      "title": "A2uiCreateSurface"
+    },
+    "Agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatar": {
+          "type": "string",
+          "description": "`bot:<id>`, a `data:image/...` picture, or an emoji or short badge."
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thinkingLevel": {
+          "enum": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "networkMode": {
+          "enum": [
+            "block",
+            "whitelist",
+            "any"
+          ]
+        },
+        "defaultProfile": {
+          "enum": [
+            "strict",
+            "standard",
+            "relaxed",
+            "yolo"
+          ]
+        },
+        "allowedConnectorIds": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "homeSessionId": {
+          "type": "string",
+          "description": "The agent's pinned home chat."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "avatar",
+        "model",
+        "thinkingLevel",
+        "networkMode",
+        "defaultProfile",
+        "homeSessionId"
+      ],
+      "additionalProperties": false,
+      "title": "Agent"
+    },
+    "Approval": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "sessionTitle": {
+          "type": "string"
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "connector": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "actionClass": {
+          "enum": [
+            "read_internal",
+            "read_external",
+            "write_internal",
+            "write_external",
+            "send",
+            "irreversible",
+            "credentials",
+            "memory_write",
+            "configure"
+          ]
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "description": "One line for the card."
+        },
+        "argsPreview": {
+          "type": "string"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TriggerPreview"
+            },
+            {
+              "$ref": "#/$defs/SkillPreview"
+            },
+            {
+              "$ref": "#/$defs/PluginPreview"
+            },
+            {
+              "$ref": "#/$defs/McpProviderPreview"
+            }
+          ]
+        },
+        "taint": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "external",
+              "private"
+            ]
+          }
+        },
+        "lengths": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "once",
+              "session",
+              "web_session",
+              "agent",
+              "hours",
+              "always",
+              "trigger"
+            ]
+          }
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "denied",
+            "expired",
+            "cancelled"
+          ]
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "resumesTool": {
+          "type": "boolean"
+        },
+        "parentCallId": {
+          "type": "string"
+        },
+        "cancelReason": {
+          "enum": [
+            "script_ended"
+          ]
+        },
+        "execution": {
+          "enum": [
+            "ran",
+            "failed",
+            "needs_approval",
+            "interrupted"
+          ]
+        },
+        "grantLength": {
+          "enum": [
+            "once",
+            "session",
+            "web_session",
+            "agent",
+            "hours",
+            "always",
+            "trigger"
+          ]
+        },
+        "grantExpiresAt": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "number",
+        "sessionId",
+        "sessionTitle",
+        "agentId",
+        "tool",
+        "connector",
+        "operation",
+        "actionClass",
+        "destination",
+        "summary",
+        "argsPreview",
+        "taint",
+        "lengths",
+        "status",
+        "createdAt",
+        "expiresAt",
+        "decidedAt"
+      ],
+      "additionalProperties": false,
+      "title": "Approval"
+    },
+    "Attachment": {
+      "type": "object",
+      "properties": {
+        "fileId": {
+          "type": "string"
+        },
+        "versionId": {
+          "type": "string"
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "sheet": {
+              "type": "string"
+            },
+            "cell": {
+              "type": "string"
+            },
+            "slide": {
+              "type": "integer"
+            },
+            "page": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unavailable": {
+          "type": "string",
+          "description": "Only the name is known (an imported file the import did not carry): why."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "mediaType",
+        "size"
+      ],
+      "additionalProperties": false,
+      "title": "Attachment"
+    },
+    "Companion": {
+      "type": "object",
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "The companion agent: the user's pick, or the default agent when none is set."
+        },
+        "homeSessionId": {
+          "type": "string",
+          "description": "The companion agent's home chat, where a companion client quick-sends."
+        }
+      },
+      "required": [
+        "agentId",
+        "homeSessionId"
+      ],
+      "additionalProperties": false,
+      "title": "Companion"
+    },
+    "ConversationLive": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turns": {
+          "type": "integer"
+        },
+        "generation": {
+          "type": "object",
+          "properties": {
+            "attempt": {
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            },
+            "retry": {
+              "type": "object",
+              "properties": {
+                "attempt": {
+                  "type": "integer"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "attempt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "attempt",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "callId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "running",
+                  "sleeping",
+                  "waiting",
+                  "done"
+                ]
+              },
+              "nested": {
+                "type": "boolean"
+              },
+              "parentCallId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "callId",
+              "name",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "compaction": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "running",
+                "failed"
+              ]
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "manualCompaction": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "accepted",
+                "running",
+                "pending_placement",
+                "applied",
+                "no_change",
+                "stale",
+                "failed",
+                "unknown_after_restart"
+              ]
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "runFailure": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            "canContinue": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "runId",
+            "reason",
+            "error",
+            "canContinue"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "runId"
+      ],
+      "additionalProperties": false,
+      "title": "ConversationLive"
+    },
+    "ConversationOverlay": {
+      "type": "object",
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "approval",
+            "takeover",
+            "memory"
+          ]
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                },
+                "parentCallId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "taskId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "entryId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "entryId"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "runId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "runId"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "itemId",
+        "kind",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "title": "ConversationOverlay"
+    },
+    "ConversationView": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "session": {
+          "$ref": "#/$defs/Session"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Message"
+          }
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Run"
+          }
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live": {
+          "$ref": "#/$defs/ConversationLive"
+        },
+        "overlays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConversationOverlay"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "session",
+        "items",
+        "runs",
+        "before",
+        "live",
+        "overlays"
+      ],
+      "additionalProperties": false,
+      "title": "ConversationView"
+    },
+    "ErrorInfo": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Stable machine-readable code."
+        },
+        "message": {
+          "type": "string",
+          "description": "One sentence for the user."
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "description": "One-based source line, when known."
+              },
+              "column": {
+                "type": "integer",
+                "description": "One-based source column, when known."
+              }
+            },
+            "required": [
+              "path",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false,
+      "title": "ErrorInfo"
+    },
+    "ForkPoint": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "stepId": {
+          "type": "string"
+        },
+        "edited": {
+          "type": "boolean"
+        },
+        "retried": {
+          "type": "boolean"
+        },
+        "onAnotherVersion": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sessionId",
+        "messageId"
+      ],
+      "additionalProperties": false,
+      "title": "ForkPoint"
+    },
+    "GlobalSnapshot": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "snapshot"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "The cursor this snapshot is at; a reconnect resumes after it."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Agent"
+          }
+        },
+        "defaultAgentId": {
+          "type": "string"
+        },
+        "companion": {
+          "$ref": "#/$defs/Companion"
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Session"
+          }
+        },
+        "approvals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Approval"
+          }
+        },
+        "takeovers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Takeover"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "cursor",
+        "agents",
+        "defaultAgentId",
+        "companion",
+        "sessions",
+        "approvals",
+        "takeovers"
+      ],
+      "additionalProperties": false,
+      "title": "GlobalSnapshot"
+    },
+    "McpProviderPreview": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "mcp-provider"
+        },
+        "connectorId": {
+          "type": "string"
+        },
+        "connectorName": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "claimedReadOnly": {
+          "type": "boolean"
+        },
+        "actionClass": {
+          "enum": [
+            "read_internal",
+            "read_external",
+            "write_internal",
+            "write_external",
+            "send",
+            "irreversible",
+            "credentials",
+            "memory_write",
+            "configure"
+          ]
+        },
+        "mcpProfile": {
+          "enum": [
+            "always_ask",
+            "read_only",
+            "read_write",
+            "yolo"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "connectorId",
+        "connectorName",
+        "url",
+        "tool",
+        "claimedReadOnly"
+      ],
+      "additionalProperties": false,
+      "title": "McpProviderPreview"
+    },
+    "MemoryChange": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "lineId": {
+          "type": "string"
+        },
+        "doc": {
+          "enum": [
+            "profile",
+            "agent"
+          ]
+        },
+        "agentId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "op": {
+          "enum": [
+            "add",
+            "replace",
+            "remove",
+            "confirm"
+          ]
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "by": {
+          "enum": [
+            "agent",
+            "user"
+          ]
+        },
+        "sessionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "number"
+        },
+        "undoneAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "undoable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "lineId",
+        "doc",
+        "agentId",
+        "op",
+        "before",
+        "after",
+        "by",
+        "sessionId",
+        "at",
+        "undoneAt",
+        "undoable"
+      ],
+      "additionalProperties": false,
+      "title": "MemoryChange"
+    },
+    "MemorySuggestion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "enum": [
+            "profile",
+            "agent"
+          ]
+        },
+        "agentId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "op": {
+          "enum": [
+            "add",
+            "replace",
+            "remove"
+          ]
+        },
+        "lineId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "reported"
+          ]
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "reportedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "doc",
+        "agentId",
+        "op",
+        "lineId",
+        "current",
+        "text",
+        "sessionId",
+        "status",
+        "createdAt",
+        "reportedAt"
+      ],
+      "additionalProperties": false,
+      "title": "MemorySuggestion"
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Attachment"
+          }
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageMention"
+          }
+        },
+        "selectedSkills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageSkill"
+          }
+        },
+        "internal": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant",
+            "report",
+            "approval",
+            "notice",
+            "takeover",
+            "memory",
+            "trigger",
+            "compaction",
+            "reset"
+          ]
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string",
+          "description": "Markdown in the Rei dialect (docs/rendering.md) for user and assistant items."
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "streaming",
+            "complete",
+            "aborted",
+            "error"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo"
+        },
+        "from": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionId",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "report": {
+          "$ref": "#/$defs/SessionReport"
+        },
+        "approval": {
+          "$ref": "#/$defs/Approval"
+        },
+        "takeover": {
+          "$ref": "#/$defs/Takeover"
+        },
+        "memory": {
+          "type": "object",
+          "properties": {
+            "change": {
+              "$ref": "#/$defs/MemoryChange"
+            },
+            "review": {
+              "type": "object",
+              "properties": {
+                "jobId": {
+                  "type": "string"
+                },
+                "changeIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "undoneCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "jobId",
+                "changeIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "change"
+          ],
+          "additionalProperties": false
+        },
+        "trigger": {
+          "$ref": "#/$defs/TriggerMessage"
+        },
+        "forkable": {
+          "type": "boolean"
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessagePart"
+          }
+        },
+        "surfaceAction": {
+          "$ref": "#/$defs/SurfaceActionRef"
+        },
+        "editable": {
+          "type": "boolean"
+        },
+        "versions": {
+          "type": "object",
+          "properties": {
+            "index": {
+              "type": "integer"
+            },
+            "count": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "index",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        "entryId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "steer": {
+          "type": "boolean"
+        },
+        "thinking": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An imported reply's reasoning, for detail mode; never model context."
+        },
+        "createdAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "role",
+        "runId",
+        "text",
+        "status",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "title": "Message"
+    },
+    "MessageMention": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "connector",
+            "chat",
+            "page"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "UTF-16 offset into the message text."
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "label",
+        "start",
+        "end"
+      ],
+      "additionalProperties": false,
+      "title": "MessageMention"
+    },
+    "MessagePart": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "surface"
+            },
+            "surface": {
+              "$ref": "#/$defs/Surface"
+            }
+          },
+          "required": [
+            "type",
+            "surface"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "title": "MessagePart"
+    },
+    "MessageSkill": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "name"
+      ],
+      "additionalProperties": false,
+      "title": "MessageSkill"
+    },
+    "PluginPreview": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "plugin"
+        },
+        "op": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "package": {
+          "type": "object",
+          "properties": {
+            "formatVersion": {
+              "const": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "encoding": {
+                          "enum": [
+                            "text",
+                            "base64"
+                          ]
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "encoding",
+                        "content"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "files"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "mcp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "auth": {
+                    "enum": [
+                      "none",
+                      "token",
+                      "oauth"
+                    ]
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "url",
+                  "auth",
+                  "skills"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "formatVersion",
+            "name",
+            "description",
+            "skills",
+            "mcp"
+          ],
+          "additionalProperties": false
+        },
+        "fromRevision": {
+          "type": "integer"
+        },
+        "diff": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "op",
+        "name",
+        "package"
+      ],
+      "additionalProperties": false,
+      "title": "PluginPreview"
+    },
+    "Run": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo"
+        },
+        "startedAt": {
+          "type": "number"
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "status",
+        "startedAt",
+        "endedAt"
+      ],
+      "additionalProperties": false,
+      "title": "Run"
+    },
+    "Session": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "home",
+            "user",
+            "spawned",
+            "trigger",
+            "fork",
+            "import"
+          ]
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "idle",
+            "running",
+            "waiting_for_user",
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "preview": {
+          "type": "string",
+          "description": "Plain text of the last message, at most 200 characters."
+        },
+        "parentSessionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forkedFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ForkPoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "profile": {
+          "enum": [
+            "strict",
+            "standard",
+            "relaxed",
+            "yolo"
+          ]
+        },
+        "taint": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "external",
+              "private"
+            ]
+          }
+        },
+        "pendingApprovals": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Agent entries after the read marker every device shares."
+        },
+        "browser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionBrowser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "triggerId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "agentId",
+        "origin",
+        "pinned",
+        "title",
+        "status",
+        "preview",
+        "parentSessionId",
+        "forkedFrom",
+        "depth",
+        "profile",
+        "taint",
+        "pendingApprovals",
+        "unread",
+        "browser",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "title": "Session"
+    },
+    "SessionBrowser": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "takeover": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Takeover"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "url",
+        "title",
+        "takeover"
+      ],
+      "additionalProperties": false,
+      "title": "SessionBrowser"
+    },
+    "SessionReport": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Attachment"
+          }
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "resultId": {
+          "type": "string"
+        },
+        "resultChars": {
+          "type": "integer"
+        },
+        "memorySuggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemorySuggestion"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "title",
+        "outcome",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "title": "SessionReport"
+    },
+    "SkillPreview": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "skill"
+        },
+        "op": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "skillMd": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fromVersion": {
+          "type": "integer"
+        },
+        "diff": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "op",
+        "name",
+        "description",
+        "skillMd",
+        "files"
+      ],
+      "additionalProperties": false,
+      "title": "SkillPreview"
+    },
+    "Surface": {
+      "type": "object",
+      "properties": {
+        "surfaceId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "enum": [
+            "live",
+            "idle",
+            "removed",
+            "frozen"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Plain text carrying everything the surface shows."
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
+        "feed": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "worker"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "message": {
+          "$ref": "#/$defs/A2uiCreateSurface"
+        },
+        "updatedAt": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "surfaceId",
+        "sessionId",
+        "runId",
+        "revision",
+        "state",
+        "title",
+        "fallback",
+        "protocolVersion",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "title": "Surface"
+    },
+    "SurfaceActionRef": {
+      "type": "object",
+      "properties": {
+        "surfaceId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "componentId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "surfaceId",
+        "revision",
+        "componentId",
+        "name"
+      ],
+      "additionalProperties": false,
+      "title": "SurfaceActionRef"
+    },
+    "Takeover": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "requestedBy": {
+          "enum": [
+            "agent",
+            "user"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "active",
+            "done",
+            "cancelled"
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "sessionId",
+        "requestedBy",
+        "reason",
+        "status",
+        "url",
+        "title",
+        "note",
+        "createdAt",
+        "endedAt"
+      ],
+      "additionalProperties": false,
+      "title": "Takeover"
+    },
+    "TriggerMessage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "notify",
+            "report",
+            "failed",
+            "paused"
+          ]
+        },
+        "triggerId": {
+          "type": "string"
+        },
+        "triggerName": {
+          "type": "string"
+        },
+        "triggerRunId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sessionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "triggerId",
+        "triggerName",
+        "triggerRunId",
+        "sessionId",
+        "text"
+      ],
+      "additionalProperties": false,
+      "title": "TriggerMessage"
+    },
+    "TriggerPreview": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "trigger"
+        },
+        "op": {
+          "enum": [
+            "create",
+            "update",
+            "delete"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "agentName": {
+          "type": "string"
+        },
+        "startText": {
+          "type": "string"
+        },
+        "startKind": {
+          "enum": [
+            "schedule",
+            "event"
+          ]
+        },
+        "nextRuns": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "notify"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "prompt"
+                },
+                "prompt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "prompt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "skill"
+                },
+                "skill": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "skill"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "landing": {
+          "enum": [
+            "new",
+            "ongoing"
+          ]
+        },
+        "report": {
+          "enum": [
+            "always",
+            "on_change",
+            "never"
+          ]
+        },
+        "latenessMinutes": {
+          "type": "integer"
+        },
+        "catchUp": {
+          "enum": [
+            "once",
+            "skip"
+          ]
+        },
+        "overlap": {
+          "enum": [
+            "skip",
+            "queue"
+          ]
+        },
+        "profile": {
+          "enum": [
+            "strict",
+            "standard",
+            "relaxed"
+          ]
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "destination": {
+                "type": "string"
+              },
+              "actionClass": {
+                "enum": [
+                  "read_internal",
+                  "read_external",
+                  "write_internal",
+                  "write_external",
+                  "send",
+                  "irreversible",
+                  "credentials",
+                  "memory_write",
+                  "configure"
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "tool",
+              "actionClass",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "skillNeeds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "before": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "agentName": {
+              "type": "string"
+            },
+            "startText": {
+              "type": "string"
+            },
+            "startKind": {
+              "enum": [
+                "schedule",
+                "event"
+              ]
+            },
+            "nextRuns": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "action": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "notify"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "prompt"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "prompt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "skill"
+                    },
+                    "skill": {
+                      "type": "string"
+                    },
+                    "args": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "skill"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "landing": {
+              "enum": [
+                "new",
+                "ongoing"
+              ]
+            },
+            "report": {
+              "enum": [
+                "always",
+                "on_change",
+                "never"
+              ]
+            },
+            "latenessMinutes": {
+              "type": "integer"
+            },
+            "catchUp": {
+              "enum": [
+                "once",
+                "skip"
+              ]
+            },
+            "overlap": {
+              "enum": [
+                "skip",
+                "queue"
+              ]
+            },
+            "profile": {
+              "enum": [
+                "strict",
+                "standard",
+                "relaxed"
+              ]
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tool": {
+                    "type": "string"
+                  },
+                  "destination": {
+                    "type": "string"
+                  },
+                  "actionClass": {
+                    "enum": [
+                      "read_internal",
+                      "read_external",
+                      "write_internal",
+                      "write_external",
+                      "send",
+                      "irreversible",
+                      "credentials",
+                      "memory_write",
+                      "configure"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tool",
+                  "actionClass",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "skillNeeds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "name",
+            "agentName",
+            "startText",
+            "startKind",
+            "nextRuns",
+            "action",
+            "landing",
+            "report",
+            "latenessMinutes",
+            "catchUp",
+            "overlap",
+            "profile",
+            "allow"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "op",
+        "name",
+        "agentName",
+        "startText",
+        "startKind",
+        "nextRuns",
+        "action",
+        "landing",
+        "report",
+        "latenessMinutes",
+        "catchUp",
+        "overlap",
+        "profile",
+        "allow"
+      ],
+      "additionalProperties": false,
+      "title": "TriggerPreview"
+    }
+  }
+}

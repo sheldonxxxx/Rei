@@ -1,0 +1,71 @@
+{
+  "about": "Invocation scenarios for the memory and Knowledge guidance. Run by hand against a real model through the deployed stack (see README.md); each scenario seeds the listed state, sends `prompt`, and checks which tools the run called.",
+  "scenarios": [
+    {
+      "id": "ref-earlier-chat",
+      "seed": { "history": ["User said last week: the staging database is db-stg-2."] },
+      "prompt": "Use the staging database we talked about last time to check the row count.",
+      "expect": { "calls": ["search_history"], "notCalls": [] }
+    },
+    {
+      "id": "unknown-name",
+      "seed": { "history": ["User: Project Heron is the billing migration."] },
+      "prompt": "What is the status of Project Heron?",
+      "expect": { "calls": ["search_history"], "notCalls": [] }
+    },
+    {
+      "id": "avoid-reasking",
+      "seed": { "history": ["User: I always deploy from the release branch."] },
+      "prompt": "Prepare the deploy steps for this repo.",
+      "expect": { "calls": ["search_history"], "notCalls": [] }
+    },
+    {
+      "id": "state-preference",
+      "seed": {},
+      "prompt": "From now on, always answer in British English.",
+      "expect": { "calls": ["memory_add"], "notCalls": ["knowledge_write"] }
+    },
+    {
+      "id": "correct-saved-line",
+      "seed": { "memory": ["m1: Prefers tabs."] },
+      "prompt": "Actually I switched to two spaces.",
+      "expect": { "calls": ["memory_replace"], "notCalls": ["memory_add"] }
+    },
+    {
+      "id": "repeat-saved-fact",
+      "seed": { "memory": ["m1: Works in Hong Kong time."] },
+      "prompt": "Reminder, I'm on Hong Kong time.",
+      "expect": { "calls": ["memory_confirm"], "notCalls": ["memory_add"] }
+    },
+    {
+      "id": "research-existing-page",
+      "seed": { "knowledge": ["Research/Vector databases: comparison written last month."] },
+      "prompt": "Compare vector databases for our search feature.",
+      "expect": { "calls": ["knowledge_search"], "notCalls": [] }
+    },
+    {
+      "id": "named-project",
+      "seed": { "knowledge": ["Projects/Atlas: plan and decisions."] },
+      "prompt": "Where did we land on the Atlas plan?",
+      "expect": { "calls": ["knowledge_search", "knowledge_read"], "notCalls": [] }
+    },
+    {
+      "id": "save-finished-research",
+      "seed": {},
+      "prompt": "Research three ways to back up SQLite and summarise.",
+      "expect": { "calls": ["knowledge_write"], "notCalls": ["memory_add"] }
+    },
+    {
+      "id": "trivial-no-lookup",
+      "seed": {},
+      "prompt": "What is 17 times 23?",
+      "expect": { "calls": [], "notCalls": ["search_history", "knowledge_search", "memory_add", "knowledge_write"] }
+    },
+    {
+      "id": "self-contained-no-lookup",
+      "seed": {},
+      "prompt": "Rewrite this sentence to be shorter: 'The meeting that we had yesterday was a very long one.'",
+      "expect": { "calls": [], "notCalls": ["search_history", "knowledge_search"] }
+    }
+  ]
+}

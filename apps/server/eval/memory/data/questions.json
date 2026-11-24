@@ -1,0 +1,527 @@
+[
+  {
+    "id": "q001",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What did the skin doctor think caused my rash?",
+    "gold": ["c0067"]
+  },
+  {
+    "id": "q002",
+    "cat": "cross_lang",
+    "lang": "hant",
+    "q": "皮膚科醫生說我手臂上的疹是什麼原因造成的？",
+    "gold": ["c0067"]
+  },
+  {
+    "id": "q003",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "Okonkwo follow-up appointment",
+    "gold": ["c0067"]
+  },
+  {
+    "id": "q004",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "Where is printer PRN-KB-7731?",
+    "gold": ["c0764"]
+  },
+  {
+    "id": "q005",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "HK-20260917-48213 order",
+    "gold": ["c0511"]
+  },
+  {
+    "id": "q006",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "Did the new desk arrive, and is anything wrong with it?",
+    "gold": ["c0511"]
+  },
+  {
+    "id": "q007",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "Who has the phone number 9174 2260?",
+    "gold": ["c0908"]
+  },
+  {
+    "id": "q008",
+    "cat": "cross_lang",
+    "lang": "ja",
+    "q": "大家さんの電話番号は何番？",
+    "gold": ["c0908"]
+  },
+  {
+    "id": "q009",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "Which database did we decide to use for the memory feature in the first version?",
+    "gold": ["c0320"]
+  },
+  {
+    "id": "q010",
+    "cat": "cross_lang",
+    "lang": "hant",
+    "q": "第一版的記憶功能決定用哪一種資料庫？",
+    "gold": ["c0320"]
+  },
+  {
+    "id": "q011",
+    "cat": "cross_lang",
+    "lang": "ja",
+    "q": "京都三日目の夕食は何時に予約した？",
+    "gold": ["c0874"]
+  },
+  {
+    "id": "q012",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "When does the cat need her shots?",
+    "gold": ["c0228"]
+  },
+  {
+    "id": "q013",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "HX 4418 departure time and gate",
+    "gold": ["c0539"]
+  },
+  {
+    "id": "q014",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "Which recurring services did I stop paying for recently?",
+    "gold": ["c0429"]
+  },
+  {
+    "id": "q015",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "kintsugi workshop price and time",
+    "gold": ["c0591"]
+  },
+  {
+    "id": "q016",
+    "cat": "cross_lang",
+    "lang": "ja",
+    "q": "金継ぎのワークショップはいつ、いくらですか？",
+    "gold": ["c0591"]
+  },
+  {
+    "id": "q017",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What book are we reading for the next reading group meeting?",
+    "gold": ["c0038"]
+  },
+  {
+    "id": "q018",
+    "cat": "paraphrase",
+    "lang": "hant",
+    "q": "上次和阿欣吃午飯一共花了多少錢？",
+    "gold": ["c0107"]
+  },
+  {
+    "id": "q019",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "How much did the truffle egg fried rice lunch cost in total?",
+    "gold": ["c0107"]
+  },
+  {
+    "id": "q020",
+    "cat": "trad_simp",
+    "lang": "hans",
+    "q": "那本讲潮汐和失忆的小说我打了几分？",
+    "gold": ["c0416"]
+  },
+  {
+    "id": "q021",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "MD-5520-1187 policy renewal",
+    "gold": ["c0066"]
+  },
+  {
+    "id": "q022",
+    "cat": "trad_simp",
+    "lang": "hans",
+    "q": "医疗保险什么时候续保？年费多少？",
+    "gold": ["c0066"]
+  },
+  {
+    "id": "q023",
+    "cat": "paraphrase",
+    "lang": "hant",
+    "q": "新的互動原型由誰負責，什麼時候要交？",
+    "gold": ["c0092"]
+  },
+  {
+    "id": "q024",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "Who is making the new prototype and when is it due?",
+    "gold": ["c0092"]
+  },
+  {
+    "id": "q025",
+    "cat": "paraphrase",
+    "lang": "hant",
+    "q": "媽媽生日聚餐訂了幾個人的位子？",
+    "gold": ["c0738"]
+  },
+  {
+    "id": "q026",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "Who suggested the restaurant for Mum's birthday dinner, and how many people are coming?",
+    "gold": ["c0738"]
+  },
+  {
+    "id": "q027",
+    "cat": "trad_simp",
+    "lang": "hans",
+    "q": "家里的NAS多久备份一次？保留几份？",
+    "gold": ["c0068"]
+  },
+  {
+    "id": "q028",
+    "cat": "trad_simp",
+    "lang": "hans",
+    "q": "护照什么时候到期？要提前多久换？",
+    "gold": ["c0732"]
+  },
+  {
+    "id": "q029",
+    "cat": "exact_term",
+    "lang": "hans",
+    "q": "0755-8832-6190 是谁的电话？",
+    "gold": ["c0813"]
+  },
+  {
+    "id": "q030",
+    "cat": "trad_simp",
+    "lang": "hant",
+    "q": "星河科技的對接人是誰？",
+    "gold": ["c0813"]
+  },
+  {
+    "id": "q031",
+    "cat": "paraphrase",
+    "lang": "hans",
+    "q": "上次骑车一共骑了多远？",
+    "gold": ["c0596"]
+  },
+  {
+    "id": "q032",
+    "cat": "paraphrase",
+    "lang": "hans",
+    "q": "几万条记忆需要单独部署向量数据库吗？",
+    "gold": ["c0879"]
+  },
+  {
+    "id": "q033",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "Do we need a dedicated vector database for a few tens of thousands of memories?",
+    "gold": ["c0879"]
+  },
+  {
+    "id": "q034",
+    "cat": "exact_term",
+    "lang": "hans",
+    "q": "SF1398276450123 签收了吗",
+    "gold": ["c0373"]
+  },
+  {
+    "id": "q035",
+    "cat": "trad_simp",
+    "lang": "hant",
+    "q": "租約什麼時候到期？押金是多少？",
+    "gold": ["c0790"]
+  },
+  {
+    "id": "q036",
+    "cat": "trad_simp",
+    "lang": "hant",
+    "q": "公司年會是哪一天？在哪裡舉行？",
+    "gold": ["c0703"]
+  },
+  {
+    "id": "q037",
+    "cat": "paraphrase",
+    "lang": "hans",
+    "q": "新版本上线之后崩溃的比例降了多少？",
+    "gold": ["c0924"]
+  },
+  {
+    "id": "q038",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "阿Ken之後會調去邊度做嘢？",
+    "gold": ["c0214"]
+  },
+  {
+    "id": "q039",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "Which country is Ken moving to for work?",
+    "gold": ["c0214"]
+  },
+  {
+    "id": "q040",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "醫生話我個血壓點呀？要點樣跟進？",
+    "gold": ["c0674"]
+  },
+  {
+    "id": "q041",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "聽日同新同事食lunch去邊度、幾點？",
+    "gold": ["c0128"]
+  },
+  {
+    "id": "q042",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "我部電腦點解成日死機？我做咗啲咩？",
+    "gold": ["c0983"]
+  },
+  {
+    "id": "q043",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "Arctic MX-6",
+    "gold": ["c0983"]
+  },
+  {
+    "id": "q044",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "阿媽叫我買啲咩餸？",
+    "gold": ["c0355"]
+  },
+  {
+    "id": "q045",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "打羽毛球租一個鐘幾錢？",
+    "gold": ["c0548"]
+  },
+  {
+    "id": "q046",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "How much does the badminton court cost per hour and how is it split?",
+    "gold": ["c0548"]
+  },
+  {
+    "id": "q047",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "聽朝去機場點搭車？行李限重幾多？",
+    "gold": ["c0234"]
+  },
+  {
+    "id": "q048",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "今個月實收人工有幾多？",
+    "gold": ["c0295"]
+  },
+  {
+    "id": "q049",
+    "cat": "paraphrase",
+    "lang": "ja",
+    "q": "山本さんとの打ち合わせは何時にどこで？",
+    "gold": ["c0001"]
+  },
+  {
+    "id": "q050",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "Where and when is the meeting with Yamamoto about the picture book?",
+    "gold": ["c0001"]
+  },
+  {
+    "id": "q051",
+    "cat": "exact_term",
+    "lang": "ja",
+    "q": "のぞみ215号",
+    "gold": ["c0321"]
+  },
+  {
+    "id": "q052",
+    "cat": "cross_lang",
+    "lang": "hant",
+    "q": "去京都要坐哪一班新幹線？幾點從東京出發？",
+    "gold": ["c0321"]
+  },
+  {
+    "id": "q053",
+    "cat": "paraphrase",
+    "lang": "ja",
+    "q": "神田のラーメン屋では何を食べた？",
+    "gold": ["c0454"]
+  },
+  {
+    "id": "q054",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "What did I eat at the ramen shop in Kanda, and what was surprising about the owner?",
+    "gold": ["c0454"]
+  },
+  {
+    "id": "q055",
+    "cat": "paraphrase",
+    "lang": "ja",
+    "q": "健康診断で何に気をつけるように言われた？",
+    "gold": ["c0934"]
+  },
+  {
+    "id": "q056",
+    "cat": "cross_lang",
+    "lang": "hans",
+    "q": "体检结果里哪一项指标偏高？",
+    "gold": ["c0934"]
+  },
+  {
+    "id": "q057",
+    "cat": "exact_term",
+    "lang": "ja",
+    "q": "03-5555-0147 はどこの電話番号？",
+    "gold": ["c0256"]
+  },
+  {
+    "id": "q058",
+    "cat": "paraphrase",
+    "lang": "ja",
+    "q": "大型のごみを捨てたいときはどうすればいい？",
+    "gold": ["c0256"]
+  },
+  {
+    "id": "q059",
+    "cat": "paraphrase",
+    "lang": "ja",
+    "q": "「しっくりこない」はどんなときに使う言葉？",
+    "gold": ["c0652"]
+  },
+  {
+    "id": "q060",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "What is the difference between shikkuri konai and fu ni ochinai?",
+    "gold": ["c0652"]
+  },
+  {
+    "id": "q061",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "When is Project Lantern scheduled to be released?",
+    "gold": ["c0657"]
+  },
+  {
+    "id": "q062",
+    "cat": "distractor",
+    "lang": "en",
+    "q": "What is the booking reference for my eye test at the Tsuen Wan clinic?",
+    "gold": ["c0173"]
+  },
+  {
+    "id": "q063",
+    "cat": "distractor",
+    "lang": "hant",
+    "q": "我在港買網買的藍牙耳機，訂單編號是多少？",
+    "gold": ["c0311"]
+  },
+  {
+    "id": "q064",
+    "cat": "distractor",
+    "lang": "ja",
+    "q": "札幌のホテル・サンライズの確認コードは何？",
+    "gold": ["c0150"]
+  },
+  {
+    "id": "q065",
+    "cat": "distractor",
+    "lang": "yue",
+    "q": "曼谷嗰間河畔酒店嘅訂房確認碼係咩？",
+    "gold": ["c0739"]
+  },
+  {
+    "id": "q066",
+    "cat": "distractor",
+    "lang": "hans",
+    "q": "我在海淘网买的机械键盘，订单号是多少？",
+    "gold": ["c0722"]
+  },
+  {
+    "id": "q067",
+    "cat": "distractor",
+    "lang": "ja",
+    "q": "池袋で受ける眼科の検査の予約番号は？",
+    "gold": ["c0641"]
+  },
+  {
+    "id": "q068",
+    "cat": "no_answer",
+    "lang": "en",
+    "q": "What is my blood type?",
+    "gold": []
+  },
+  {
+    "id": "q069",
+    "cat": "no_answer",
+    "lang": "hant",
+    "q": "我的護照號碼是多少？",
+    "gold": []
+  },
+  {
+    "id": "q070",
+    "cat": "no_answer",
+    "lang": "hans",
+    "q": "我的银行账户里还有多少存款？",
+    "gold": []
+  },
+  {
+    "id": "q071",
+    "cat": "no_answer",
+    "lang": "yue",
+    "q": "我隻貓今年幾多歲？",
+    "gold": []
+  },
+  {
+    "id": "q072",
+    "cat": "no_answer",
+    "lang": "ja",
+    "q": "来年の沖縄旅行で泊まるホテルの名前は？",
+    "gold": []
+  },
+  {
+    "id": "q073",
+    "cat": "no_answer",
+    "lang": "en",
+    "q": "What was the name of my first-grade teacher?",
+    "gold": []
+  },
+  {
+    "id": "q074",
+    "cat": "no_answer",
+    "lang": "yue",
+    "q": "我部車嘅車牌號碼係幾多？",
+    "gold": []
+  },
+  {
+    "id": "q075",
+    "cat": "no_answer",
+    "lang": "en",
+    "q": "Which password manager do I use?",
+    "gold": []
+  }
+]

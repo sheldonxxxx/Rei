@@ -1,0 +1,59 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/coverage",
+      "!!**/node_modules",
+      "!!.local",
+      "!!tests/e2e/fixtures",
+      "!!apps/server/eval/web-reading/pages",
+      "!!apps/server/src/skills/knowledge-files.generated.ts",
+      "!!package-lock.json",
+      "!!packages/protocol/generated",
+      "!!apps/web/src/styles/vendor",
+      "!!**/*.md"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "linter": {
+    "includes": ["**", "!**/.agents/skills/**"],
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

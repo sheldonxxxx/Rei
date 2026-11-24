@@ -1,0 +1,19 @@
+# Only what the image needs: manifests for the install layer, and the sources that run.
+**
+!package.json
+!package-lock.json
+!packages/protocol/package.json
+!packages/protocol/src
+!packages/logging/package.json
+!packages/logging/src
+!packages/network/package.json
+!packages/network/src
+!packages/forward-proxy/package.json
+!packages/forward-proxy/src
+!apps/reader/package.json
+!apps/reader/src
+!apps/server/package.json
+!apps/gateway/package.json
+!apps/egress/package.json
+!apps/cli/package.json
+!apps/web/package.json

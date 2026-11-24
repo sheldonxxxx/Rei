@@ -1,0 +1,32 @@
+html,
+body {
+  margin: 0;
+}
+/* Pinned to the viewport: Android WebView resolves percentage and vh heights to 0 here, so the page collapsed. */
+#root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.native-document-wrap {
+  min-height: 0;
+  flex: 1;
+}
+#root > img,
+#root > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+#root > iframe {
+  width: 100%;
+  flex: 1;
+  border: 0;
+}
+#root > pre {
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

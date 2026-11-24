@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Graceful shutdown in Node.js | Dev Notes</title></head>
+<body>
+<nav><a href="/">Dev Notes</a> <a href="/tags/node">#node</a></nav>
+<article>
+<h1>Graceful shutdown in Node.js</h1>
+<p>When a container orchestrator stops your service it sends SIGTERM and waits for a grace period before SIGKILL. Use that window to stop taking new requests and finish the ones in flight.</p>
+<h2>Stop accepting connections</h2>
+<pre><code class="language-js">const server = http.createServer(app);
+server.listen(8080);
+
+process.on("SIGTERM", () =&gt; {
+  server.close(() =&gt; process.exit(0));
+  setTimeout(() =&gt; process.exit(1), 25_000).unref();
+});</code></pre>
+<p>The 25 second fallback timer stays under the default 30 second grace period, so the process exits on its own terms.</p>
+<h2>Drain keep-alive sockets</h2>
+<p>Since Node 18.2, <code>server.closeIdleConnections()</code> closes idle keep-alive sockets so that <code>server.close()</code> does not wait for them.</p>
+<pre><code class="language-js">process.on("SIGTERM", () =&gt; {
+  server.close();
+  server.closeIdleConnections();
+});</code></pre>
+<h2>Health checks</h2>
+<p>Flip your readiness probe to failing as soon as SIGTERM arrives, so the load balancer stops routing new traffic before the server closes.</p>
+</article>
+</body></html>

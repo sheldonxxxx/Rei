@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'"
+    />
+    <title>Diagram</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+      }
+      #diagram {
+        padding: 4px 12px 12px;
+        text-align: center;
+      }
+      #diagram svg {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="diagram"></div>
+    <script src="mermaid.min.js"></script>
+    <script src="render.js"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "query": "node 24 release",
+  "results": [
+    {
+      "title": "Node.js 24 is here",
+      "url": "https://nodejs.org/en/blog/release/v24.0.0",
+      "content": "V8 13.6, npm 11, URLPattern global.",
+      "score": 0.91,
+      "published_date": "2025-05-06"
+    },
+    {
+      "title": "Changelog",
+      "url": "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V24.md",
+      "content": "Notable changes per release.",
+      "score": 0.7
+    }
+  ],
+  "response_time": 0.82
+}

@@ -1,0 +1,44 @@
+{
+  "name": "C (relevance holdout)",
+  "items": [
+    {
+      "id": "r01",
+      "text": "Cedar laboratory's Osaka hotel reservation is AB771. Check-in is 2027-02-12. The hotel is Maple House."
+    },
+    { "id": "r02", "text": "牙科覆診安排在星期五下午三點，診所位於中環，醫生姓陳。" },
+    { "id": "r03", "text": "Cedar實驗室嘅報告要用公制單位，溫度用攝氏，距離用公里。" },
+    { "id": "r04", "text": "發票 INV-701 已付款，金額港幣八百元；另一張 INV-702 尚未付款。" },
+    {
+      "id": "r05",
+      "text": "My morning drink is black tea without sugar. Coffee keeps me awake, so I avoid it in the afternoon."
+    },
+    {
+      "id": "r06",
+      "text": "第一版の実験室アプリはSQLiteを使う。運用が簡単で、別のデータベースサーバーが要らないから。"
+    },
+    {
+      "id": "r07",
+      "text": "Keyboard parcel reference CX42 is with the courier. The delivery window is Thursday morning."
+    },
+    {
+      "id": "r08",
+      "text": "My passport expires in March 2030. I need a renewal appointment and a new white-background photograph."
+    }
+  ],
+  "questions": [
+    { "id": "r-q01", "cat": "exact_term", "lang": "en", "q": "Which hotel is booking AB771?", "gold": ["r01"] },
+    { "id": "r-q02", "cat": "cross_lang", "lang": "en", "q": "When is the dentist appointment?", "gold": ["r02"] },
+    { "id": "r-q03", "cat": "cantonese", "lang": "yue", "q": "Cedar份報告用咩單位？", "gold": ["r03"] },
+    { "id": "r-q04", "cat": "exact_term", "lang": "en", "q": "Has INV-701 been paid?", "gold": ["r04"] },
+    { "id": "r-q05", "cat": "paraphrase", "lang": "en", "q": "What do I drink in the morning?", "gold": ["r05"] },
+    { "id": "r-q06", "cat": "cross_lang", "lang": "hant", "q": "實驗室應用程式為什麼選SQLite？", "gold": ["r06"] },
+    { "id": "r-q07", "cat": "exact_term", "lang": "en", "q": "Where is parcel CX42?", "gold": ["r07"] },
+    { "id": "r-q08", "cat": "paraphrase", "lang": "en", "q": "When does my passport expire?", "gold": ["r08"] },
+    { "id": "r-q09", "cat": "no_answer", "lang": "en", "q": "Which hotel is booking AB772?", "gold": [] },
+    { "id": "r-q10", "cat": "no_answer", "lang": "en", "q": "Has INV-703 been paid?", "gold": [] },
+    { "id": "r-q11", "cat": "no_answer", "lang": "hant", "q": "包裹CX43現在在哪裡？", "gold": [] },
+    { "id": "r-q12", "cat": "no_answer", "lang": "en", "q": "What is my favourite football team?", "gold": [] },
+    { "id": "r-q13", "cat": "no_answer", "lang": "en", "q": "What is my passport number?", "gold": [] },
+    { "id": "r-q14", "cat": "no_answer", "lang": "en", "q": "Which musical instrument do I play?", "gold": [] }
+  ]
+}

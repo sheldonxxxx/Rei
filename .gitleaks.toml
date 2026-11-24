@@ -1,0 +1,29 @@
+# gitleaks configuration: the default rules plus an exact allowlist of synthetic test values.
+# CI scans the checked-out tree (`gitleaks dir .`, see .github/workflows/ci.yml). Like .secretlintrc.json, nothing is
+# allowed by folder: each entry is one fake value from a test or fixture, matched in full. Add a fixture value here
+# only after confirming it is not a real credential.
+title = "Rei"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Lint baseline: content hashes of baselined findings, not secrets"
+paths = ['''(^|/)lint-baseline\.json$''']
+
+[[allowlists]]
+description = "Synthetic values and published test vectors used by tests and smoke checks"
+regexTarget = "secret"
+regexes = [
+  '''^0123456789abcdef0123456789abcdef$''', # apps/server/test/exec-unit.test.ts
+  '''^AAAAC3NzaC1lZDI1NTE5AAAAIA28Kjj1K2xbDRe/qKcXMsnHFzaMCg6/mLEOiylSOPxC$''', # apps/server/test/exec-unit.test.ts
+  '''^BTBZMqHH6r4Tts7J_aSIgg$''', # apps/gateway/test/notify.test.ts
+  '''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''', # apps/server/test/units.test.ts
+  '''^GK0123456789abcdef0123456789abcdef$''', # apps/server/test/exec-unit.test.ts
+  '''^GKfromenv0123456789abcdef0123456789$''', # apps/server/test/exec-unit.test.ts
+  '''^INTERNAL\-SECRET\-7f3a$''', # containers/smoke-render/smoke.ts
+  '''^key\-1234567890abcdef$''', # apps/gateway/test/search.test.ts
+  '''^standin\-SECRET\-0123456789abcdef$''', # apps/cli/test/fakes.ts
+  '''^tBHItJI5svbpez7KI4CCXg$''', # apps/server/test/devices.test.ts, apps/server/test/notify.test.ts
+  '''^tok\-secret\-1234567890$''', # apps/gateway/test/mcp.test.ts
+]

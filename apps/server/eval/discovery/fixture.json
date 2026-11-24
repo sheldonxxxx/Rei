@@ -1,0 +1,892 @@
+{
+  "note": "Fixture for the discovery eval. No real data. Connector tools are shaped like the public GitHub, Notion and Gmail MCP servers; each becomes a deferred tool named <slug>__<tool>. Built-in deferred tools come from the real extensions.",
+  "connectors": [
+    {
+      "id": "con_github",
+      "name": "GitHub",
+      "slug": "github",
+      "plugin": "github",
+      "tools": [
+        {
+          "name": "get_me",
+          "description": "Get details of the authenticated GitHub user."
+        },
+        {
+          "name": "get_file_contents",
+          "description": "Get the contents of a file or directory from a GitHub repository."
+        },
+        {
+          "name": "create_or_update_file",
+          "description": "Create or update a single file in a GitHub repository."
+        },
+        {
+          "name": "delete_file",
+          "description": "Delete a file from a GitHub repository."
+        },
+        {
+          "name": "push_files",
+          "description": "Push multiple files to a GitHub repository in a single commit."
+        },
+        {
+          "name": "search_code",
+          "description": "Search for code across GitHub repositories."
+        },
+        {
+          "name": "search_repositories",
+          "description": "Search for GitHub repositories by name, topic or description."
+        },
+        {
+          "name": "search_users",
+          "description": "Search for GitHub users."
+        },
+        {
+          "name": "search_orgs",
+          "description": "Search for GitHub organizations."
+        },
+        {
+          "name": "search_issues",
+          "description": "Search for issues in GitHub repositories with the issues search syntax."
+        },
+        {
+          "name": "search_pull_requests",
+          "description": "Search for pull requests in GitHub repositories."
+        },
+        {
+          "name": "create_repository",
+          "description": "Create a new GitHub repository in your account or an organization."
+        },
+        {
+          "name": "fork_repository",
+          "description": "Fork a GitHub repository to your account or an organization."
+        },
+        {
+          "name": "list_branches",
+          "description": "List branches in a GitHub repository."
+        },
+        {
+          "name": "create_branch",
+          "description": "Create a new branch in a GitHub repository."
+        },
+        {
+          "name": "list_commits",
+          "description": "Get a list of commits of a branch in a GitHub repository."
+        },
+        {
+          "name": "get_commit",
+          "description": "Get details for a commit from a GitHub repository."
+        },
+        {
+          "name": "list_tags",
+          "description": "List git tags in a GitHub repository."
+        },
+        {
+          "name": "get_tag",
+          "description": "Get details about a specific git tag."
+        },
+        {
+          "name": "list_releases",
+          "description": "List releases in a GitHub repository."
+        },
+        {
+          "name": "get_latest_release",
+          "description": "Get the latest release in a GitHub repository."
+        },
+        {
+          "name": "get_release_by_tag",
+          "description": "Get a release by its tag name."
+        },
+        {
+          "name": "list_issues",
+          "description": "List issues in a GitHub repository, filtered by state, labels and date."
+        },
+        {
+          "name": "get_issue",
+          "description": "Get the details of a specific issue in a GitHub repository."
+        },
+        {
+          "name": "create_issue",
+          "description": "Create a new issue in a GitHub repository."
+        },
+        {
+          "name": "update_issue",
+          "description": "Update an existing issue: title, body, state, labels, assignees or milestone."
+        },
+        {
+          "name": "add_issue_comment",
+          "description": "Add a comment to a specific issue in a GitHub repository."
+        },
+        {
+          "name": "get_issue_comments",
+          "description": "Get the comments of a specific issue."
+        },
+        {
+          "name": "list_issue_types",
+          "description": "List the issue types of an organization."
+        },
+        {
+          "name": "add_sub_issue",
+          "description": "Add a sub-issue to a parent issue."
+        },
+        {
+          "name": "remove_sub_issue",
+          "description": "Remove a sub-issue from a parent issue."
+        },
+        {
+          "name": "list_sub_issues",
+          "description": "List the sub-issues of an issue."
+        },
+        {
+          "name": "reprioritize_sub_issue",
+          "description": "Change the order of a sub-issue under its parent issue."
+        },
+        {
+          "name": "assign_copilot_to_issue",
+          "description": "Assign Copilot to work on an issue."
+        },
+        {
+          "name": "list_pull_requests",
+          "description": "List pull requests in a GitHub repository."
+        },
+        {
+          "name": "get_pull_request",
+          "description": "Get the details of a specific pull request."
+        },
+        {
+          "name": "create_pull_request",
+          "description": "Create a new pull request in a GitHub repository."
+        },
+        {
+          "name": "update_pull_request",
+          "description": "Update a pull request: title, body, state or base branch."
+        },
+        {
+          "name": "merge_pull_request",
+          "description": "Merge a pull request."
+        },
+        {
+          "name": "get_pull_request_files",
+          "description": "Get the files changed in a pull request."
+        },
+        {
+          "name": "get_pull_request_diff",
+          "description": "Get the diff of a pull request."
+        },
+        {
+          "name": "get_pull_request_status",
+          "description": "Get the combined status of all status checks for a pull request."
+        },
+        {
+          "name": "get_pull_request_comments",
+          "description": "Get the review comments on a pull request."
+        },
+        {
+          "name": "get_pull_request_reviews",
+          "description": "Get the reviews on a pull request."
+        },
+        {
+          "name": "update_pull_request_branch",
+          "description": "Update a pull request branch with the latest changes from its base branch."
+        },
+        {
+          "name": "create_pending_pull_request_review",
+          "description": "Start a pending review on a pull request."
+        },
+        {
+          "name": "add_comment_to_pending_review",
+          "description": "Add a review comment to your pending pull request review."
+        },
+        {
+          "name": "submit_pending_pull_request_review",
+          "description": "Submit your pending review: approve, request changes or comment."
+        },
+        {
+          "name": "delete_pending_pull_request_review",
+          "description": "Delete your pending pull request review."
+        },
+        {
+          "name": "request_copilot_review",
+          "description": "Request a Copilot code review for a pull request."
+        },
+        {
+          "name": "list_workflows",
+          "description": "List the GitHub Actions workflows of a repository."
+        },
+        {
+          "name": "list_workflow_runs",
+          "description": "List the runs of a GitHub Actions workflow."
+        },
+        {
+          "name": "get_workflow_run",
+          "description": "Get the details of a workflow run."
+        },
+        {
+          "name": "get_workflow_run_logs",
+          "description": "Download the logs of a workflow run."
+        },
+        {
+          "name": "list_workflow_jobs",
+          "description": "List the jobs of a workflow run."
+        },
+        {
+          "name": "get_job_logs",
+          "description": "Get the logs of a workflow job, or of every failed job in a run."
+        },
+        {
+          "name": "rerun_workflow_run",
+          "description": "Re-run an entire workflow run."
+        },
+        {
+          "name": "rerun_failed_jobs",
+          "description": "Re-run only the failed jobs of a workflow run."
+        },
+        {
+          "name": "cancel_workflow_run",
+          "description": "Cancel a workflow run."
+        },
+        {
+          "name": "run_workflow",
+          "description": "Trigger a workflow run with a workflow_dispatch event."
+        },
+        {
+          "name": "list_workflow_run_artifacts",
+          "description": "List the artifacts of a workflow run."
+        },
+        {
+          "name": "download_workflow_run_artifact",
+          "description": "Get the download URL of a workflow run artifact."
+        },
+        {
+          "name": "delete_workflow_run_logs",
+          "description": "Delete the logs of a workflow run."
+        },
+        {
+          "name": "get_workflow_run_usage",
+          "description": "Get the billable time of a workflow run."
+        },
+        {
+          "name": "list_code_scanning_alerts",
+          "description": "List code scanning alerts in a repository."
+        },
+        {
+          "name": "get_code_scanning_alert",
+          "description": "Get the details of a code scanning alert."
+        },
+        {
+          "name": "list_secret_scanning_alerts",
+          "description": "List secret scanning alerts in a repository."
+        },
+        {
+          "name": "get_secret_scanning_alert",
+          "description": "Get the details of a secret scanning alert."
+        },
+        {
+          "name": "list_dependabot_alerts",
+          "description": "List Dependabot alerts for vulnerable dependencies in a repository."
+        },
+        {
+          "name": "get_dependabot_alert",
+          "description": "Get the details of a Dependabot alert."
+        },
+        {
+          "name": "list_notifications",
+          "description": "List your GitHub notifications."
+        },
+        {
+          "name": "get_notification_details",
+          "description": "Get the details of a GitHub notification."
+        },
+        {
+          "name": "dismiss_notification",
+          "description": "Mark a notification as read or done."
+        },
+        {
+          "name": "mark_all_notifications_read",
+          "description": "Mark all notifications as read."
+        },
+        {
+          "name": "manage_notification_subscription",
+          "description": "Ignore, watch or delete a notification thread subscription."
+        },
+        {
+          "name": "manage_repository_notification_subscription",
+          "description": "Ignore, watch or delete notifications for a repository."
+        },
+        {
+          "name": "list_discussions",
+          "description": "List the discussions of a repository."
+        },
+        {
+          "name": "get_discussion",
+          "description": "Get a specific discussion."
+        },
+        {
+          "name": "get_discussion_comments",
+          "description": "Get the comments of a discussion."
+        },
+        {
+          "name": "list_discussion_categories",
+          "description": "List the discussion categories of a repository."
+        },
+        {
+          "name": "list_gists",
+          "description": "List the gists of a user."
+        },
+        {
+          "name": "create_gist",
+          "description": "Create a new gist."
+        },
+        {
+          "name": "update_gist",
+          "description": "Update an existing gist."
+        },
+        {
+          "name": "list_projects",
+          "description": "List the projects of a user or organization."
+        },
+        {
+          "name": "get_project",
+          "description": "Get a project."
+        },
+        {
+          "name": "list_project_items",
+          "description": "List the items of a project."
+        },
+        {
+          "name": "add_project_item",
+          "description": "Add an issue or pull request to a project."
+        },
+        {
+          "name": "update_project_item",
+          "description": "Update a field of a project item."
+        },
+        {
+          "name": "delete_project_item",
+          "description": "Remove an item from a project."
+        },
+        {
+          "name": "list_starred_repositories",
+          "description": "List the repositories a user has starred."
+        },
+        {
+          "name": "star_repository",
+          "description": "Star a repository."
+        },
+        {
+          "name": "unstar_repository",
+          "description": "Unstar a repository."
+        },
+        {
+          "name": "get_team_members",
+          "description": "List the members of a team."
+        },
+        {
+          "name": "get_teams",
+          "description": "List the teams of the authenticated user."
+        },
+        {
+          "name": "list_labels",
+          "description": "List the labels of a repository."
+        },
+        {
+          "name": "get_label",
+          "description": "Get a label of a repository."
+        },
+        {
+          "name": "create_label",
+          "description": "Create a label in a repository."
+        }
+      ]
+    },
+    {
+      "id": "con_notion",
+      "name": "Notion",
+      "slug": "notion",
+      "plugin": "notion",
+      "tools": [
+        {
+          "name": "notion-search",
+          "description": "Search pages, databases and connected sources in the Notion workspace."
+        },
+        {
+          "name": "notion-fetch",
+          "description": "Fetch a Notion page or database by its URL or ID, with its content."
+        },
+        {
+          "name": "notion-create-pages",
+          "description": "Create one or more Notion pages, with properties and content."
+        },
+        {
+          "name": "notion-update-page",
+          "description": "Update a Notion page's properties or content."
+        },
+        {
+          "name": "notion-move-pages",
+          "description": "Move pages or databases to a new parent."
+        },
+        {
+          "name": "notion-duplicate-page",
+          "description": "Duplicate a Notion page."
+        },
+        {
+          "name": "notion-create-database",
+          "description": "Create a new Notion database with a schema."
+        },
+        {
+          "name": "notion-update-database",
+          "description": "Update a Notion database's title, description or properties."
+        },
+        {
+          "name": "notion-query-database",
+          "description": "Query a Notion database with filters and sorts."
+        },
+        {
+          "name": "notion-create-comment",
+          "description": "Add a comment to a Notion page."
+        },
+        {
+          "name": "notion-get-comments",
+          "description": "Get the comments on a Notion page."
+        },
+        {
+          "name": "notion-get-users",
+          "description": "List the users of the Notion workspace."
+        },
+        {
+          "name": "notion-get-self",
+          "description": "Get the bot user of this integration."
+        }
+      ]
+    },
+    {
+      "id": "con_gmail",
+      "name": "Gmail",
+      "slug": "gmail",
+      "tools": [
+        {
+          "name": "search_emails",
+          "description": "Search emails in Gmail with the Gmail search syntax (from:, subject:, after:)."
+        },
+        {
+          "name": "read_email",
+          "description": "Read the full content of an email by its message ID."
+        },
+        {
+          "name": "send_email",
+          "description": "Send an email to recipients, with subject, body and attachments."
+        },
+        {
+          "name": "draft_email",
+          "description": "Create a draft email without sending it."
+        },
+        {
+          "name": "modify_email",
+          "description": "Add or remove labels on an email, for example to archive it or mark it read."
+        },
+        {
+          "name": "delete_email",
+          "description": "Permanently delete an email."
+        },
+        {
+          "name": "batch_modify_emails",
+          "description": "Add or remove labels on many emails at once."
+        },
+        {
+          "name": "list_email_labels",
+          "description": "List the labels of the Gmail mailbox."
+        },
+        {
+          "name": "create_email_label",
+          "description": "Create a Gmail label."
+        },
+        {
+          "name": "download_attachment",
+          "description": "Download an attachment of an email."
+        },
+        {
+          "name": "create_filter",
+          "description": "Create a Gmail filter that labels, archives or forwards matching mail."
+        },
+        {
+          "name": "list_filters",
+          "description": "List the Gmail filters."
+        }
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "name": "issue-review",
+      "plugin": "github",
+      "connector": "con_github",
+      "description": "Review open GitHub issues: triage them, add labels and summarise what needs attention."
+    },
+    {
+      "name": "pr-review",
+      "plugin": "github",
+      "connector": "con_github",
+      "description": "Review a pull request: read the diff, check CI status and leave review comments."
+    },
+    {
+      "name": "meeting-notes",
+      "plugin": "notion",
+      "connector": "con_notion",
+      "description": "Turn a meeting transcript into Notion meeting notes with decisions and action items."
+    },
+    {
+      "name": "inbox-triage",
+      "description": "Sort the inbox: archive newsletters, flag what needs a reply and draft short answers."
+    },
+    {
+      "name": "weekly-report",
+      "description": "Write the weekly status report from the week's work. Use on Fridays."
+    },
+    {
+      "name": "trip-planner",
+      "description": "旅行計劃：安排行程、交通和住宿，列出每日活動。"
+    },
+    {
+      "name": "expense-claim",
+      "description": "Prepare an expense claim from photos of receipts: amounts, dates and categories."
+    },
+    {
+      "name": "rei-browser",
+      "description": "How to use the browser tools safely: open pages, read snapshots, wait for updates, scroll, hover, set checkboxes, click and type, and hand over sign-ins."
+    }
+  ],
+  "queries": [
+    {
+      "id": "e1",
+      "cat": "exact",
+      "lang": "en",
+      "q": "browser_screenshot",
+      "groups": ["browser"]
+    },
+    {
+      "id": "e2",
+      "cat": "exact",
+      "lang": "en",
+      "q": "create_trigger",
+      "groups": ["triggers"]
+    },
+    {
+      "id": "e3",
+      "cat": "exact",
+      "lang": "en",
+      "q": "get_file_contents",
+      "tools": ["github__get_file_contents"]
+    },
+    {
+      "id": "e4",
+      "cat": "exact",
+      "lang": "en",
+      "q": "notion-search",
+      "tools": ["notion__notion-search"]
+    },
+    {
+      "id": "e5",
+      "cat": "exact",
+      "lang": "en",
+      "q": "list_plugins",
+      "groups": ["plugins"]
+    },
+    {
+      "id": "e6",
+      "cat": "exact",
+      "lang": "en",
+      "q": "browser_wait",
+      "tools": ["browser_wait"]
+    },
+    {
+      "id": "e7",
+      "cat": "exact",
+      "lang": "en",
+      "q": "browser_scroll",
+      "tools": ["browser_scroll"]
+    },
+    {
+      "id": "e8",
+      "cat": "exact",
+      "lang": "en",
+      "q": "browser_hover",
+      "tools": ["browser_hover"]
+    },
+    {
+      "id": "e9",
+      "cat": "exact",
+      "lang": "en",
+      "q": "browser_check",
+      "tools": ["browser_check"]
+    },
+    {
+      "id": "g1",
+      "cat": "group",
+      "lang": "en",
+      "q": "open example.com and take a screenshot",
+      "groups": ["browser"]
+    },
+    {
+      "id": "g2",
+      "cat": "group",
+      "lang": "en",
+      "q": "remind me every Monday at 9",
+      "groups": ["triggers"]
+    },
+    {
+      "id": "g3",
+      "cat": "group",
+      "lang": "en",
+      "q": "schedule a daily check of the weather",
+      "groups": ["triggers"]
+    },
+    {
+      "id": "g4",
+      "cat": "group",
+      "lang": "en",
+      "q": "click the sign in button on the page",
+      "groups": ["browser"]
+    },
+    {
+      "id": "g5",
+      "cat": "group",
+      "lang": "en",
+      "q": "install a plugin package",
+      "groups": ["plugins"]
+    },
+    {
+      "id": "g6",
+      "cat": "group",
+      "lang": "en",
+      "q": "fill in the form on this website",
+      "groups": ["browser"]
+    },
+    {
+      "id": "p1",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "read a file in a GitHub repo",
+      "tools": ["github__get_file_contents"]
+    },
+    {
+      "id": "p2",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "open a new issue about the login bug",
+      "tools": ["github__create_issue"]
+    },
+    {
+      "id": "p3",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "merge the pull request",
+      "tools": ["github__merge_pull_request"]
+    },
+    {
+      "id": "p4",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "why did the CI build fail, show the job logs",
+      "tools": ["github__get_job_logs"]
+    },
+    {
+      "id": "p5",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "send an email to Ana",
+      "tools": ["gmail__send_email"]
+    },
+    {
+      "id": "p6",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "find emails from my landlord",
+      "tools": ["gmail__search_emails"]
+    },
+    {
+      "id": "p7",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "add a page to my Notion workspace",
+      "tools": ["notion__notion-create-pages"]
+    },
+    {
+      "id": "p8",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "comment on the issue",
+      "tools": ["github__add_issue_comment"]
+    },
+    {
+      "id": "p9",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "list the open pull requests",
+      "tools": ["github__list_pull_requests"]
+    },
+    {
+      "id": "p10",
+      "cat": "paraphrase",
+      "lang": "en",
+      "q": "archive the newsletter emails",
+      "tools": ["gmail__modify_email", "gmail__batch_modify_emails"]
+    },
+    {
+      "id": "c1",
+      "cat": "connector",
+      "lang": "en",
+      "q": "list my open GitHub issues",
+      "tools": ["github__list_issues"]
+    },
+    {
+      "id": "c2",
+      "cat": "connector",
+      "lang": "en",
+      "q": "Dependabot alerts in the repo",
+      "tools": ["github__list_dependabot_alerts"]
+    },
+    {
+      "id": "c3",
+      "cat": "connector",
+      "lang": "en",
+      "q": "query the tasks database in Notion",
+      "tools": ["notion__notion-query-database"]
+    },
+    {
+      "id": "c4",
+      "cat": "connector",
+      "lang": "en",
+      "q": "rerun the failed GitHub Actions jobs",
+      "tools": ["github__rerun_failed_jobs"]
+    },
+    {
+      "id": "c5",
+      "cat": "connector",
+      "lang": "en",
+      "q": "draft a reply in Gmail",
+      "tools": ["gmail__draft_email"]
+    },
+    {
+      "id": "o1",
+      "cat": "connector-only",
+      "lang": "en",
+      "q": "github",
+      "directory": "con_github"
+    },
+    {
+      "id": "o2",
+      "cat": "connector-only",
+      "lang": "en",
+      "q": "Notion",
+      "directory": "con_notion"
+    },
+    {
+      "id": "o3",
+      "cat": "connector-only",
+      "lang": "en",
+      "q": "gmail",
+      "directory": "con_gmail"
+    },
+    {
+      "id": "z1",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "打開網頁並截圖",
+      "groups": ["browser"]
+    },
+    {
+      "id": "z2",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "每天早上提醒我",
+      "groups": ["triggers"]
+    },
+    {
+      "id": "z3",
+      "cat": "chinese",
+      "lang": "zh",
+      "q": "安排旅行行程",
+      "skills": ["trip-planner"]
+    },
+    {
+      "id": "m1",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "幫我 merge 這個 pull request",
+      "tools": ["github__merge_pull_request"]
+    },
+    {
+      "id": "m2",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "用 Gmail 寄 email 給 Tom",
+      "tools": ["gmail__send_email"]
+    },
+    {
+      "id": "m3",
+      "cat": "mixed",
+      "lang": "mixed",
+      "q": "每週一 remind 我交 weekly report",
+      "groups": ["triggers"],
+      "skills": ["weekly-report"]
+    },
+    {
+      "id": "s1",
+      "cat": "skill",
+      "lang": "en",
+      "q": "review my open GitHub issues",
+      "tools": ["github__list_issues"],
+      "skills": ["issue-review"]
+    },
+    {
+      "id": "s2",
+      "cat": "skill",
+      "lang": "en",
+      "q": "review this pull request",
+      "skills": ["pr-review"]
+    },
+    {
+      "id": "s3",
+      "cat": "skill",
+      "lang": "en",
+      "q": "write up the meeting notes",
+      "skills": ["meeting-notes"]
+    },
+    {
+      "id": "s4",
+      "cat": "skill",
+      "lang": "en",
+      "q": "claim my travel expenses from these receipts",
+      "skills": ["expense-claim"]
+    },
+    {
+      "id": "s5",
+      "cat": "skill",
+      "lang": "en",
+      "q": "triage my inbox",
+      "skills": ["inbox-triage"]
+    },
+    {
+      "id": "n1",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "order a pizza"
+    },
+    {
+      "id": "n2",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "book a flight to Tokyo"
+    },
+    {
+      "id": "n3",
+      "cat": "no-answer",
+      "lang": "zh",
+      "q": "播放音樂"
+    },
+    {
+      "id": "n4",
+      "cat": "no-answer",
+      "lang": "en",
+      "q": "control the living room lights"
+    }
+  ]
+}

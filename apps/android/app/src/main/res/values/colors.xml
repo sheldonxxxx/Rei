@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Engawa canvas: the window and splash background, so nothing flashes before Compose draws. -->
+    <color name="rei_canvas">#F7F5F1</color>
+    <color name="ic_launcher_background">#F7F5F1</color>
+</resources>

@@ -1,0 +1,24 @@
+# Garage holds Rei's file bytes (attachments, Library versions, published agent files); SQLite stays the authority over
+# which file each object belongs to. Single node, replication factor 1, private bucket, nothing published.
+#
+# No secrets live here. The RPC secret, the admin token and the S3 key reach Garage as GARAGE_RPC_SECRET,
+# GARAGE_ADMIN_TOKEN and GARAGE_DEFAULT_ACCESS_KEY/SECRET_KEY, from containers/.secrets/secrets.env (made by init.sh).
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+
+# One node that only talks to itself: loopback, so no network can reach the RPC port. The CLI (health check, json-api) runs
+# in this container and connects to 127.0.0.1:3901.
+rpc_bind_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.rei.invalid"
+
+# S3 answers on both networks Garage is on: rei-storage (Rei) and rei-storage-shared (outside callers, each with a key
+# limited to its own bucket). The admin API answers on rei-storage only, at Garage's fixed address there, so it is never on
+# the callers' network. ./rei callers --storage does not use it: it runs `garage json-api` inside the container.
+[admin]
+api_bind_addr = "10.89.237.2:3903"

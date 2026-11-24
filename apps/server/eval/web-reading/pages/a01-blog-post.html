@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Why We Moved Our Build Cache to Object Storage | Fieldnotes</title>
+  <meta name="description" content="Notes from a small team's build infrastructure change.">
+  <script>window.__analytics = { id: "UA-0000" };</script>
+</head>
+<body>
+  <header class="site"><a href="/">Fieldnotes</a>
+    <nav><a href="/archive">Archive</a> <a href="/tags">Tags</a> <a href="/subscribe">Subscribe</a> <a href="/about">About</a></nav>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <h3>Popular posts</h3>
+      <ul><li><a href="/p/1">Ten years of dotfiles</a></li><li><a href="/p/2">On boring technology</a></li><li><a href="/p/3">A year without a standup</a></li></ul>
+      <h3>Newsletter</h3><form><input placeholder="you@example.com"><button>Join 4,000 readers</button></form>
+    </aside>
+    <main>
+      <article>
+        <h1>Why We Moved Our Build Cache to Object Storage</h1>
+        <p class="meta">Posted on <time datetime="2026-09-12">12 September 2026</time> by Priya Raman</p>
+        <p>For three years our continuous integration runners kept their build cache on a shared network drive. It worked until it did not: the drive filled every few weeks, and a full drive meant every pipeline fell back to a cold build that took forty minutes instead of six.</p>
+        <h2>What we tried first</h2>
+        <p>We added a nightly cleanup job that deleted cache entries older than seven days. That bought us a month. Then the monorepo grew another two services and the drive was full again by Thursday each week.</p>
+        <p>We also tried giving each runner its own local cache. Hit rates collapsed to about 30 percent because jobs rarely landed on the same runner twice.</p>
+        <h2>The move</h2>
+        <p>The cache now lives in an object storage bucket with a lifecycle rule that expires objects after 14 days. Runners read through a small local proxy that keeps the hottest 20 GB on disk.</p>
+        <p>The median pipeline went from 11 minutes to 7 minutes after the change, and we have not had a cache-full incident since.</p>
+        <h2>What it cost</h2>
+        <p>Storage and request charges come to roughly 38 dollars a month for our volume, which is less than the network drive's support contract alone.</p>
+        <blockquote><p>The proxy matters more than the bucket. Without it, every cache read is a round trip to the region.</p></blockquote>
+        <h2>Would we do it again?</h2>
+        <p>Yes, but we would set up the local proxy on day one instead of week three.</p>
+      </article>
+      <section class="comments">
+        <h3>12 comments</h3>
+        <div class="comment"><b>tomk</b>: Did you consider a remote execution service instead?</div>
+        <div class="comment"><b>Priya Raman</b>: We looked at it, but it needed changes to every build file.</div>
+      </section>
+    </main>
+  </div>
+  <footer>&copy; 2026 Fieldnotes. All rights reserved. <a href="/privacy">Privacy</a></footer>
+</body>
+</html>

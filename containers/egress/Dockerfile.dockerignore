@@ -1,0 +1,10 @@
+# Only what runs.
+**
+!apps/egress/package.json
+!apps/egress/src
+!packages/forward-proxy/package.json
+!packages/forward-proxy/src
+!packages/logging/package.json
+!packages/logging/src
+!packages/network/package.json
+!packages/network/src

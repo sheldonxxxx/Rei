@@ -1,0 +1,193 @@
+// `./rei <command>`: the basic operations the web app cannot do (set up, start, stop, redeploy, check, recover the
+// account, show the setup code). Run it on the machine where docker runs; it finds the repository from its own location
+// and reaches the stack only through `docker compose` and the published app port.
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { callers } from "./commands/callers.ts";
+import { doctor } from "./commands/doctor.ts";
+import { IMPORT_HELP, importCommand } from "./commands/import.ts";
+import { lifecycle } from "./commands/lifecycle.ts";
+import { reader } from "./commands/reader.ts";
+import { redeploy } from "./commands/redeploy.ts";
+import { resetPassword } from "./commands/reset-password.ts";
+import { setup } from "./commands/setup.ts";
+import { setupCode } from "./commands/setup-code.ts";
+import { sources } from "./commands/sources.ts";
+import { status } from "./commands/status.ts";
+import { makeCtx } from "./ctx.ts";
+import { loadGuide, useGuide } from "./guide.ts";
+import { realClock, realHost, realOut, realPrompter } from "./real.ts";
+import { realRunner } from "./runner.ts";
+
+const USAGE = `Rei レイ · your personal AI workspace
+
+  ./rei setup           Set up and start Rei
+  ./rei start           Start Rei services
+  ./rei stop            Stop Rei services (--all: Dodai too)
+  ./rei restart         Restart Rei services (--all: Dodai too)
+  ./rei redeploy        Rebuild Rei images and redeploy (keeps data)
+  ./rei status          See whether Rei is running
+  ./rei doctor          Check problems and show how to fix them
+  ./rei reset-password  Recover your Rei account
+  ./rei setup-code      Show the setup code for a new Rei account
+  ./rei callers         Manage other services that use the gateway
+  ./rei sources         Manage senders of outside events (they start triggers)
+  ./rei reader          Show how the shared page reader's engines are doing (stats)
+  ./rei import chatgpt  Import past chats from a ChatGPT export
+  Models, memory and web search are configured in the web app.
+
+  --basic               Use plain text prompts
+  --help                Show help for a command
+
+Run on the computer where Docker runs.`;
+
+function help(command?: string): string {
+  switch (command) {
+    case "setup":
+      return "./rei setup [--non-interactive] [--skip-build]\n\nPrepare and start Rei infrastructure. Finish your settings in the web app.";
+    case "setup-code":
+      return "./rei setup-code\n\nShow the one-time setup code a new Rei asks for when its first account is created.";
+    case "status":
+    case "doctor":
+      return `./rei ${command} [--json] [--basic]`;
+    case "start":
+      return "./rei start\n\nStart Dodai (the gateway and the reader), then the Rei services, without running setup again.";
+    case "stop":
+    case "restart":
+      return `./rei ${command} [--all]\n\n${command === "stop" ? "Stop" : "Restart"} the Rei services without running setup again. Dodai (the gateway and the reader) keeps running, because other callers may use them; --all includes them.`;
+    case "callers":
+      return "./rei callers <list|add|set|rotate|revoke|usage|purge> [options]\n\nManage the services other than Rei that may call the gateway: their tokens, what they may call and how many calls they may have in flight. Run ./rei callers with no command to see every option.\n\nWith --storage, add, set and rotate also give the caller its own bucket and key in Dodai's Garage (revoke removes the key; purge deletes an empty bucket of a revoked caller; --yes skips its confirmation). See docs/gateway-callers.md.";
+    case "reader":
+      return "./rei reader stats [--since 30d]\n\nShow how the shared page reader's rendering engines have done: render counts, fallbacks, the rescue rate, shadow divergence and whether the decision rule for dropping the Chromium fallback is met. See docs/reader.md.";
+    case "sources":
+      return "./rei sources <add|list|rotate|disable|enable|remove> [options]\n\nManage the senders that may tell Rei something happened so a trigger can start: their secrets and whether they are accepted. Run ./rei sources with no command to see every option. See docs/events.md.";
+    case "import":
+      return IMPORT_HELP;
+    case "redeploy":
+      return "./rei redeploy [--no-cache]\n\nRebuild the web app and all Rei-built Compose images, then recreate services. Docker's build cache is reused, so unchanged layers are fast; --no-cache forces a full rebuild. Docker data volumes and secrets are preserved.";
+    default:
+      return USAGE;
+  }
+}
+
+const FLAGS: Record<string, string[]> = {
+  setup: ["--non-interactive", "--skip-build"],
+  "setup-code": [],
+  start: [],
+  stop: ["--all"],
+  restart: ["--all"],
+  redeploy: ["--no-cache"],
+  doctor: ["--json"],
+  status: ["--json"],
+  "reset-password": [],
+};
+
+async function main(argv: string[]): Promise<number> {
+  const basic = argv.includes("--basic");
+  const [command, ...flags] = argv.filter((arg) => arg !== "--basic");
+  if (command === "--help" || command === "-h" || command === "help") {
+    console.log(USAGE);
+    return 0;
+  }
+  if (!command) {
+    console.log(USAGE);
+    return 0;
+  }
+  if (command === "import" && (flags.includes("--help") || flags.includes("-h"))) {
+    console.log(help(command));
+    return 0;
+  }
+  // Passed to the gateway's own CLI as they are: its options are its own, and it answers on the terminal.
+  // `import` reads an export here and talks to the app's HTTP API; its options are its own too.
+  if (command === "callers" || command === "sources" || command === "reader" || command === "import") {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+    const ctx = makeCtx({
+      root,
+      runner: realRunner(),
+      out: realOut(),
+      clock: realClock,
+      host: realHost(),
+      prompter: realPrompter(),
+      fetch: globalThis.fetch,
+      env: process.env,
+    });
+    if (command === "reader") return reader(ctx, flags);
+    if (command === "import") return importCommand(ctx, flags);
+    return command === "callers" ? callers(ctx, flags) : sources(ctx, flags);
+  }
+  const allowed = FLAGS[command];
+  if (!allowed) {
+    console.error(`rei: unknown command "${command}"\n`);
+    console.error(USAGE);
+    return 2;
+  }
+  if (flags.includes("--help") || flags.includes("-h")) {
+    console.log(help(command));
+    return 0;
+  }
+  const unknown = flags.filter((f) => !allowed.includes(f));
+  if (unknown.length) {
+    console.error(`rei ${command}: unknown option ${unknown.join(", ")}\n\n${USAGE}`);
+    return 2;
+  }
+  const terminal = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const guidedCommand = ["setup", "reset-password", "redeploy"].includes(command);
+  const wantsGuide = guidedCommand && useGuide(argv, process.env, terminal);
+  const guided = wantsGuide ? await loadGuide() : undefined;
+  if (!basic && wantsGuide && !guided) console.log("Using basic prompts. Run npm ci to enable the guided interface.");
+  const ctx = makeCtx({
+    guide: guided?.guide,
+    root: resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."),
+    runner: realRunner(),
+    out: guided
+      ? {
+          line: (text = "") => {
+            if (text) guided.guide.message(text);
+          },
+          color: false,
+        }
+      : realOut(),
+    clock: realClock,
+    host: realHost(),
+    prompter: guided?.prompter ?? realPrompter(),
+    fetch: globalThis.fetch,
+    env: process.env,
+  });
+  const has = (flag: string) => flags.includes(flag);
+  switch (command) {
+    case "start":
+      if (!ctx.host.stat(resolve(ctx.containersDir, ".secrets", "secrets.env")))
+        return setup(ctx, { nonInteractive: true, skipBuild: false });
+      return lifecycle(ctx, command);
+    case "stop":
+    case "restart":
+      return lifecycle(ctx, command, { all: has("--all") });
+    case "redeploy":
+      return redeploy(ctx, { noCache: has("--no-cache") });
+    case "setup":
+      return setup(ctx, {
+        nonInteractive: has("--non-interactive"),
+        skipBuild: has("--skip-build"),
+      });
+    case "setup-code":
+      return setupCode(ctx);
+    case "doctor":
+      return doctor(ctx, { json: has("--json") });
+    case "reset-password":
+      return resetPassword(ctx);
+    default:
+      return status(ctx, { json: has("--json") });
+  }
+}
+
+try {
+  process.exitCode = await main(process.argv.slice(2));
+} catch (error) {
+  console.error(
+    error instanceof Error && error.message === "cancelled"
+      ? "\ncancelled"
+      : `rei: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = error instanceof Error && error.message === "cancelled" ? 130 : 1;
+}
+process.exit();

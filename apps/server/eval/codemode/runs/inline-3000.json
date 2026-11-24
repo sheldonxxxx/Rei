@@ -1,0 +1,539 @@
+{
+  "label": "inline-3000",
+  "runs": [
+    {
+      "scenario": "library-grep",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "cmeval-report-03.txt\ncmeval-report-07.txt\ncmeval-report-08.txt\ncmeval-report-12.txt",
+      "turns": 3,
+      "inputTokens": 62883,
+      "uncachedTokens": 11299,
+      "outputTokens": 227,
+      "cachedTokens": 51584,
+      "calls": [
+        {
+          "input": 8026,
+          "cached": 11136,
+          "output": 47
+        },
+        {
+          "input": 2528,
+          "cached": 19072,
+          "output": 145
+        },
+        {
+          "input": 745,
+          "cached": 21376,
+          "output": 35
+        }
+      ],
+      "cacheShare": 0.82,
+      "firstCall": {
+        "total": 16291,
+        "toolDefinitions": 8442,
+        "prompt": 7808,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 22121,
+      "wallMs": 15898,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 2,
+      "nestedCalls": 15,
+      "directCalls": 0,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "library-max",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "提到 Heliotrope 專案的報告中，Budget 最高的是 **`cmeval-report-08.txt`：48,500**。",
+      "turns": 3,
+      "inputTokens": 64456,
+      "uncachedTokens": 12872,
+      "outputTokens": 482,
+      "cachedTokens": 51584,
+      "calls": [
+        {
+          "input": 8020,
+          "cached": 11136,
+          "output": 32
+        },
+        {
+          "input": 2494,
+          "cached": 19072,
+          "output": 412
+        },
+        {
+          "input": 2358,
+          "cached": 21376,
+          "output": 38
+        }
+      ],
+      "cacheShare": 0.8,
+      "firstCall": {
+        "total": 16285,
+        "toolDefinitions": 8442,
+        "prompt": 7793,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 23734,
+      "wallMs": 17575,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 1,
+      "nestedCalls": 14,
+      "directCalls": 1,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "knowledge-tag",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "以下三個頁面將憑證過期列為根本原因：\n\n- [Postmortem: payment errors](page:pg_01a201a9217e142670c17f8b#summary)\n- [Postmortem: failed uploads](page:pg_01a201a921783afc0cecd4f3#summary)\n- [Postmortem: login outage](page:pg_01a201a921732cd1d3451fb5#summary)",
+      "turns": 3,
+      "inputTokens": 59696,
+      "uncachedTokens": 10160,
+      "outputTokens": 352,
+      "cachedTokens": 49536,
+      "calls": [
+        {
+          "input": 7984,
+          "cached": 11136,
+          "output": 40
+        },
+        {
+          "input": 453,
+          "cached": 19072,
+          "output": 202
+        },
+        {
+          "input": 1723,
+          "cached": 19328,
+          "output": 110
+        }
+      ],
+      "cacheShare": 0.83,
+      "firstCall": {
+        "total": 16249,
+        "toolDefinitions": 8442,
+        "prompt": 7779,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 21051,
+      "wallMs": 18380,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 1,
+      "nestedCalls": 8,
+      "directCalls": 1,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "runbook-scan",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "- [Runbook 01: DNS](page:pg_01a201a921888d6faf01ba57#escalation)\n- [Runbook 04: Alerts](page:pg_01a201a9219109bc8bc73026#escalation)\n- [Runbook 07: Cache](page:pg_01a201a9219543881b9a1c58#escalation)\n- [Runbook 11: Auth](page:pg_01a201a9219df5500ddf0e1d#escalation)",
+      "turns": 4,
+      "inputTokens": 81505,
+      "uncachedTokens": 18273,
+      "outputTokens": 495,
+      "cachedTokens": 63232,
+      "calls": [
+        {
+          "input": 15200,
+          "cached": 3968,
+          "output": 45
+        },
+        {
+          "input": 929,
+          "cached": 19072,
+          "output": 50
+        },
+        {
+          "input": 690,
+          "cached": 19840,
+          "output": 271
+        },
+        {
+          "input": 1454,
+          "cached": 20352,
+          "output": 129
+        }
+      ],
+      "cacheShare": 0.776,
+      "firstCall": {
+        "total": 16297,
+        "toolDefinitions": 8442,
+        "prompt": 7822,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 21806,
+      "wallMs": 22286,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 1,
+      "nestedCalls": 12,
+      "directCalls": 2,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "records-overdue",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "rec-04, rec-13, rec-22",
+      "turns": 4,
+      "inputTokens": 80493,
+      "uncachedTokens": 17517,
+      "outputTokens": 171,
+      "cachedTokens": 62976,
+      "calls": [
+        {
+          "input": 15259,
+          "cached": 3968,
+          "output": 28
+        },
+        {
+          "input": 570,
+          "cached": 19072,
+          "output": 20
+        },
+        {
+          "input": 868,
+          "cached": 19584,
+          "output": 108
+        },
+        {
+          "input": 820,
+          "cached": 20352,
+          "output": 15
+        }
+      ],
+      "cacheShare": 0.782,
+      "firstCall": {
+        "total": 16356,
+        "toolDefinitions": 8442,
+        "prompt": 7874,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 21172,
+      "wallMs": 15342,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 2,
+      "nestedCalls": 30,
+      "directCalls": 1,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "records-sum",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "7,159.00",
+      "turns": 5,
+      "inputTokens": 100424,
+      "uncachedTokens": 27336,
+      "outputTokens": 212,
+      "cachedTokens": 73088,
+      "calls": [
+        {
+          "input": 15186,
+          "cached": 3968,
+          "output": 25
+        },
+        {
+          "input": 494,
+          "cached": 19072,
+          "output": 20
+        },
+        {
+          "input": 8539,
+          "cached": 11136,
+          "output": 99
+        },
+        {
+          "input": 1644,
+          "cached": 19328,
+          "output": 59
+        },
+        {
+          "input": 1473,
+          "cached": 19584,
+          "output": 9
+        }
+      ],
+      "cacheShare": 0.728,
+      "firstCall": {
+        "total": 16283,
+        "toolDefinitions": 8442,
+        "prompt": 7808,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 21057,
+      "wallMs": 19757,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 3,
+      "nestedCalls": 30,
+      "directCalls": 1,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "cross-tool",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "**Birch 先續約**。按你們每年 4 月 1 日開始的財政年度，兩份合約都在 2026–27 財年續約：\n\n- [Birch Logistics Agreement](page:pg_01a201a921a17f260be62499#terms)：2026 年 12 月 1 日，**第 3 季**（10–12 月）。\n- [Acme Supply Agreement](page:pg_01a201a921a0cc5fdf3d344f#terms)：2027 年 2 月 15 日，**第 4 季**（1–3 月）。",
+      "turns": 3,
+      "inputTokens": 59799,
+      "uncachedTokens": 9495,
+      "outputTokens": 294,
+      "cachedTokens": 50304,
+      "calls": [
+        {
+          "input": 7987,
+          "cached": 11136,
+          "output": 35
+        },
+        {
+          "input": 1106,
+          "cached": 19072,
+          "output": 112
+        },
+        {
+          "input": 402,
+          "cached": 20096,
+          "output": 147
+        }
+      ],
+      "cacheShare": 0.841,
+      "firstCall": {
+        "total": 16252,
+        "toolDefinitions": 8442,
+        "prompt": 7772,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 20498,
+      "wallMs": 16391,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 0,
+      "nestedCalls": 0,
+      "directCalls": 3,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "single-lookup",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "[Acme Supply Agreement 的條款](page:pg_01a201a921a0cc5fdf3d344f#terms)規定，須在**續約日前至少 60 天**發出通知。",
+      "turns": 3,
+      "inputTokens": 58498,
+      "uncachedTokens": 16386,
+      "outputTokens": 134,
+      "cachedTokens": 42112,
+      "calls": [
+        {
+          "input": 15153,
+          "cached": 3968,
+          "output": 34
+        },
+        {
+          "input": 227,
+          "cached": 19072,
+          "output": 47
+        },
+        {
+          "input": 1006,
+          "cached": 19072,
+          "output": 53
+        }
+      ],
+      "cacheShare": 0.72,
+      "firstCall": {
+        "total": 16250,
+        "toolDefinitions": 8442,
+        "prompt": 7795,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 20078,
+      "wallMs": 12857,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 0,
+      "nestedCalls": 0,
+      "directCalls": 2,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "send-approval",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "示範連接器已確認，三則「Standup moved to 10:00」訊息剛剛已分別傳送給 Ana、Ben 和 Chi。",
+      "turns": 2,
+      "inputTokens": 39081,
+      "uncachedTokens": 8873,
+      "outputTokens": 171,
+      "cachedTokens": 30208,
+      "calls": [
+        {
+          "input": 8007,
+          "cached": 11136,
+          "output": 128
+        },
+        {
+          "input": 866,
+          "cached": 19072,
+          "output": 43
+        }
+      ],
+      "cacheShare": 0.773,
+      "firstCall": {
+        "total": 16272,
+        "toolDefinitions": 8442,
+        "prompt": 7787,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 19938,
+      "wallMs": 9885,
+      "approvals": {
+        "asked": 3,
+        "decided": 3
+      },
+      "approvalCards": [
+        {
+          "tool": "demo_send_message",
+          "status": "approved",
+          "summary": "Send \"Standup moved to 10:00\" to Ana",
+          "execution": "ran"
+        },
+        {
+          "tool": "demo_send_message",
+          "status": "approved",
+          "summary": "Send \"Standup moved to 10:00\" to Ben",
+          "execution": "ran"
+        },
+        {
+          "tool": "demo_send_message",
+          "status": "approved",
+          "summary": "Send \"Standup moved to 10:00\" to Chi",
+          "execution": "ran"
+        }
+      ],
+      "scripts": 0,
+      "nestedCalls": 0,
+      "directCalls": 3,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    },
+    {
+      "scenario": "chinese-grep",
+      "arm": "on",
+      "model": "gpt-6.2-sol",
+      "success": true,
+      "failures": [],
+      "answer": "- cmeval-筆記-02.txt\n- cmeval-筆記-05.txt",
+      "turns": 3,
+      "inputTokens": 63154,
+      "uncachedTokens": 11826,
+      "outputTokens": 299,
+      "cachedTokens": 51328,
+      "calls": [
+        {
+          "input": 8541,
+          "cached": 10624,
+          "output": 35
+        },
+        {
+          "input": 2727,
+          "cached": 19072,
+          "output": 239
+        },
+        {
+          "input": 558,
+          "cached": 21632,
+          "output": 25
+        }
+      ],
+      "cacheShare": 0.813,
+      "firstCall": {
+        "total": 16294,
+        "toolDefinitions": 8442,
+        "prompt": 7794,
+        "codemodeSection": 0
+      },
+      "lastCallTokens": 22190,
+      "wallMs": 13639,
+      "approvals": {
+        "asked": 0,
+        "decided": 0
+      },
+      "approvalCards": [],
+      "scripts": 1,
+      "nestedCalls": 6,
+      "directCalls": 1,
+      "scriptFailures": {},
+      "scriptErrors": [],
+      "hitLimit": false
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "name": "rei",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "build": "npm run build -w @rei/web",
+    "format": "biome check --write --linter-enabled=false .",
+    "format:check": "biome check --linter-enabled=false .",
+    "lint": "node scripts/lint.mjs",
+    "lint:report": "biome lint .",
+    "lint:prune": "node scripts/lint.mjs --prune",
+    "lint:promises": "biome lint --only=nursery/noFloatingPromises --only=nursery/noMisusedPromises apps/server/src apps/gateway/src",
+    "check": "npm run format:check && npm run lint",
+    "contract": "node scripts/contract.mjs",
+    "contract:check": "node scripts/contract.mjs --check",
+    "check:architecture": "depcruise --config .dependency-cruiser.cjs apps/*/src packages/protocol/src packages/logging/src packages/network/src packages/forward-proxy/src",
+    "check:dependencies": "knip --dependencies",
+    "check:secrets": "secretlint \"**/*\"",
+    "check:security": "npm audit --audit-level=low",
+    "test:coverage": "vitest run --coverage",
+    "check:static": "npm run format:check && npm run lint && npm run contract:check && npm run typecheck && npm run check:architecture && npm run check:dependencies && npm run check:secrets",
+    "verify": "npm run check:static && npm run test:coverage && npm run build",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.5",
+    "@secretlint/secretlint-rule-preset-recommend": "13.1.0",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "dependency-cruiser": "18.7.2",
+    "husky": "9.1.7",
+    "knip": "6.44.1",
+    "lint-staged": "17.6.0",
+    "secretlint": "13.1.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  },
+  "version": "0.0.1",
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs,json,jsonc,css}": [
+      "biome check --write --linter-enabled=false --no-errors-on-unmatched",
+      "node scripts/lint.mjs"
+    ],
+    "*": "secretlint --no-glob"
+  }
+}

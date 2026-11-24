@@ -1,0 +1,254 @@
+[
+  {
+    "id": "q01",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What time does my flight to Japan leave?",
+    "gold": ["e01", "e02"]
+  },
+  {
+    "id": "q02",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "Which database did I pick for the invoicing project and why?",
+    "gold": ["e05", "e06"]
+  },
+  {
+    "id": "q03",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What am I allergic to?",
+    "gold": ["e08", "e29"]
+  },
+  {
+    "id": "q04",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "Who is my landlord and how do I reach him?",
+    "gold": ["e14"]
+  },
+  {
+    "id": "q05",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "How can I speed up the build and deploy process?",
+    "gold": ["e12", "e13"]
+  },
+  {
+    "id": "q06",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What furniture did I buy recently?",
+    "gold": ["e17"]
+  },
+  {
+    "id": "q07",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What does my sister like as a present?",
+    "gold": ["e07"]
+  },
+  {
+    "id": "q08",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "How long is the physiotherapy I was told to do?",
+    "gold": ["e21"]
+  },
+  {
+    "id": "q09",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "When do I need to cancel my gym?",
+    "gold": ["e16"]
+  },
+  {
+    "id": "q10",
+    "cat": "paraphrase",
+    "lang": "en",
+    "q": "What's my talk about at the Berlin event?",
+    "gold": ["e15"]
+  },
+  {
+    "id": "q11",
+    "cat": "cross_lang",
+    "lang": "hant",
+    "q": "我下個月去大阪的航班幾點起飛？",
+    "gold": ["e01", "e02"]
+  },
+  {
+    "id": "q12",
+    "cat": "cross_lang",
+    "lang": "hant",
+    "q": "牙醫約了什麼時候？",
+    "gold": ["e03", "e34"]
+  },
+  {
+    "id": "q13",
+    "cat": "cross_lang",
+    "lang": "ja",
+    "q": "妹の誕生日はいつですか？",
+    "gold": ["e07"]
+  },
+  {
+    "id": "q14",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "When is mum's birthday and what does she like?",
+    "gold": ["e28"]
+  },
+  {
+    "id": "q15",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "What am I going to see in Kyoto?",
+    "gold": ["e33"]
+  },
+  {
+    "id": "q16",
+    "cat": "cross_lang",
+    "lang": "ja",
+    "q": "第一版の記憶機能のデータベースは何にした？",
+    "gold": ["e26", "e27"]
+  },
+  {
+    "id": "q17",
+    "cat": "cross_lang",
+    "lang": "hans",
+    "q": "下周去深圳坐高铁几点出发？",
+    "gold": ["e31"]
+  },
+  {
+    "id": "q18",
+    "cat": "cross_lang",
+    "lang": "en",
+    "q": "What's wrong with the air conditioning at home?",
+    "gold": ["e32"]
+  },
+  {
+    "id": "q19",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "XK7P2Q",
+    "gold": ["e01", "e02"]
+  },
+  {
+    "id": "q20",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "FH-77120-A",
+    "gold": ["e17"]
+  },
+  {
+    "id": "q21",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "6203 4418",
+    "gold": ["e14"]
+  },
+  {
+    "id": "q22",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "SF1398276450123",
+    "gold": ["e42"]
+  },
+  {
+    "id": "q23",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "INV-2026-0418",
+    "gold": ["e46"]
+  },
+  {
+    "id": "q24",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "RY-3391",
+    "gold": ["e20"]
+  },
+  {
+    "id": "q25",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "fjord-maple-2291",
+    "gold": ["e09"]
+  },
+  {
+    "id": "q26",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "SPRING25",
+    "gold": ["e45"]
+  },
+  {
+    "id": "q27",
+    "cat": "exact_term",
+    "lang": "en",
+    "q": "alex-dev",
+    "gold": ["e41"]
+  },
+  {
+    "id": "q28",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "聽日幾點要去醫院覆診？",
+    "gold": ["e37"]
+  },
+  {
+    "id": "q29",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "星期六行山幾點集合？",
+    "gold": ["e38"]
+  },
+  {
+    "id": "q30",
+    "cat": "cantonese",
+    "lang": "yue",
+    "q": "雪櫃幾時有人嚟修？",
+    "gold": ["e39"]
+  },
+  {
+    "id": "q31",
+    "cat": "distractor",
+    "lang": "en",
+    "q": "When is the cat's vet appointment?",
+    "gold": ["e22"]
+  },
+  {
+    "id": "q32",
+    "cat": "distractor",
+    "lang": "en",
+    "q": "Which invoice is still unpaid?",
+    "gold": ["e46"]
+  },
+  {
+    "id": "q33",
+    "cat": "distractor",
+    "lang": "en",
+    "q": "Where is my keyboard parcel?",
+    "gold": ["e43"]
+  },
+  {
+    "id": "q34",
+    "cat": "no_answer",
+    "lang": "en",
+    "q": "What is my favourite football team?",
+    "gold": []
+  },
+  {
+    "id": "q35",
+    "cat": "no_answer",
+    "lang": "en",
+    "q": "What did the accountant say about my tax return?",
+    "gold": []
+  },
+  {
+    "id": "q36",
+    "cat": "no_answer",
+    "lang": "hant",
+    "q": "我的車牌號碼是多少？",
+    "gold": []
+  }
+]

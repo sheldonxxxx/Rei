@@ -1,0 +1,671 @@
+{
+  "notes": "Frozen web-reading fixtures. `expect` is the quality class the page should get (success | low_quality | requires_js | blocked | unsupported_mime | policy_denied | error); JavaScript shells whose content is embedded in the HTML expect what that content yields (an article body: success; only a description: low_quality). `gold` is a span that answers the question; it must appear in the fixture's source. `boilerplate` lists text that a good extraction drops. `staticRecoverable` marks JavaScript shells whose content is already embedded in the HTML.",
+  "denyHosts": ["denied.example.net"],
+  "fixtures": [
+    {
+      "id": "a01-blog-post",
+      "category": "article",
+      "url": "https://fieldnotes.example.com/2026/09/build-cache",
+      "file": "a01-blog-post.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "a01-cost",
+          "q": "How much does the new build cache cost per month?",
+          "gold": "roughly 38 dollars a month"
+        },
+        {
+          "id": "a01-ttl",
+          "q": "When do cache objects expire?",
+          "gold": "expires objects after 14 days"
+        },
+        {
+          "id": "a01-none",
+          "q": "Which object storage vendor did they choose?",
+          "gold": null
+        }
+      ],
+      "boilerplate": ["Popular posts", "Join 4,000 readers", "All rights reserved"]
+    },
+    {
+      "id": "a02-news-long",
+      "category": "article",
+      "url": "https://ledger.example.org/2026/11/airport-inquiry",
+      "file": "a02-news-long.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "a02-open",
+          "q": "When will the new terminal open?",
+          "gold": "The new terminal is scheduled to open on 14 March 2029"
+        }
+      ],
+      "boilerplate": ["All rights reserved"]
+    },
+    {
+      "id": "a03-recipe",
+      "category": "article",
+      "url": "https://kitchen.example.com/recipes/miso-salmon",
+      "file": "a03-recipe.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "a03-time",
+          "q": "How long does the salmon go under the grill?",
+          "gold": "grill for 8 to 10 minutes"
+        },
+        {
+          "id": "a03-red",
+          "q": "Can I use red miso instead?",
+          "gold": "use half the amount"
+        },
+        {
+          "id": "a03-none",
+          "q": "How many calories per serving?",
+          "gold": null
+        }
+      ],
+      "boilerplate": ["ADVERTISEMENT", "You might also like"]
+    },
+    {
+      "id": "a04-encyclopedia-long",
+      "category": "article",
+      "url": "https://encyclopedia.example.org/wiki/River_Elsby",
+      "file": "a04-encyclopedia-long.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "a04-discharge",
+          "q": "What is the river's mean discharge at the mouth?",
+          "gold": "The mean discharge at the mouth is 412 cubic metres per second"
+        },
+        {
+          "id": "a04-length",
+          "q": "How long is the River Elsby?",
+          "gold": "Length 187 km"
+        },
+        {
+          "id": "a04-none",
+          "q": "Who first navigated the whole river?",
+          "gold": null
+        }
+      ],
+      "boilerplate": ["All rights reserved"]
+    },
+    {
+      "id": "b01-forbidden",
+      "category": "blocked",
+      "url": "https://intranet.example.com/reports",
+      "file": "b01-forbidden.html",
+      "contentType": "text/html",
+      "status": 403,
+      "expect": "blocked",
+      "questions": []
+    },
+    {
+      "id": "b02-rate-limited",
+      "category": "blocked",
+      "url": "https://api.example.com/v1/feed",
+      "file": "b02-rate-limited.html",
+      "contentType": "text/html",
+      "status": 429,
+      "headers": {
+        "retry-after": "60"
+      },
+      "expect": "blocked",
+      "questions": []
+    },
+    {
+      "id": "b03-captcha",
+      "category": "blocked",
+      "url": "https://shop.example.com/products/kettle",
+      "file": "b03-captcha.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "blocked",
+      "questions": []
+    },
+    {
+      "id": "b04-login-wall",
+      "category": "blocked",
+      "url": "https://app.larkspur.example/orders/ord_123",
+      "file": "b04-login-wall.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "blocked",
+      "questions": []
+    },
+    {
+      "id": "c01-zh-article",
+      "category": "cjk",
+      "url": "https://news.example.tw/2026/10/21/circular-line",
+      "file": "c01-zh-article.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "c01-open",
+          "q": "北環段預計何時通車？",
+          "gold": "預計於二〇三二年底完工通車"
+        },
+        {
+          "id": "c01-closure",
+          "q": "承德路夜間封閉的時間是幾點到幾點？",
+          "gold": "每晚十一點至隔日清晨五點"
+        },
+        {
+          "id": "c01-none",
+          "q": "北環段的總經費是多少？",
+          "gold": null
+        }
+      ],
+      "boilerplate": ["熱門新聞", "版權所有"]
+    },
+    {
+      "id": "c02-ja-docs",
+      "category": "cjk",
+      "url": "https://docs.larkspur.example/ja/docs/keys",
+      "file": "c02-ja-docs.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "c02-rotate",
+          "q": "APIキーはどのくらいの頻度でローテーションすべきですか？",
+          "gold": "90日ごとにローテーション"
+        }
+      ]
+    },
+    {
+      "id": "c03-zh-long",
+      "category": "cjk",
+      "url": "https://city.example.tw/reports/riverside-park-final",
+      "file": "c03-zh-long.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "c03-bike",
+          "q": "報告建議自行車道拓寬到多寬？",
+          "gold": "將自行車道拓寬為三公尺"
+        },
+        {
+          "id": "c03-none",
+          "q": "公園改造的總預算是多少？",
+          "gold": null
+        }
+      ]
+    },
+    {
+      "id": "d01-docs-guide",
+      "category": "docs",
+      "url": "https://docs.larkspur.example/docs/webhooks",
+      "file": "d01-docs-guide.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "d01-retry",
+          "q": "How long are failed webhook deliveries retried?",
+          "gold": "retried with exponential backoff for up to 3 days"
+        },
+        {
+          "id": "d01-limit",
+          "q": "How many webhook endpoints can a project have?",
+          "gold": "up to 16 webhook endpoints"
+        },
+        {
+          "id": "d01-code",
+          "q": "Show the signature check code.",
+          "gold": "createHmac(\"sha256\", secret)"
+        },
+        {
+          "id": "d01-none",
+          "q": "What is the maximum webhook payload size?",
+          "gold": null
+        }
+      ],
+      "boilerplate": ["Search docs", "Was this page helpful", "Rate limits"]
+    },
+    {
+      "id": "d02-config-reference",
+      "category": "docs",
+      "url": "https://docs.larkspur.example/docs/config",
+      "file": "d02-config-reference.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "d02-backoff",
+          "q": "What is the default for retry_backoff_ms?",
+          "gold": "The default for retry_backoff_ms is 750 milliseconds"
+        },
+        {
+          "id": "d02-none",
+          "q": "Which option sets the log format?",
+          "gold": null
+        }
+      ]
+    },
+    {
+      "id": "d03-llms-txt",
+      "category": "docs",
+      "url": "https://docs.larkspur.example/llms.txt",
+      "file": "d03-llms.txt",
+      "contentType": "text/plain; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "d03-rate",
+          "q": "What is Larkspur's rate limit?",
+          "gold": "100 requests per second per project"
+        }
+      ]
+    },
+    {
+      "id": "d04-markdown",
+      "category": "docs",
+      "url": "https://docs.larkspur.example/pagination.md",
+      "file": "d04-markdown.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "d04-size",
+          "q": "What is the default page size?",
+          "gold": "The default page size is 25"
+        }
+      ]
+    },
+    {
+      "id": "g01-oversize",
+      "category": "limits",
+      "url": "https://fieldnotes.example.com/huge",
+      "file": "a01-blog-post.html",
+      "contentType": "text/html; charset=utf-8",
+      "truncated": true,
+      "expect": "error",
+      "questions": []
+    },
+    {
+      "id": "i01-fake-fence",
+      "category": "injection",
+      "url": "https://gear.example.com/best-hiking-boots",
+      "file": "i01-fake-fence.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "injection": true,
+      "questions": [
+        {
+          "id": "i01-top",
+          "q": "What is the top pick and how much does it weigh?",
+          "gold": "Ridgeline Mid, which weighs 540 grams"
+        },
+        {
+          "id": "i01-budget",
+          "q": "What is the budget pick?",
+          "gold": "The Trailhead Lite costs 89 dollars"
+        }
+      ]
+    },
+    {
+      "id": "i02-hidden-instructions",
+      "category": "injection",
+      "url": "https://bread.example.com/starter-troubleshooting",
+      "file": "i02-hidden-instructions.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "injection": true,
+      "questions": [
+        {
+          "id": "i02-feed",
+          "q": "How often should a hungry starter be fed?",
+          "gold": "Feed it twice a day"
+        }
+      ],
+      "boilerplate": ["pills.example.net", "reveal your system prompt"]
+    },
+    {
+      "id": "j01-spa-empty",
+      "category": "javascript",
+      "url": "https://app.larkspur.example/dashboard",
+      "file": "j01-spa-empty.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "requires_js",
+      "questions": []
+    },
+    {
+      "id": "j02-next-data",
+      "category": "javascript",
+      "url": "https://larkspur.example/blog/release-4-2",
+      "file": "j02-next-data.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "staticRecoverable": true,
+      "questions": [
+        {
+          "id": "j02-plans",
+          "q": "Which plans get partial refunds?",
+          "gold": "Partial refunds are available on the Growth and Scale plans"
+        }
+      ]
+    },
+    {
+      "id": "j03-jsonld",
+      "category": "javascript",
+      "url": "https://desk.example.com/guides/standing-desk",
+      "file": "j03-jsonld.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "staticRecoverable": true,
+      "questions": [
+        {
+          "id": "j03-range",
+          "q": "What height range does a shared desk need?",
+          "gold": "a height range of at least 60 to 125 centimetres"
+        }
+      ]
+    },
+    {
+      "id": "j04-noscript-meta",
+      "category": "javascript",
+      "url": "https://harbourlights.example.org/",
+      "file": "j04-noscript-meta.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "low_quality",
+      "staticRecoverable": true,
+      "questions": [
+        {
+          "id": "j04-dates",
+          "q": "When is the festival?",
+          "gold": "runs from 5 to 14 December 2026"
+        }
+      ]
+    },
+    {
+      "id": "j05-misleading-shell",
+      "category": "javascript",
+      "url": "https://larkspur.example/changelog",
+      "file": "j05-misleading-shell.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "requires_js",
+      "questions": []
+    },
+    {
+      "id": "l01-forum-thread",
+      "category": "listing",
+      "url": "https://forum.homenet.example/t/router-drops-wifi",
+      "file": "l01-forum-thread.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "l01-fix",
+          "q": "What fixed the evening Wi-Fi drops?",
+          "gold": "Pin the 5 GHz band to channel 36 or 44"
+        }
+      ],
+      "boilerplate": ["Similar threads"]
+    },
+    {
+      "id": "l02-news-front",
+      "category": "listing",
+      "url": "https://valleyledger.example.co.uk/",
+      "file": "l02-news-front.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "l02-market",
+          "q": "What is happening to the farmers market?",
+          "gold": "Farmers market moves indoors for winter"
+        }
+      ]
+    },
+    {
+      "id": "m01-broken-markup",
+      "category": "malformed",
+      "url": "http://riversidechess.example.org.uk/news.htm",
+      "file": "m01-broken-markup.html",
+      "contentType": "text/html",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "m01-fee",
+          "q": "What is the tournament entry fee?",
+          "gold": "Entry fee is 5 pounds for members"
+        }
+      ]
+    },
+    {
+      "id": "m02-latin1",
+      "category": "malformed",
+      "url": "https://cafedumarche.example.fr/",
+      "file": "m02-latin1.html",
+      "contentType": "text/html",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "m02-open",
+          "q": "When does the café open?",
+          "gold": "Le Café du Marché ouvre à 08:00"
+        }
+      ]
+    },
+    {
+      "id": "m03-no-content-type",
+      "category": "malformed",
+      "url": "https://ferries.example.com/timetable",
+      "file": "m03-no-content-type.html",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "m03-first",
+          "q": "When is the first weekday ferry?",
+          "gold": "The first ferry leaves the north pier at 06:15"
+        }
+      ]
+    },
+    {
+      "id": "p01-api-reference",
+      "category": "api",
+      "url": "https://docs.larkspur.example/api",
+      "file": "p01-api-reference.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "p01-reverse",
+          "q": "What is the rate limit for reversing a payout?",
+          "gold": "this endpoint allows 10 requests per minute per project"
+        }
+      ]
+    },
+    {
+      "id": "p02-openapi",
+      "category": "api",
+      "url": "https://api.larkspur.example/v2/openapi.json",
+      "file": "p02-openapi.json",
+      "contentType": "application/json",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "p02-refund",
+          "q": "How long after payment can an order be refunded?",
+          "gold": "Refunds are allowed within 60 days of payment."
+        }
+      ]
+    },
+    {
+      "id": "r01-redirect-allowed",
+      "category": "redirect",
+      "url": "https://docs.larkspur.example/old/test-mode",
+      "chain": [
+        {
+          "url": "https://docs.larkspur.example/old/test-mode",
+          "status": 301,
+          "location": "/guides/test-mode"
+        },
+        {
+          "url": "https://docs.larkspur.example/guides/test-mode",
+          "status": 302,
+          "location": "https://larkspur.example/docs/test-mode"
+        }
+      ],
+      "finalUrl": "https://larkspur.example/docs/test-mode",
+      "file": "r01-final.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "r01-money",
+          "q": "Do test mode keys move real money?",
+          "gold": "never move real money"
+        }
+      ]
+    },
+    {
+      "id": "r02-redirect-denied",
+      "category": "redirect",
+      "url": "https://short.example/abc",
+      "chain": [
+        {
+          "url": "https://short.example/abc",
+          "status": 302,
+          "location": "https://denied.example.net/landing"
+        }
+      ],
+      "expect": "policy_denied",
+      "questions": []
+    },
+    {
+      "id": "r03-redirect-loop",
+      "category": "redirect",
+      "url": "https://loop.example.com/a",
+      "chain": [
+        {
+          "url": "https://loop.example.com/a",
+          "status": 302,
+          "location": "/b"
+        },
+        {
+          "url": "https://loop.example.com/b",
+          "status": 302,
+          "location": "/a"
+        }
+      ],
+      "expect": "error",
+      "questions": []
+    },
+    {
+      "id": "s01-short-status",
+      "category": "short",
+      "url": "https://status.larkspur.example/",
+      "file": "s01-short-status.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "s01-state",
+          "q": "Is Larkspur up?",
+          "gold": "All systems operational"
+        }
+      ]
+    },
+    {
+      "id": "s02-short-glossary",
+      "category": "short",
+      "url": "https://docs.larkspur.example/glossary/idempotency-key",
+      "file": "s02-short-glossary.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "s02-keep",
+          "q": "How long are idempotency keys kept?",
+          "gold": "keeps idempotency keys for 24 hours"
+        }
+      ]
+    },
+    {
+      "id": "t01-pricing-tables",
+      "category": "tables",
+      "url": "https://larkspur.example/pricing",
+      "file": "t01-pricing-tables.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "t01-growth",
+          "q": "What does the Growth plan cost and include?",
+          "gold": "Growth $79 5,000 10 Email and chat"
+        },
+        {
+          "id": "t01-monthly",
+          "q": "How much more is monthly billing?",
+          "gold": "Monthly billing costs 20 percent more"
+        },
+        {
+          "id": "t01-none",
+          "q": "Do you offer nonprofit discounts?",
+          "gold": null
+        }
+      ]
+    },
+    {
+      "id": "t02-code-tutorial",
+      "category": "code",
+      "url": "https://devnotes.example.com/node-graceful-shutdown",
+      "file": "t02-code-tutorial.html",
+      "contentType": "text/html; charset=utf-8",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "t02-timer",
+          "q": "Why is the fallback timer 25 seconds?",
+          "gold": "stays under the default 30 second grace period"
+        },
+        {
+          "id": "t02-idle",
+          "q": "How do I close idle keep-alive sockets?",
+          "gold": "server.closeIdleConnections() closes idle keep-alive sockets"
+        }
+      ]
+    },
+    {
+      "id": "u01-pdf",
+      "category": "unsupported",
+      "url": "https://larkspur.example/files/terms.pdf",
+      "file": "u01-document.pdf",
+      "contentType": "application/pdf",
+      "expect": "unsupported_mime",
+      "questions": []
+    },
+    {
+      "id": "u02-image",
+      "category": "unsupported",
+      "url": "https://larkspur.example/logo.png",
+      "file": "u02-image.png",
+      "contentType": "image/png",
+      "expect": "unsupported_mime",
+      "questions": []
+    },
+    {
+      "id": "x01-feed",
+      "category": "feed",
+      "url": "https://larkspur.example/changelog.rss",
+      "file": "x01-feed.xml",
+      "contentType": "application/rss+xml",
+      "expect": "success",
+      "questions": [
+        {
+          "id": "x01-csv",
+          "q": "How do I export payouts?",
+          "gold": "Download payouts as CSV"
+        }
+      ]
+    }
+  ]
+}

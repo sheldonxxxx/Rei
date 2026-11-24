@@ -1,0 +1,20 @@
+{
+  "type": "search",
+  "query": { "original": "node 24 release", "more_results_available": true },
+  "web": {
+    "type": "search",
+    "results": [
+      {
+        "title": "Node.js 24.0.0 &amp; npm 11 <strong>released</strong>",
+        "url": "https://nodejs.org/en/blog/release/v24.0.0",
+        "description": "We&#x27;re excited to announce <strong>Node.js 24</strong>.<br>V8 13.6 and npm 11 &lt;3",
+        "page_age": "2025-05-06T12:00:00",
+        "profile": { "name": "Node.js", "url": "https://nodejs.org" }
+      },
+      { "title": "Not http", "url": "javascript:alert(1)", "description": "dropped" },
+      { "title": "With credentials", "url": "https://user:pw@example.com/", "description": "dropped" },
+      { "title": "", "url": "https://github.com/nodejs/node/releases", "description": "Release list" },
+      { "title": "Duplicate", "url": "https://nodejs.org/en/blog/release/v24.0.0", "description": "dropped" }
+    ]
+  }
+}

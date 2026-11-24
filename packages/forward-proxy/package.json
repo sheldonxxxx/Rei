@@ -1,0 +1,17 @@
+{
+  "name": "@rei/forward-proxy",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@rei/logging": "*",
+    "@rei/network": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "version": "0.0.1"
+}

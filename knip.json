@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreDependencies": ["@secretlint/secretlint-rule-preset-recommend"],
+  "ignoreUnresolved": ["^/app/apps/server/src/auth/totp\\.ts$"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "containers/edge/forward.mjs", "tests/e2e/*.mjs"],
+      "project": ["scripts/*.mjs", "tests/**/*.{ts,mjs}"],
+      "vitest": {
+        "entry": ["tests/**/*.test.{ts,mjs}"]
+      }
+    },
+    "apps/cli": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/egress": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/gateway": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/reader": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/server": {
+      "project": ["src/**/*.ts", "test/**/*.ts", "eval/**/*.ts"],
+      "vitest": {
+        "entry": ["test/**/*.test.ts", "eval/**/*.test.ts"]
+      }
+    },
+    "apps/web": {
+      "project": ["src/**/*.{ts,tsx,js,css}"]
+    },
+    "packages/forward-proxy": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/protocol": {
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

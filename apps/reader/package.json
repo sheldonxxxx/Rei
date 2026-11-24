@@ -1,0 +1,23 @@
+{
+  "name": "@rei/reader",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "start": "node src/main.ts",
+    "cli": "node src/cli.ts",
+    "test": "vitest run --project reader"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.11",
+    "@mozilla/readability": "0.6.0",
+    "@rei/forward-proxy": "*",
+    "@rei/logging": "*",
+    "@rei/network": "*",
+    "@rei/protocol": "*",
+    "hono": "4.13.20",
+    "linkedom": "0.18.13"
+  }
+}
