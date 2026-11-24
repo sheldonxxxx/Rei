@@ -14,7 +14,7 @@
 
 FROM node:24-trixie-slim AS node
 
-FROM ghcr.io/astral-sh/uv:0.13.7 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9 AS uv
 
 FROM debian:trixie-slim
 RUN apt-get update \
