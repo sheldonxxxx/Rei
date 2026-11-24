@@ -12,7 +12,7 @@
 # The caches live in /home/agent/.cache, a volume compose mounts there (the rest of the home is a tmpfs), and the
 # directory is created here owned by the agent so a fresh volume starts writable.
 
-FROM node:24-trixie-slim AS node
+FROM node:26-trixie-slim AS node
 
 FROM ghcr.io/astral-sh/uv:0.13.9 AS uv
 
