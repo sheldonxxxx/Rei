@@ -1,6 +1,6 @@
 # Contributing to Rei
 
-Thanks for taking an interest. Rei is a personal project in early development with no roadmap beyond its maintainer's needs, so **please open an issue before you start a larger change**. That saves you from writing a pull request that does not fit. Bug reports, small fixes and ideas you found useful in your own build are always welcome. Forking and adapting Rei for yourself is encouraged.
+Thanks for taking an interest. Rei is a personal project with no roadmap beyond its maintainer's needs, so **please open an issue before you start a larger change**. That saves you from writing a pull request that does not fit. Bug reports, small fixes and ideas you found useful in your own build are always welcome. Forking and adapting Rei for yourself is encouraged.
 
 Security problems go through [private vulnerability reporting](SECURITY.md), not public issues.
 
@@ -43,6 +43,10 @@ Update the docs under `docs/` when you change configuration, behavior or a migra
 
 ## Commits and pull requests
 
+The whole path, from branch to release, is in [docs/workflow.md](docs/workflow.md). In short:
+
+- Work on a branch named `type/topic` (in your fork for outside contributions) and open a pull request against `main`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(web): improve chat controls`, `fix(server): handle session pagination`, `docs: ...`, `test: ...`, `chore: ...`. Keep each commit focused.
+- **The pull request title must be a Conventional Commit header too.** Pull requests are squash-merged, so the title becomes the commit on `main`; the `pr-title` check rejects anything else.
 - Explain the problem, the resulting behavior and how you validated it (commands and results) in the pull request. Link the issue, and add screenshots for visible UI changes. The pull request template asks for exactly this.
-- Keep credentials, `.env` files, SQLite databases and `containers/.secrets/` out of commits.
+- Every required check must pass before a pull request is merged. Keep credentials, `.env` files, SQLite databases and `containers/.secrets/` out of commits.

@@ -6,7 +6,7 @@ Build an inspectable AI agent/bot platform. Simple mode prioritizes clean UI/UX;
 
 ## Project Structure & Module Organization
 
-This repository is a private npm workspace monorepo using TypeScript and ES modules.
+This repository is a public, MIT-licensed npm workspace monorepo using TypeScript and ES modules.
 
 - `apps/server`: Hono control plane, SQLite persistence, agent runtime, memory, and file library; backend tests live in `test/` and `eval/`.
 - `apps/web`: React/Vite frontend; components, state, and colocated tests live in `src/`, and static assets in `public/`.
@@ -60,9 +60,9 @@ Treat production readiness as evidence across code, user behavior, security, and
 
 A passing local quality gate establishes local code and build validation only. It does not establish production readiness on every host, prove real-provider behavior, or mean the app was deployed. State which release checks were actually performed and keep deployment claims separate from local validation.
 
-## Early Development Deployment and End-to-End Testing
+## Local stack and end-to-end testing
 
-This project is still in early development. Deploy and test against a local Docker stack on the developer's own machine. After substantial changes, rebuild and redeploy that stack and run full end-to-end tests in a live browser using the saved development login. This workflow is already authorized for the agent working on this repository: do not ask for additional approval for the redeployment, setup, or testing. Preserve existing app data on routine redeployments; reset volumes only when the user requests a fresh stack. Keep the app bound to loopback and leave unrelated services alone.
+Test substantial changes against a local Docker stack on the developer's own machine before opening the pull request: rebuild and redeploy it, then run end-to-end tests in a live browser with the saved development login. Preserve existing app data on routine redeployments; reset volumes only when the user asks for a fresh stack. Keep the app bound to loopback and leave unrelated services alone.
 
 Store the development login in `containers/.secrets/dev-login.json` (mode `0600`, ignored by Git). Reuse it for login and end-to-end tests; if a fresh stack needs setup, save the newly generated password there. Never put passwords, API keys, or session cookies in source files, test reports, screenshots, or commits. Record the deployed version, tested flows, results, and any environment-dependent gaps.
 
@@ -70,13 +70,19 @@ Machine-specific details of a maintainer's setup (hosts, paths, other services) 
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests with a read-only token and no secrets: `static` (gitleaks and `npm run check:static`), `test` (`npm run test:coverage`), `web` (`npm run build`), `android` (Gradle debug build, unit tests and lint, only for Android-related changes) and `images` (Docker builds of every Compose image, no push, only for image-related changes). It runs the same scripts as `npm run verify`, so a green local `verify` should predict a green run. Keep it that way: add a check as an npm script and call it from the workflow rather than inlining commands. Pin new actions by full commit SHA with the version in a comment, and never use `pull_request_target`. `.github/dependabot.yml` opens weekly grouped update pull requests. See `docs/code-quality.md`.
+`.github/workflows/pr-title.yml` checks that a pull request title is a Conventional Commit header (`pr-title`, re-run when the title is edited). `.github/workflows/ci.yml` runs on pushes to `main` and on pull requests with a read-only token and no secrets: `static` (gitleaks and `npm run check:static`), `test` (`npm run test:coverage`), `web` (`npm run build`), `android` (Gradle debug build, unit tests and lint, only for Android-related changes) and `images` (Docker builds of every Compose image, no push, only for image-related changes). It runs the same scripts as `npm run verify`, so a green local `verify` should predict a green run. Keep it that way: add a check as an npm script and call it from the workflow rather than inlining commands. Pin new actions by full commit SHA with the version in a comment, and never use `pull_request_target`. All of these jobs are required checks on `main`. `.github/dependabot.yml` opens weekly grouped update pull requests; [the workflow](docs/workflow.md#dependency-updates) says how to handle them. See `docs/code-quality.md`.
 
 `.github/workflows/release.yml` runs when a tag `vX.Y.Z` is pushed: it calls `ci.yml`, checks that the tag equals every `package.json` version, passes the `release` environment (which waits for approval only if it has required reviewers), then publishes multi-arch images to GHCR, the signed Android APK and a GitHub Release. Do not push a tag unless the owner asks. The procedure and the owner's one-time setup are in `docs/versioning.md`.
 
-## Commit & Pull Request Guidelines
+## Branches, Commits & Pull Requests
 
-Follow the Conventional Commits style in history, for example `feat(web): improve chat controls` or `fix(server): handle session pagination`. Keep commits focused. PR descriptions should explain the problem, resulting behavior, and validation commands/results; link relevant issues and include screenshots for visible UI changes. Document configuration or migration changes in `docs/`.
+Follow [the development workflow](docs/workflow.md). In short:
+
+- Never commit to `main`; GitHub rejects direct pushes. Work on a short-lived `type/topic` branch, one topic per pull request.
+- Write Conventional Commits, run `npm run verify` before every push, and open a pull request that fills in the template (problem, resulting behavior, validation commands and results, the checks you could not run).
+- The pull request title becomes the squash commit on `main`, so it must be a Conventional Commit header; the required `pr-title` check rejects anything else.
+- Merge your own pull request with `gh pr merge --squash` (or `--squash --auto`) once every required check has passed. Never merge with a failing or pending check, never use an admin bypass, and fix a red `main` before anything else.
+- Never push or move a tag unless the owner asks. Document configuration or migration changes in `docs/`.
 
 ## Security & Configuration
 
