@@ -572,6 +572,14 @@ export function ConnectorDetail({
           setTools(r.tools);
           setToolsError(null);
           setRefreshing(false);
+          // A successful fetch moves a connector out of "error"; pick up the new status.
+          api.getConnectors().then(
+            (list) => {
+              const fresh = list.connectors.find((x) => x.id === id);
+              if (fresh) setConnector((cur) => (cur && cur.status !== fresh.status ? fresh : cur));
+            },
+            () => {},
+          );
         },
         (e) => {
           setTools(null);
@@ -597,7 +605,7 @@ export function ConnectorDetail({
         setConnector(c);
         setName(c.name);
         setTokenHeader(c.tokenHeader ?? "");
-        if (c.status === "connected") loadTools(false);
+        if (c.status === "connected" || c.status === "error") loadTools(false);
         else setToolsError(c.status === "needs_auth" ? "Sign in to see this connector's tools." : null);
       },
       (e) => live && setError(describeError(e)),
@@ -916,7 +924,7 @@ export function ConnectorDetail({
             variant="outline"
             size="sm"
             type="button"
-            disabled={refreshing || connector.status !== "connected"}
+            disabled={refreshing || (connector.status !== "connected" && connector.status !== "error")}
             onClick={() => loadTools(true)}
           >
             <Icon name="reload" size={16} />
