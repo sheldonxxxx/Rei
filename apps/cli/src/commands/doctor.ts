@@ -6,6 +6,7 @@ import { browserSmoke, sandbox } from "../checks/sandbox.ts";
 import { secretRows } from "../checks/secrets.ts";
 import { dnsResult, serviceRows } from "../checks/stack.ts";
 import { storageReach, storageRows, storageTargets } from "../checks/storage.ts";
+import { subnetCheck } from "../checks/subnets.ts";
 import type { Ctx } from "../ctx.ts";
 import type { CheckResult, Row } from "../format.ts";
 import { printRow, row, skip } from "../format.ts";
@@ -40,6 +41,7 @@ export async function doctor(ctx: Ctx, opts: { json: boolean }): Promise<number>
   if (docker.status === "fail") {
     add(row("stack", "the stack", skip("docker is not available, so the stack was not checked")));
   } else {
+    add(await guard("subnets", "subnets", () => subnetCheck(ctx)));
     try {
       add(await serviceRows(ctx));
       add(await guard("dns", "service names", () => dnsResult(ctx)));

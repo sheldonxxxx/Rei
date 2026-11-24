@@ -4,7 +4,7 @@
 // published app port.
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callers } from "./commands/callers.ts";
 import { doctor } from "./commands/doctor.ts";
@@ -19,13 +19,14 @@ import { sources } from "./commands/sources.ts";
 import { status } from "./commands/status.ts";
 import { upgrade } from "./commands/upgrade.ts";
 import type { Ctx, CtxParts, Mode } from "./ctx.ts";
-import { BUILD_OVERLAY, makeCtx } from "./ctx.ts";
+import { BUILD_OVERLAY, makeCtx, secretsPath } from "./ctx.ts";
 import { loadGuide, useGuide } from "./guide.ts";
 import { initSecrets } from "./init.ts";
 import { isInstalled } from "./install.ts";
 import { locate, phrase } from "./layout.ts";
 import { realClock, realHost, realOut, realPrompter } from "./real.ts";
 import { realRunner } from "./runner.ts";
+import { envDir, stackProblem } from "./stack.ts";
 import { updateNotice } from "./update-check.ts";
 import { cliVersion } from "./version.ts";
 
@@ -111,7 +112,9 @@ async function main(argv: string[]): Promise<number> {
   const here = dirname(fileURLToPath(import.meta.url));
   const layout = locate(here, process.env, homedir(), existsSync);
   const mode: Mode = existsSync(join(layout.containersDir, BUILD_OVERLAY)) ? "source" : "image";
-  const say = (text: string): string => phrase(text, mode, layout.containersDir, homedir());
+  // REI_ENV_DIR picks the stack: its .env and .secrets/ (default: next to the compose files).
+  const stackDir = envDir(process.env, layout.containersDir, process.cwd(), homedir());
+  const say = (text: string): string => phrase(text, mode, layout.containersDir, homedir(), stackDir);
   const version = cliVersion(mode === "source" ? layout.root : here);
   const basic = argv.includes("--basic");
   const [command, ...flags] = argv.filter((arg) => arg !== "--basic");
@@ -131,6 +134,7 @@ async function main(argv: string[]): Promise<number> {
     ...p,
     root: layout.root,
     containersDir: layout.containersDir,
+    envDir: stackDir,
     ...(layout.assetsDir ? { assetsDir: layout.assetsDir } : {}),
     version,
     runner: realRunner(),
@@ -148,11 +152,18 @@ async function main(argv: string[]): Promise<number> {
     );
     return true;
   };
+  // A second stack beside the first must not collide with it: refused before any compose call.
+  const refused = (ctx: Ctx): boolean => {
+    const problem = stackProblem(ctx.env);
+    if (problem) console.error(`rei: ${problem} (${join(ctx.envDir, ".env")}).`);
+    return problem !== undefined;
+  };
   // Passed to the gateway's own CLI as they are: its options are its own, and it answers on the terminal.
   // `import` reads an export here and talks to the app's HTTP API; its options are its own too.
   if (command === "callers" || command === "sources" || command === "reader" || command === "import") {
     if (notSetUp()) return 1;
     const ctx = makeCtx(parts({ out: realOut(), prompter: realPrompter() }));
+    if (refused(ctx)) return 2;
     if (command === "reader") return reader(ctx, flags);
     if (command === "import") return importCommand(ctx, flags);
     return command === "callers" ? callers(ctx, flags) : sources(ctx, flags);
@@ -192,6 +203,7 @@ async function main(argv: string[]): Promise<number> {
       prompter: guided?.prompter ?? realPrompter(),
     }),
   );
+  if (refused(ctx)) return 2;
   const has = (flag: string) => flags.includes(flag);
   const code = await run(ctx, command, has);
   // Once a day, an npm installation may say that a newer rei-ai exists. Never on --json output.
@@ -205,8 +217,7 @@ async function main(argv: string[]): Promise<number> {
 async function run(ctx: Ctx, command: string, has: (flag: string) => boolean): Promise<number> {
   switch (command) {
     case "start":
-      if (!ctx.host.stat(resolve(ctx.containersDir, ".secrets", "secrets.env")))
-        return setup(ctx, { nonInteractive: true, skipBuild: false });
+      if (!ctx.host.stat(secretsPath(ctx))) return setup(ctx, { nonInteractive: true, skipBuild: false });
       return lifecycle(ctx, command);
     case "stop":
     case "restart":

@@ -5,11 +5,11 @@
 #   containers/smoke-gateway-shared/run.sh --model <id>   also one small model call, with no upstream header
 # It creates a caller named smoke-<random>, calls the shared listener from a throwaway container on the shared network,
 # and revokes the caller when it ends. The token goes to that container in its environment and is never printed.
-# Prints PASS/FAIL lines only. Exit status 1 if anything failed. REI_PROJECT=<name> targets another compose project.
+# Prints PASS/FAIL lines only. Exit status 1 if anything failed. REI_ENV_DIR, REI_PROJECT and REI_NET pick
+# the stack the way ./rei does (../stack-env.sh); the shared network is <REI_PROJECT>-gateway-shared.
 set -uo pipefail
+source "$(dirname "$0")/../stack-env.sh"
 cd "$(dirname "$0")/.."
-shared=(docker compose --env-file .env --env-file .secrets/secrets.env -f compose.dodai.yaml)
-[[ -n ${REI_PROJECT:-} ]] && shared+=(-p "$REI_PROJECT-dodai")
 model=""
 [[ ${1:-} == --model ]] && model=${2:-}
 failures=0
@@ -30,7 +30,7 @@ report "a caller can be created" "$([[ $token == gw."$caller".* ]] && echo ok)"
 trap 'callers revoke "$caller" >/dev/null' EXIT
 
 # One line per check from inside the shared network: "<name> <observed>".
-out=$(docker run --rm --network rei-gateway-shared -e SMOKE_TOKEN="$token" -e SMOKE_MODEL="$model" \
+out=$(docker run --rm --network "$project-gateway-shared" -e SMOKE_TOKEN="$token" -e SMOKE_MODEL="$model" \
   -v "$PWD/smoke-gateway-shared/probe.mjs:/probe.mjs:ro" --entrypoint node "$image" /probe.mjs 2>&1)
 expect() { # description, check name, expected value
   local seen
@@ -50,7 +50,7 @@ expect "a provider that is not connected has no upstream (400 missing_upstream)"
 [[ -n $model ]] && expect "a Responses request to $model with no upstream header is answered" model 200
 
 callers set "$caller" --search 0 >/dev/null
-out=$(docker run --rm --network rei-gateway-shared -e SMOKE_TOKEN="$token" -e SMOKE_ONLY=search \
+out=$(docker run --rm --network "$project-gateway-shared" -e SMOKE_TOKEN="$token" -e SMOKE_ONLY=search \
   -v "$PWD/smoke-gateway-shared/probe.mjs:/probe.mjs:ro" --entrypoint node "$image" /probe.mjs 2>&1)
 expect "a budget of 0 turns search off for the caller (403)" search 403
 
@@ -59,7 +59,7 @@ report "the caller's calls are recorded under its name" "$([[ $usage == *"$calle
 
 callers revoke "$caller" >/dev/null
 trap - EXIT
-out=$(docker run --rm --network rei-gateway-shared -e SMOKE_TOKEN="$token" -e SMOKE_ONLY=search \
+out=$(docker run --rm --network "$project-gateway-shared" -e SMOKE_TOKEN="$token" -e SMOKE_ONLY=search \
   -v "$PWD/smoke-gateway-shared/probe.mjs:/probe.mjs:ro" --entrypoint node "$image" /probe.mjs 2>&1)
 expect "a revoked token is refused" search 401
 

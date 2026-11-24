@@ -77,6 +77,9 @@ export interface StackOptions {
   dodaiOwnedVolumes?: string[];
   /** rei-storage-shared does not exist. */
   noSharedNetwork?: boolean;
+  /** Docker's networks as `docker network inspect -f '{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}'` prints them
+   * (one per line); default none. */
+  networks?: string;
 }
 
 interface Row {
@@ -187,8 +190,22 @@ export class FakeStack implements Runner {
         return done("", 1, `Error: No such volume: ${name}`);
       return done(this.o.dodaiOwnedVolumes?.includes(name) ? "dodai\n" : "rei\n");
     }
-    if (args[0] === "network" && args[1] === "inspect")
+    if (args[0] === "network" && args[1] === "ls")
+      return done(
+        (this.o.networks ?? "")
+          .split("\n")
+          .filter(Boolean)
+          .map((_, i) => `net${i}\n`)
+          .join(""),
+      );
+    if (args[0] === "network" && args[1] === "inspect" && args[2] === "-f") {
+      this.calls.push(`network inspect ${args.slice(4).join(" ")}`);
+      return done(this.o.networks ?? "");
+    }
+    if (args[0] === "network" && args[1] === "inspect") {
+      this.calls.push(`network inspect ${args.slice(2).join(" ")}`);
       return this.o.noSharedNetwork ? done("", 1, "Error: No such network") : done("[]");
+    }
     if (args[0] === "network" && args[1] === "rm") {
       this.calls.push(`network rm ${args.slice(2).join(" ")}`);
       return done();
@@ -454,6 +471,10 @@ export interface RigOptions extends StackOptions {
   registry?: string;
   /** Answer specific confirmations differently (matched by a substring of the question). */
   confirms?: { match: string; answer: boolean }[];
+  /** REI_ENV_DIR, already expanded (main.ts does that). */
+  envDir?: string;
+  /** Files written before the context is made (path to text, mode 0644). */
+  files?: Record<string, string>;
 }
 
 /** REI_HOME of an npm installation in the image-mode rig. */
@@ -504,9 +525,11 @@ export function makeRig(o: RigOptions = {}): Rig {
       return Response.json({ setupRequired: o.setupRequired ?? false, signedIn: false });
     return new Response("nope", { status: 404 });
   }) as typeof fetch;
+  for (const [path, text] of Object.entries(o.files ?? {})) host.files.set(path, { text, mode: 0o644 });
   const ctx = makeCtx({
     root: o.image ? HOME_REI : ROOT,
     ...(o.image ? { containersDir: HOME_REI, assetsDir: ASSETS } : {}),
+    ...(o.envDir ? { envDir: o.envDir } : {}),
     version,
     runner: stack,
     out,

@@ -1,6 +1,7 @@
 # Source mode: Rei's images built from this checkout. compose.yaml names the published images
 # (${REI_IMAGES:-ghcr.io/sheldonxxxx}/rei-<name>); this overlay, loaded after it, builds them from the repository instead
-# and tags them rei/<name>:dev. ./rei always loads it in a checkout. An npm installation (rei-ai) ships without it, which
+# and tags them <REI_PROJECT or rei>/<name>:dev, so a second stack (REI_PROJECT) never replaces the first one's images.
+# ./rei always loads it in a checkout. An npm installation (rei-ai) ships without it, which
 # is how the CLI tells the two modes apart. By hand, from the repository root:
 #   docker compose --env-file containers/.env --env-file containers/.secrets/secrets.env \
 #     -f containers/compose.yaml -f containers/compose.build.yaml up -d --build
@@ -8,21 +9,21 @@
 # needs an entry here (tests/quality/compose-overlay.test.mjs checks it). Paths are relative to this directory.
 services:
   control:
-    image: rei/control:dev
+    image: "${REI_PROJECT:-rei}/control:dev"
     build: { context: .., dockerfile: containers/control/Dockerfile }
   # The edge runs the control image with another command.
   edge:
-    image: rei/control:dev
+    image: "${REI_PROJECT:-rei}/control:dev"
   exec:
-    image: rei/exec:dev
+    image: "${REI_PROJECT:-rei}/exec:dev"
     build: { context: .., dockerfile: containers/exec/Dockerfile }
   # The same image as exec; it makes the sandbox's ssh keys once.
   exec-keys:
-    image: rei/exec:dev
+    image: "${REI_PROJECT:-rei}/exec:dev"
     build: { context: .., dockerfile: containers/exec/Dockerfile }
   egress:
-    image: rei/egress:dev
+    image: "${REI_PROJECT:-rei}/egress:dev"
     build: { context: .., dockerfile: containers/egress/Dockerfile }
   browser:
-    image: rei/browser:dev
+    image: "${REI_PROJECT:-rei}/browser:dev"
     build: { context: ./browser }

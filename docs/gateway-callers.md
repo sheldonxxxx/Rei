@@ -86,6 +86,8 @@ networks:
 
 The network has no route out and reaches nothing of Rei's except the gateway's shared listener. The gateway must be up before the other project starts.
 
+The names are the default stack's. [A second stack on the same machine](installation.md#a-second-stack-on-one-machine) prefixes its networks with its own `REI_PROJECT`: a caller of that stack joins `<REI_PROJECT>-gateway-shared` (and `<REI_PROJECT>-storage-shared` for storage) and is signed up with that stack's CLI (`REI_ENV_DIR=… ./rei callers …`). The alias `rei-gateway` and the address `http://rei-gateway:8781` are the same on both, because each stack's network is its own.
+
 Send the token as `Authorization: Bearer <token>` on every call.
 
 | Route                                 | Scope        | What it is                                                                 |

@@ -62,7 +62,7 @@ Setup asks no questions and never downloads a model. If a step fails, follow the
 
 After setup, control the services with `./rei start`, `./rei stop`, and `./rei restart`. These commands use the current Compose configuration; stopping Rei preserves its containers, data volumes, and secrets. The gateway runs as a separate Compose project so that other services can use it (see [Gateway callers](gateway-callers.md)): `start` starts it first, while `stop` and `restart` leave it running unless you add `--all`.
 
-A checkout always loads the build overlays (`containers/compose.build.yaml` and `containers/compose.dodai.build.yaml`) after the base compose files, so its images are built locally and tagged `rei/<name>:dev`. The base files alone name the published images, as an npm installation uses them.
+A checkout always loads the build overlays (`containers/compose.build.yaml` and `containers/compose.dodai.build.yaml`) after the base compose files, so its images are built locally and tagged `rei/<name>:dev` (`<REI_PROJECT>/<name>:dev` for [a second stack](#a-second-stack-on-one-machine)). The base files alone name the published images, as an npm installation uses them.
 
 To rebuild the web app and all Rei-built Compose images from the current checkout, then recreate the services, run:
 
@@ -79,6 +79,48 @@ REI_PUBLISH=127.0.0.1:8788
 ```
 
 A new installation starts with an empty database. A later release upgrades it in place on its first start, from at least the previous minor release; Rei refuses a database that is too old or was written by a newer release, and changes nothing (see [Database upgrades](versioning.md#database-upgrades)). Take a backup before upgrading ([Backup and recovery](storage.md#backup-and-recovery)).
+
+### A second stack on one machine
+
+A checkout can run a second Rei beside the first, for example to try a branch against real providers while the first stack keeps serving you. The second stack is a full copy, fully isolated: its own Rei project and **its own Dodai** (gateway, reader, Garage and Qdrant), its own provider sign-ins and caller tokens, its own storage volumes, its own account and data. Nothing is shared with the first stack, on purpose: Dodai's admin routes hold the model providers' sign-ins and the MCP connectors, so a second Rei on the first stack's gateway would act with the first stack's credentials and see its connectors.
+
+Three variables select the stack. Put them in a `.env` of its own, in a directory of its own:
+
+| Variable | Default | What it sets |
+| --- | --- | --- |
+| `REI_PROJECT` | `rei` | Rei's Compose project; Dodai's is `<REI_PROJECT>-dodai`. Also the prefix of the volumes (`<REI_PROJECT>_gateway-data`, …), Dodai's networks (`<REI_PROJECT>-gateway-shared`, `<REI_PROJECT>-storage-shared`, …) and the images a checkout builds (`<REI_PROJECT>/control:dev`, …). |
+| `REI_NET` | `10.89` | The first two octets of every fixed subnet and address: the stack uses `<REI_NET>.231.0/24` to `<REI_NET>.238.0/24`. |
+| `REI_PUBLISH` | `127.0.0.1:8787` | The address the app is published on. |
+
+`REI_ENV_DIR` tells `./rei` (and the smoke scripts) which directory holds that `.env` and the stack's `.secrets/secrets.env`; it defaults to `containers/` (to `REI_HOME` in an npm installation). A relative path is taken from the current directory and `~` is your home directory. `./rei` reads `REI_PROJECT`, `REI_NET` and `REI_PUBLISH` from that `.env`, so setting `REI_ENV_DIR` alone selects the whole stack; the same variables in the environment win over the file.
+
+```dotenv
+# ~/.rei-test/.env
+REI_PROJECT=rei-test
+REI_NET=10.90
+REI_PUBLISH=127.0.0.1:8788
+REI_COOKIE_SECURE=0
+REI_TZ=Europe/Berlin
+```
+
+```sh
+REI_ENV_DIR=~/.rei-test ./rei setup
+REI_ENV_DIR=~/.rei-test ./rei doctor
+REI_ENV_DIR=~/.rei-test containers/smoke-exec.sh
+```
+
+Use `REI_ENV_DIR` with every command for that stack. `./rei` refuses a `REI_PROJECT` other than `rei` while `REI_NET` is unset or `10.89`, because the two stacks' subnets would collide, and `./rei doctor` warns when another Docker network already uses the stack's subnets. Pick a `REI_NET` that no other network on the machine uses. Setup makes the second stack's secrets and volumes, and prints its own setup code; sign in to the model providers again in its web app (**Settings → Providers**). Other projects that call the second stack's gateway or storage join `<REI_PROJECT>-gateway-shared` or `<REI_PROJECT>-storage-shared`.
+
+To remove only the second stack, take both of its projects down and delete its volumes by name (its data, sign-ins and storage go with them):
+
+```sh
+e=(--env-file ~/.rei-test/.env --env-file ~/.rei-test/.secrets/secrets.env)
+docker compose "${e[@]}" -f containers/compose.yaml -f containers/compose.build.yaml -p rei-test down
+docker compose "${e[@]}" -f containers/compose.dodai.yaml -f containers/compose.dodai.build.yaml -p rei-test-dodai down
+docker volume ls -q --filter name=rei-test_ | xargs docker volume rm
+```
+
+The first stack's projects, networks and volumes carry no `rei-test` prefix, so none of this touches them.
 
 ## Create your account
 

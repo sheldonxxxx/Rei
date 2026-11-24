@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { composeVersion, disk, dockerDaemon, nodeVersion, publishPort } from "../checks/preflight.ts";
 import { sandbox } from "../checks/sandbox.ts";
 import { dnsResult, judge } from "../checks/stack.ts";
+import { subnetCheck } from "../checks/subnets.ts";
 import type { Ctx } from "../ctx.ts";
 import {
   composeFor,
@@ -65,6 +66,7 @@ export async function setup(ctx: Ctx, o: SetupOptions): Promise<number> {
   if (!report("node", "node", nodeVersion(ctx))) return stop();
   report("disk", "disk", disk(ctx));
   if (!report("port", "published port", await publishPort(ctx))) return stop();
+  report("subnets", "subnets", await subnetCheck(ctx));
 
   const image = ctx.mode === "image";
   if (image && !report("files", "installation files", files(ctx))) return stop();

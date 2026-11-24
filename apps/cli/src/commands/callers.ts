@@ -3,6 +3,7 @@
 // so a new token is shown once and never held or logged here. `--storage` adds the other side: the caller's own Garage
 // bucket and key (storage/garage.ts), for a caller that needs object storage. The gateway still knows nothing of it.
 import type { Ctx } from "../ctx.ts";
+import { networkName } from "../ctx.ts";
 import type { StorageGrant, StorageInfo } from "../storage/garage.ts";
 import { bucketOf, GarageAdmin, StorageError, validateStorageId } from "../storage/garage.ts";
 
@@ -43,7 +44,7 @@ async function gatewayState(ctx: Ctx, id: string): Promise<"active" | "revoked" 
 
 export function printGrant(ctx: Ctx, id: string, g: StorageGrant): void {
   ctx.out.line();
-  ctx.out.line(`Storage for ${id} (network rei-storage-shared, external)`);
+  ctx.out.line(`Storage for ${id} (network ${networkName(ctx, "storage-shared")}, external)`);
   ctx.out.line(`  S3        ${S3}  region garage  path-style  bucket ${g.bucket}`);
   ctx.out.line(`  key id    ${g.keyId}`);
   if (g.secret) ctx.out.line(`  secret    ${g.secret}   (shown once)`);

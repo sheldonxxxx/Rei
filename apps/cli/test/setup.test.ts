@@ -84,7 +84,9 @@ describe("setup", () => {
     expect(rig.clock.t - before).toBeGreaterThanOrEqual(180_000);
     expect(rig.out.text).toMatch(/FAIL {1}services healthy +not healthy after 180 s: gateway \(running, unhealthy\)/);
     // In a checkout the fix names the build overlay too, so a command copied from it builds rather than pulls.
-    expect(rig.out.text).toContain(`docker compose -f ${SHARED} -f ${SHARED_BUILD} logs gateway`);
+    expect(rig.out.text).toContain(
+      `docker compose --env-file ${ROOT}/containers/.env --env-file ${ROOT}/containers/.secrets/secrets.env -f ${SHARED} -f ${SHARED_BUILD} logs gateway`,
+    );
     expect(rig.out.text).toContain("Setup stopped");
     expect(major(rig)).not.toContain("smoke-exec.sh");
   });
