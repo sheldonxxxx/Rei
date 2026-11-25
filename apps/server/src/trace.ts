@@ -14,6 +14,7 @@ import type {
   WebFetchDetails,
 } from "@rei/protocol";
 import type { BlobStore } from "./blobs/blob-store.ts";
+import { inputAnsweredBy } from "./conversation/runs.ts";
 import { mapModelError } from "./pi/errors.ts";
 import { providerDisplayName } from "./providers/names.ts";
 import { approvalWaitTimes } from "./store/approvals.ts";
@@ -197,7 +198,8 @@ export function sessionTrace(
     const approvalWaitMs = Math.min(Math.max(0, durationMs ?? 0), waitTimes.get(r.id) ?? 0);
     return {
       run: toRun(r),
-      triggerMessageId: r.kind === "input" ? r.user_message_id : null,
+      // A continue has no input of its own: it belongs under the message whose reply it went on with.
+      triggerMessageId: (r.kind === "input" ? r : inputAnsweredBy(everyRun, r))?.user_message_id ?? null,
       ...(r.status === "failed" && continuedRuns.has(r.id) ? { continued: true as const } : {}),
       steps: list,
       totals: {

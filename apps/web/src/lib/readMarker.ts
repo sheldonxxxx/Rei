@@ -27,7 +27,7 @@ function useDocumentVisible(): boolean {
 /**
  * Moves the session's read marker (shared by every device) to the newest item once the end of the chat is actually on
  * screen: `onScreen` while the reader is at the bottom of the chat, and the tab is visible. Only when the session has
- * unread entries, and once per item; a failure is retried on the next change.
+ * unread entries, and once per item and time; a failure is retried on the next change.
  */
 export function useReadMarker(
   api: Pick<Api, "markRead">,
@@ -44,7 +44,8 @@ export function useReadMarker(
   const targetAt = target?.createdAt;
   useEffect(() => {
     if (!sessionId || !onScreen || !visible || unread === 0 || !targetId || targetAt === undefined) return;
-    const key = `${sessionId}:${targetId}`;
+    // The time too: a Continue writes into the same reply, which is then newer and unread again.
+    const key = `${sessionId}:${targetId}:${targetAt}`;
     if (sent.current === key) return;
     sent.current = key;
     api.markRead(sessionId, { itemId: targetId, at: targetAt }).catch(() => {

@@ -187,6 +187,34 @@ export function currentRun(runs: Iterable<RunRow>): RunRow | undefined {
   return best;
 }
 
+/**
+ * The input run whose reply a Continue run goes on with: the one placed last at or before the entry it continued
+ * after. The chat shows the Continue's answer as that input's reply.
+ */
+export function inputAnsweredBy(runs: Iterable<RunRow>, continued: RunRow): RunRow | undefined {
+  if (continued.entry_id === null) return undefined;
+  const after = Number(continued.entry_id);
+  let best: RunRow | undefined;
+  for (const run of runs) {
+    if (run.kind !== "input" || run.entry_id === null) continue;
+    const at = Number(run.entry_id);
+    if (at <= after && (!best || at > Number(best.entry_id))) best = run;
+  }
+  return best;
+}
+
+/**
+ * The chat that assigned the work a Continue would take up again: the assignment of the newest failed runs. A failed
+ * run reports to nobody, so the Continue run carries the assignment and reports when it completes.
+ */
+export function unfinishedAssignment(runs: readonly RunRow[]): string | undefined {
+  for (let i = runs.length - 1; i >= 0 && runs[i]!.status === "failed"; i--) {
+    const by = runs[i]!.assigned_by;
+    if (by) return by;
+  }
+  return undefined;
+}
+
 /** A run whose input waits in Rei's outbox for admission (it is queued until Pi has it). */
 export function outboxRun(input: {
   runId: string;
