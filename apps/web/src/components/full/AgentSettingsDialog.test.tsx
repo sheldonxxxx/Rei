@@ -51,9 +51,9 @@ it("saves a changed sandbox network mode", async () => {
   await waitFor(() => expect(update).toHaveBeenCalledWith(expect.any(String), { networkMode: "any" }));
 });
 
-it("opts in to creating triggers for other agents", async () => {
+it("opts in to managing triggers for other agents", async () => {
   const update = setup();
-  const permission = screen.getByRole("switch", { name: "Create triggers for other agents" });
+  const permission = screen.getByRole("switch", { name: "Manage triggers for other agents" });
   expect(permission.getAttribute("aria-checked")).toBe("false");
   fireEvent.click(permission);
   expect(permission.getAttribute("aria-checked")).toBe("true");

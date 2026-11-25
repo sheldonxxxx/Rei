@@ -28,7 +28,6 @@
     "apps/server/src/pi/instrument.ts:lint/suspicious/noExplicitAny:d22adb4d6e596efe045f0df4": 1,
     "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:b2bf4f58cc06a2c1e530ef2d": 2,
     "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:e9e195af81167f00e8d76b50": 2,
-    "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:73de17225a80a2c9cbb49ec7": 2,
     "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:bc42e883c631844360c98d1a": 2,
     "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:cd3a44aa2f7286955221d722": 2,
     "apps/server/src/pi/policy-ext.ts:lint/suspicious/noExplicitAny:fdef299449b6ba51bc2e952e": 2,

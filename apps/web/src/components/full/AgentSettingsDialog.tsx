@@ -292,9 +292,9 @@ export function AgentSettingsDialog({ agent, mode = "agent", api, onClose, onCha
           {mode === "agent" && (
             <Field orientation="horizontal" className="items-center justify-between gap-4">
               <FieldContent>
-                <Label htmlFor={triggerPermissionId}>Create triggers for other agents</Label>
+                <Label htmlFor={triggerPermissionId}>Manage triggers for other agents</Label>
                 <FieldDescription id={triggerPermissionHelpId}>
-                  Let this agent set up scheduled or event-driven work for another agent to run.
+                  Let this agent create, change, pause and delete the triggers that other agents run.
                 </FieldDescription>
               </FieldContent>
               <Switch

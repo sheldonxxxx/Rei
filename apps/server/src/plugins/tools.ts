@@ -87,7 +87,8 @@ export function createPluginsExtension(deps: {
         pluginConfiguration: true,
         connector: "plugins",
         operation: op,
-        summary: (args) => `${op === "create" ? "Create" : "Update"} plugin ${String(args.package?.name ?? "")}`,
+        summary: (args: { package?: { name?: unknown } }) =>
+          `${op === "create" ? "Create" : "Update"} plugin ${String(args.package?.name ?? "")}`,
         preview: (args, _facts, session): PluginPreview => {
           if (op === "update" && !plugins.visible(String(args.plugin), session.agent_id))
             throw new Invalid("That plugin is unavailable.");

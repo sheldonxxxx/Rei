@@ -42,7 +42,7 @@ export interface Agent {
   defaultProfile: ProfileName;
   /** Null or omitted allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
-  /** Whether this agent can create triggers assigned to another agent. Defaults to false. */
+  /** Whether this agent can create, change, pause and delete the triggers of other agents. Defaults to false. */
   canCreateTriggersForOtherAgents?: boolean;
   /** The agent's pinned home chat (the "Dot"). */
   homeSessionId: SessionId;
