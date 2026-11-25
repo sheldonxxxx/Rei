@@ -580,7 +580,8 @@ describe("Immediate durable cadence and lifecycle", () => {
   it("bounds concurrency and pending work, lets new user turns complete, aborts and settles on shutdown", async () => {
     const f = fixture();
     const mock = await scripted(async (_context, _n, signal) => {
-      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+      // The worker can be stopped before the fake provider gets here, and an aborted signal never fires again.
+      if (!signal.aborted) await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
       return { ...assistant([]), stopReason: "aborted" };
     });
     const worker = new MemoryMaintainer({ ...deps(f, mock.runtime), cadence: 1 });
