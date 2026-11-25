@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -124,7 +125,8 @@ class ChatCatalogRepositoryTest {
             withTimeout(5_000) { session.state.first { it.signedIn } }
 
             // Start a slow refreshChats() that blocks on releaseList.
-            catalog.refreshChats()
+            // Dispatch the UI action on main, where the catalog processes the sign-in first.
+            withContext(mainThread) { catalog.refreshChats() }
             assertTrue(listStarted.await(5, TimeUnit.SECONDS))
 
             // newChat() must proceed without waiting for refreshChats() to finish.
@@ -163,7 +165,7 @@ class ChatCatalogRepositoryTest {
 
             session.restore()
             withTimeout(5_000) { session.state.first { it.signedIn } }
-            catalog.openChat("chat-1")
+            withContext(mainThread) { catalog.openChat("chat-1") }
             withTimeout(5_000) { catalog.state.first { it.sessionId == "chat-1" } }
             assertEquals("chat-1", prefs.getString("last:$url", null))
 
