@@ -16,8 +16,11 @@ export const HOME_COMPACTION_FOCUS =
 
 export const IDLE_COMPACTION_FOCUS = `${HOME_COMPACTION_FOCUS} Preserve the wording of recent human decisions and requests that fall outside the verbatim window.`;
 
-/** A crossed Home budget survives a restart while the conversation is still busy. */
-export const HomeBudgetCompactionDoc = defineDoc<{ pending?: true }>({
+/**
+ * A crossed Home budget survives a restart while the conversation is still busy. `head` is the newest summary or reset
+ * entry when the crossing was measured (0: none). A later one replaces the context that was measured.
+ */
+export const HomeBudgetCompactionDoc = defineDoc<{ pending?: true; head?: number }>({
   kind: "rei.home-budget-compaction",
   version: 1,
   scope: "conversation",
