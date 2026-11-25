@@ -162,6 +162,7 @@ type TokenAuthentication = Pick<ConnectorRecord, "auth" | "token" | "tokenHeader
 const tokenAuthentication = ({ auth, token, tokenHeader }: ConnectorRecord) => ({ auth, token, tokenHeader });
 const sameTokenAuthentication = (a: TokenAuthentication, b: TokenAuthentication) =>
   a.auth === b.auth && a.token === b.token && a.tokenHeader === b.tokenHeader;
+type ToolCatalog = { tools: McpToolInfo[]; fetchedAt: number };
 
 export function createConnectorService(deps: ConnectorServiceDeps) {
   const { redactor, now } = deps;
@@ -171,6 +172,7 @@ export function createConnectorService(deps: ConnectorServiceDeps) {
     { authentication: TokenAuthentication; tools: McpToolInfo[]; fetchedAt: number; expiresAt: number }
   >();
   const refreshing = new Map<string, Promise<void>>();
+  const listing = new Map<string, { connector: ConnectorRecord; result: Promise<ToolCatalog> }>();
   const safe = (text: string) => redactor.redact(text).slice(0, 500);
   /** The provider's structured content, with every string (and key) redacted as the text is: scripts read it directly. */
   const redactValue = (value: unknown): unknown => {
@@ -204,6 +206,7 @@ export function createConnectorService(deps: ConnectorServiceDeps) {
       const rec = state.connectors[id];
       if (!rec) return cur;
       result = fn(rec);
+      if (result === rec) return cur;
       redactor.add(...secretsOf(result));
       return { connectors: { ...state.connectors, [id]: result } };
     });
@@ -614,7 +617,7 @@ export function createConnectorService(deps: ConnectorServiceDeps) {
   }
 
   /** Lists the tools (fresh from the server) and keeps them for the cache. */
-  async function fetchTools(rec: ConnectorRecord): Promise<{ tools: McpToolInfo[]; fetchedAt: number }> {
+  async function fetchTools(rec: ConnectorRecord): Promise<ToolCatalog> {
     const listed = await withClient(rec, async (client) => {
       const result = await client.listTools(undefined, { cacheMode: "bypass", timeout: CONNECT_TIMEOUT_MS });
       const ttl = (result as { ttlMs?: unknown }).ttlMs;
@@ -622,40 +625,82 @@ export function createConnectorService(deps: ConnectorServiceDeps) {
     });
     const tools = listed.tools.map(toToolInfo);
     const fetchedAt = now();
-    toolCache.set(rec.id, {
-      authentication: tokenAuthentication(rec),
-      tools,
-      fetchedAt,
-      expiresAt: fetchedAt + listed.ttlMs,
+    await update(rec.id, (r) => {
+      if (listing.get(rec.id)?.connector !== rec || !sameTokenAuthentication(r, rec)) return r;
+      if (rec.status !== "needs_auth" && r.status === "needs_auth") return r;
+      toolCache.set(rec.id, {
+        authentication: tokenAuthentication(rec),
+        tools,
+        fetchedAt,
+        expiresAt: fetchedAt + listed.ttlMs,
+      });
+      if (r.status === "connected" && r.toolCount === tools.length) return r;
+      return {
+        ...r,
+        toolCount: tools.length,
+        ...(r.status === "error" ? { status: "connected" as const, error: null } : {}),
+      };
     });
-    await update(rec.id, (r) =>
-      sameTokenAuthentication(r, rec)
-        ? {
-            ...r,
-            toolCount: tools.length,
-            ...(r.status === "connected" || r.status === "error" ? { status: "connected" as const, error: null } : {}),
-          }
-        : r,
-    );
     return { tools, fetchedAt };
   }
 
-  async function tools(id: string, refreshCache: boolean): Promise<{ tools: McpToolInfo[]; fetchedAt: number }> {
+  async function tools(id: string, refreshCache: boolean): Promise<ToolCatalog> {
     const rec = await get(id);
-    const hit = toolCache.get(id);
-    if (!refreshCache && hit && hit.expiresAt > now() && sameTokenAuthentication(hit.authentication, rec))
-      return { tools: hit.tools, fetchedAt: hit.fetchedAt };
     if (rec.auth === "oauth" && (!rec.oauth?.tokens || rec.status === "needs_auth"))
       throw new HttpError(409, "needs_auth", rec.error ?? "Sign in to this connector first.");
-    try {
-      return await fetchTools(rec);
-    } catch (cause) {
-      if (cause instanceof HttpError && cause.code !== "needs_auth")
-        await update(id, (r) =>
-          sameTokenAuthentication(r, rec) ? { ...r, status: "error", error: cause.message } : r,
-        );
-      throw cause;
-    }
+    const hit = toolCache.get(id);
+    if (
+      !refreshCache &&
+      rec.status === "connected" &&
+      hit &&
+      hit.expiresAt > now() &&
+      sameTokenAuthentication(hit.authentication, rec)
+    )
+      return { tools: hit.tools, fetchedAt: hit.fetchedAt };
+    return listFreshTools(rec);
+  }
+
+  function listFreshTools(rec: ConnectorRecord): Promise<ToolCatalog> {
+    const { id } = rec;
+    const current = listing.get(id);
+    if (
+      current &&
+      sameTokenAuthentication(current.connector, rec) &&
+      current.connector.oauth?.tokens?.accessToken === rec.oauth?.tokens?.accessToken
+    )
+      return current.result;
+    const result = fetchTools(rec)
+      .catch(async (cause: unknown) => {
+        if (cause instanceof HttpError && cause.code !== "needs_auth")
+          await update(id, (r) =>
+            listing.get(id)?.connector === rec &&
+            sameTokenAuthentication(r, rec) &&
+            r.status === rec.status &&
+            r.status !== "needs_auth" &&
+            (r.status !== "error" || r.error !== cause.message)
+              ? { ...r, status: "error", error: cause.message }
+              : r,
+          );
+        throw cause;
+      })
+      .finally(() => {
+        if (listing.get(id)?.result === result) listing.delete(id);
+      });
+    listing.set(id, { connector: rec, result });
+    return result;
+  }
+
+  async function recover(): Promise<void> {
+    const { connectors } = await load();
+    await Promise.all(
+      Object.values(connectors)
+        .filter((rec) => rec.status === "error" && !listing.has(rec.id) && (rec.auth !== "oauth" || rec.oauth?.tokens))
+        .map((rec) =>
+          listFreshTools(rec).catch((cause: unknown) => {
+            if (!(cause instanceof HttpError)) deps.log.error("mcp.recovery_failed", classifyError(cause));
+          }),
+        ),
+    );
   }
 
   async function call(
@@ -890,6 +935,7 @@ export function createConnectorService(deps: ConnectorServiceDeps) {
     remove,
     oauthStart,
     oauthCallback,
+    recover,
     tools,
     call,
   };

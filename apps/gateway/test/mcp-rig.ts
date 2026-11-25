@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createLogger } from "@rei/logging";
 import type { EncryptOptions } from "../src/core/notify/webpush.ts";
-import { createGatewayApp } from "../src/core/proxy.ts";
+import { createGatewayApps } from "../src/core/proxy.ts";
 import { createRedactor } from "../src/core/redact.ts";
 import { DEFAULT_UPSTREAMS } from "../src/core/upstream.ts";
 import { SqliteCallLog } from "../src/node/calllog.ts";
@@ -46,7 +46,7 @@ export function startMcpRig(options: McpRigOptions = {}) {
   function build() {
     const redactor = createRedactor();
     redactor.add(standin);
-    return createGatewayApp({
+    return createGatewayApps({
       standin,
       tokens: {
         accessToken: async () => "unused-access-token",
@@ -71,7 +71,7 @@ export function startMcpRig(options: McpRigOptions = {}) {
   let app = build();
 
   const request = (method: string, path: string, body?: unknown, o: { token?: string | null; raw?: string } = {}) =>
-    app.fetch(
+    app.internal.fetch(
       new Request(`http://gateway.test${path}`, {
         method,
         headers: {
@@ -85,6 +85,7 @@ export function startMcpRig(options: McpRigOptions = {}) {
     readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? walk(join(d, n)) : [join(d, n)]));
 
   return {
+    recoverConnectors: () => app.recoverConnectors(),
     dir,
     paths,
     world,
