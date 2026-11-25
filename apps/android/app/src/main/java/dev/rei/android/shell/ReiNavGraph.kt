@@ -114,6 +114,8 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
         exitTransition = { ReiMotion.exit(scale) },
         popEnterTransition = { ReiMotion.enter(ReiEnter.Fade, scale, density) },
         popExitTransition = { ReiMotion.exit(scale) },
+        predictivePopEnterTransition = { _ -> ReiMotion.predictivePopEnter(scale) },
+        predictivePopExitTransition = { swipeEdge -> ReiMotion.predictivePopExit(swipeEdge, scale) },
     ) {
         composable<ChatRoute> {
             ChatScreen(

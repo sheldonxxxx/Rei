@@ -5,15 +5,19 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.activity.BackEventCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOut
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -89,6 +93,26 @@ object ReiMotion {
 
     fun exit(scale: Float = 1f): ExitTransition =
         if (scale <= 0f) ExitTransition.None else fadeOut(tween(ExitMs, easing = Easing))
+
+    /** Linear cross-fade for gesture-scrubbed predictive back entry so progress tracks finger travel 1:1. */
+    fun predictivePopEnter(scale: Float = 1f): EnterTransition =
+        if (scale <= 0f) EnterTransition.None else fadeIn(tween(ReiEnter.Fade.durationMs, easing = LinearEasing))
+
+    /**
+     * Gesture-scrubbed predictive back exit matching [exit] + a gentle slide in the physical swipe direction
+     * instead of Navigation's default `scaleOut(0.7f)`.
+     */
+    fun predictivePopExit(swipeEdge: Int, scale: Float = 1f): ExitTransition {
+        if (scale <= 0f) return ExitTransition.None
+        val direction = when (swipeEdge) {
+            BackEventCompat.EDGE_LEFT -> 1
+            BackEventCompat.EDGE_RIGHT -> -1
+            else -> 0
+        }
+        val fade = fadeOut(tween(ExitMs, easing = LinearEasing))
+        if (direction == 0) return fade
+        return fade + slideOut(tween(ExitMs, easing = LinearEasing)) { size -> IntOffset(direction * (size.width / 5), 0) }
+    }
 }
 
 /** The system's animator duration scale (Settings → Developer options). 0 means reduced motion. */

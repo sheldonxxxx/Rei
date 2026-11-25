@@ -1,5 +1,8 @@
 package dev.rei.android.ui.theme
 
+import androidx.activity.BackEventCompat
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -68,6 +71,15 @@ class ThemeTest {
         assertEquals(ReiMotion.StaggerCapMs, ReiMotion.delayFor(40))
         assertTrue(ReiEnter.entries.all { it.durationMs <= ReiMotion.CeilingMs })
         assertTrue(ReiMotion.ExitMs < ReiEnter.Fade.durationMs)
+    }
+
+    @Test
+    fun predictivePopRespectsReducedMotion() {
+        assertEquals(EnterTransition.None, ReiMotion.predictivePopEnter(scale = 0f))
+        assertEquals(ExitTransition.None, ReiMotion.predictivePopExit(BackEventCompat.EDGE_LEFT, scale = 0f))
+        assertTrue(ReiMotion.predictivePopEnter(scale = 1f) != EnterTransition.None)
+        assertTrue(ReiMotion.predictivePopExit(BackEventCompat.EDGE_LEFT, scale = 1f) != ExitTransition.None)
+        assertTrue(ReiMotion.predictivePopExit(BackEventCompat.EDGE_RIGHT, scale = 1f) != ExitTransition.None)
     }
 
     private fun contrast(a: Color, b: Color): Double {
