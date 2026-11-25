@@ -219,6 +219,13 @@ export function ChatView({
   }, [session, hasBrowser, showBrowser]);
   const agent = agents.find((a) => a.id === session?.agentId);
   const running = isRunning(state);
+  const emptyTranscript = state.ready && state.messages.length === 0 && state.pending.length === 0;
+  const recoveredHistoryFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!emptyTranscript || !state.before || loadingEarlier || recoveredHistoryFor.current === sessionId) return;
+    recoveredHistoryFor.current = sessionId;
+    void loadEarlier().catch((error: unknown) => setActionError(describeError(error)));
+  }, [emptyTranscript, state.before, loadingEarlier, sessionId, loadEarlier]);
 
   // What a message sent while a reply runs does by default (Settings > Behavior); read again after any route change, so
   // coming back from Settings applies a change.
@@ -949,7 +956,7 @@ export function ChatView({
                 aria-label="Messages"
                 aria-live="off"
               >
-                {state.ready && state.messages.length === 0 && state.pending.length === 0 && (
+                {emptyTranscript && !state.before && !running && (
                   <div className="hero mx-auto flex max-w-lg flex-col items-center gap-3 px-4 pt-[14vh] text-center max-md:pt-[10vh]">
                     {agent && <Avatar value={agent.avatar} size={48} />}
                     <h3 className="text-[clamp(1.625rem,4vw,2rem)] font-semibold leading-tight tracking-tight">

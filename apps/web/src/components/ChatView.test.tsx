@@ -1406,6 +1406,26 @@ describe("ChatView: the Conversation View", () => {
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 
+  it("recovers the visible history when reopening a running chat with an empty transcript window", async () => {
+    const getTranscript = vi.fn().mockResolvedValue({
+      items: [message({ id: "e:1", role: "user", status: "complete", text: "Start the report" })],
+      before: null,
+    });
+    const es = setup({ getTranscript });
+    act(() =>
+      es.emit({
+        type: "snapshot",
+        epoch: "e",
+        rev: 0,
+        view: viewOf({ before: "e:2", live: { runId: "r1" } }),
+      }),
+    );
+
+    expect(screen.queryByText("What's on your mind?")).toBeNull();
+    expect(await screen.findByText("Start the report")).toBeTruthy();
+    expect(getTranscript).toHaveBeenCalledExactlyOnceWith("s1", "e:2");
+  });
+
   it("loads earlier messages above the window", async () => {
     const getTranscript = vi.fn().mockResolvedValue({
       items: [message({ id: "e:1", role: "notice", status: "complete", text: "the very start" })],
