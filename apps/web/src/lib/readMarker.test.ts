@@ -35,6 +35,16 @@ describe("useReadMarker", () => {
     expect(a.markRead).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the same reply again when a Continue makes it newer", () => {
+    const a = api();
+    const { rerender } = renderHook(({ at }) => useReadMarker(a, { id: "s1", unread: 1 }, [done("a1", at)], true), {
+      initialProps: { at: 10 },
+    });
+    rerender({ at: 50 });
+    expect(a.markRead).toHaveBeenLastCalledWith("s1", { itemId: "a1", at: 50 });
+    expect(a.markRead).toHaveBeenCalledTimes(2);
+  });
+
   it("does nothing while nothing is unread", () => {
     const a = api();
     renderHook(() => useReadMarker(a, { id: "s1", unread: 0 }, [done("a1", 10)], true));

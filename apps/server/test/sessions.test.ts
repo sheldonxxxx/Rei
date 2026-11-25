@@ -76,16 +76,19 @@ describe("start_session and the report back", () => {
     ).toEqual(["delivered"]);
   });
 
-  it("reports a failed child with the error as the summary, and a cancelled one", async () => {
+  it("reports nothing for a failed child, and reports a cancelled one", async () => {
     server = await startSignedIn();
     const parent = homeChat(server);
     await say(server, parent, "[spawn: this will break [error]]");
-    const d = await settled(server, parent, 2);
-    const failed = reports(d)[0]!;
-    expect(failed.report!.outcome).toBe("failed");
-    expect(failed.report!.summary.length).toBeGreaterThan(0);
-    const [child] = await childrenOf(server, parent);
-    expect(child!.status).toBe("failed");
+    const [child] = await until(async () => {
+      const all = await childrenOf(server!, parent);
+      return all[0]?.status === "failed" ? all : undefined;
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    const d = await detail(server, parent);
+    expect(reports(d)).toHaveLength(0);
+    expect(d.runs).toHaveLength(1);
+    expect(store().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE kind = 'report'")!.n).toBe(0);
 
     // A second child, cancelled by its parent's tool.
     const started = await adapter().startSession({
@@ -100,10 +103,45 @@ describe("start_session and the report back", () => {
     expect(text(cancelled)).toContain("Cancelled");
     const after = await until(async () => {
       const x = await detail(server!, parent);
-      return reports(x).length === 2 ? x : undefined;
+      return reports(x).length === 1 ? x : undefined;
     });
-    expect(reports(after)[1]!.report!.outcome).toBe("cancelled");
+    expect(reports(after)[0]!.report!.outcome).toBe("cancelled");
     expect((await sessions(server)).find((s) => s.id === second.id)!.status).toBe("cancelled");
+  });
+
+  it("a Continue of a failed child reports the finished work to the parent, as the reply the chat shows", async () => {
+    server = await startSignedIn();
+    const parent = homeChat(server);
+    await say(server, parent, "[spawn: this will break once [error-once]]");
+    const [child] = await until(async () => {
+      const all = await childrenOf(server!, parent);
+      return all[0]?.status === "failed" ? all : undefined;
+    });
+    const failedReply = (await detail(server, child!.id)).messages.find((m) => m.role === "assistant")!;
+    // Reading the failed chat leaves the marker on its reply.
+    store().markRead(child!.id, { itemId: failedReply.id, at: failedReply.createdAt });
+
+    await new Promise((r) => setTimeout(r, 20));
+    const continued = await server.client.post(`/api/sessions/${child!.id}/continue`, {});
+    expect(continued.status).toBe(200);
+    const d = await settled(server, parent, 2);
+    expect(reports(d)).toHaveLength(1);
+    expect(reports(d)[0]!.report!.outcome).toBe("completed");
+
+    const c = await detail(server, child!.id);
+    const reply = c.messages.find((m) => m.role === "assistant")!;
+    expect(reply.id).toBe(failedReply.id);
+    expect(reports(d)[0]!.report!.resultId).toBe(reply.id);
+
+    // The continued reply is unread, and reading it as the chat shows it clears that.
+    expect(c.session.unread).toBe(1);
+    expect(reply.createdAt).toBeGreaterThan(failedReply.createdAt);
+    expect(store().markRead(child!.id, { itemId: reply.id, at: reply.createdAt }).unread).toBe(0);
+
+    // Both runs' traces belong under the brief.
+    const traced = (await server.client.get(`/api/sessions/${child!.id}/trace`)).body.runs;
+    const brief = c.messages.find((m) => m.role === "user")!;
+    expect(traced.map((t: { triggerMessageId: string }) => t.triggerMessageId)).toEqual([brief.id, brief.id]);
   });
 
   it("does not report runs you typed in the child yourself, nor the reaction runs", async () => {

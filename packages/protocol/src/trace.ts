@@ -89,7 +89,10 @@ export interface StepSummary {
 
 export interface RunTrace {
   run: Run;
-  /** The user (or brief, report, event) message that started the run, when there is one. */
+  /**
+   * The user (or brief, report, event) message that started the run, when there is one. For a Continue run, the message
+   * whose reply it went on with.
+   */
   triggerMessageId: MessageId | null;
   /** A failed run that the user went on from with Continue: a later run answers it, so the failure is no longer the outcome. */
   continued?: true;

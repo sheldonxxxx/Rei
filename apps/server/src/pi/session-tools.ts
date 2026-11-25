@@ -33,7 +33,7 @@ export interface SessionHostRef {
 export const DELEGATION_NOTE = [
   "In this home chat, you can run work in separate worker sessions.",
   "- Use start_session with a clear brief for substantial multi-step work (research, long writing, anything that takes many steps). Answer small requests directly.",
-  "- After starting a session, tell the user in one sentence what you started and end your turn. Do not do the same work yourself, and do not check on it while it runs: it works on its own and posts one report back to this chat when it finishes, which starts your next turn.",
+  "- After starting a session, tell the user in one sentence what you started and end your turn. Do not do the same work yourself, and do not check on it while it runs: it works on its own and posts one report back to this chat when it finishes, which starts your next turn. A session whose run fails posts no report: it shows as failed, and reports once a Continue finishes the work.",
   "- Use list_sessions, message_session and cancel_session when the user asks about a session you started, or wants to change or cancel it.",
   "- Workers using your agent share your sandbox workspace; a worker using another agent uses that agent's workspace, so include the context it needs in the brief.",
   "Reports arrive as messages that start with [Session report]. The user sees each report only as a one-line notice (the session finished, with a link), not its result, so your reply is how they hear the answer:",

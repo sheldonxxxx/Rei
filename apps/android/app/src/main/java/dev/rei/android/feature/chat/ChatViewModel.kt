@@ -358,8 +358,10 @@ class ChatViewModel(application: Application, private val source: ReiViewModel) 
         val id = current.sessionId ?: return
         if (!atBottom.value) return
         val latest = current.detail?.messages?.lastOrNull { it.role == "assistant" && it.createdAt > 0 } ?: return
-        if (latest.id == lastRead) return
-        lastRead = latest.id
+        // The time too: a Continue writes into the same reply, which is then newer and unread again.
+        val key = "${latest.id}:${latest.createdAt}"
+        if (key == lastRead) return
+        lastRead = key
         viewModelScope.launch {
             try {
                 api.markRead(id, latest.id, latest.createdAt)

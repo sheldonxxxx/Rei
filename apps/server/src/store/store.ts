@@ -7,7 +7,6 @@ import type {
   ChatItem,
   Companion,
   EditLogEntry,
-  ErrorInfo,
   MessageMemory,
   MessageMention,
   MessagePart,
@@ -31,6 +30,7 @@ import type { BranchEntryRef, BranchRow } from "../conversation/branches.ts";
 import type { InputRole } from "../conversation/ledger.ts";
 import {
   currentRun,
+  inputAnsweredBy,
   outboxRun,
   RunRegistry,
   type RunRow,
@@ -2042,17 +2042,20 @@ export class AppStore {
             }
           }
         });
-      if (run.assigned_by) this.#queueReport(run, status, error, run.assigned_by, reply, body);
-      else if (run.direct === 0) {
-        // A reaction in a spawned session that proposed memory edits: they must not wait for a report that may never come,
-        // so this run reports to the session's parent too (that is how a suggestion climbs a level).
-        const hasPending =
-          this.db.get(
-            "SELECT 1 AS x FROM memory_suggestions WHERE session_id = ? AND status = 'pending' LIMIT 1",
-            run.session_id,
-          ) !== undefined;
-        if (session.origin === "spawned" && session.parent_session_id && hasPending)
-          this.#queueReport(run, status, error, session.parent_session_id, reply, body);
+      // A failed run reports to nobody: the work is not finished, and Continue takes it (and its assignment) up again.
+      if (status !== "failed") {
+        if (run.assigned_by) this.#queueReport(run, status, run.assigned_by, reply, body);
+        else if (run.direct === 0) {
+          // A reaction in a spawned session that proposed memory edits: they must not wait for a report that may never come,
+          // so this run reports to the session's parent too (that is how a suggestion climbs a level).
+          const hasPending =
+            this.db.get(
+              "SELECT 1 AS x FROM memory_suggestions WHERE session_id = ? AND status = 'pending' LIMIT 1",
+              run.session_id,
+            ) !== undefined;
+          if (session.origin === "spawned" && session.parent_session_id && hasPending)
+            this.#queueReport(run, status, session.parent_session_id, reply, body);
+        }
       }
       if (status === "completed" && preview !== undefined)
         this.recordAgentEntry(session.id, run.started_at, replyItemId(run.id), false);
@@ -2064,8 +2067,7 @@ export class AppStore {
   /** The report to the parent is written in the same transaction as Rei's settlement of the run; a deliverer sends it. */
   #queueReport(
     run: RunRow,
-    outcome: "completed" | "failed" | "cancelled",
-    error: ErrorInfo | undefined,
+    outcome: "completed" | "cancelled",
     parentId: string,
     reply: { attachments?: Attachment[] } | undefined,
     body: string,
@@ -2073,16 +2075,16 @@ export class AppStore {
     const child = this.getSessionRow(run.session_id); // a session being deleted no longer reports
     const parent = this.getSessionRow(parentId);
     if (!child || !parent) return;
-    const summary = (
-      outcome === "failed" ? (error?.message ?? "The run failed.") : outcome === "completed" ? body : ""
-    ).slice(0, outcome === "completed" ? SESSION_REPORT_INLINE_MAX : REPORT_SUMMARY_MAX);
+    const summary = outcome === "completed" ? body.slice(0, SESSION_REPORT_INLINE_MAX) : "";
+    // A continue's answer is shown as the reply to the input it went on with, so that is the message to read.
+    const answered = run.kind === "continue" ? inputAnsweredBy(this.runs.forSession(run.session_id), run) : undefined;
     const report: SessionReport = {
       sessionId: child.id,
       title: child.title,
       outcome,
       summary,
       ...(outcome === "completed" && body.trim() !== ""
-        ? { resultId: replyItemId(run.id), resultChars: body.length }
+        ? { resultId: replyItemId(answered?.id ?? run.id), resultChars: body.length }
         : {}),
       ...(reply?.attachments?.length ? { files: reply.attachments } : {}),
     };
