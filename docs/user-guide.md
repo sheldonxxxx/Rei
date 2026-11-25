@@ -60,6 +60,8 @@ Configure connectors in **Settings → Capabilities → Connectors**. Add one fr
 
 For an MCP server that takes an API token, set **Token header name** under **Use a token instead** if it expects a custom header such as `X-Api-Key`. Leave the header name blank for bearer authentication. You can change the header on a saved connector without re-entering its token.
 
+Rei checks connectors in **Error** every 15 seconds and returns them to **Connected** once it can list their tools. If an agent calls a previously discovered tool during an outage, Rei tries to reconnect immediately. A recovered call still uses the current tool definition and the connector's approval settings. A connector that requires sign-in needs your attention in Settings.
+
 When Rei requests a browser takeover, open it, complete the requested interaction, and return control so the agent can continue. Detail mode lets you inspect the surrounding steps.
 
 Ask Rei to upload a Library file or a file it generated in its sandbox. Each upload selects one file up to 25 MiB. In YOLO, Rei selects the file without asking. In other profiles, review the filename, size, source, and destination on the one-time approval. The site may start uploading as soon as Rei selects the file.

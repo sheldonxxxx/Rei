@@ -120,8 +120,18 @@ export class ConnectorToolDirectory implements ConnectorIndexSource {
     const connectors = [...listed.connectors].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
     const entries = new Map<string, ConnectorToolEntry>();
     for (const c of connectors) {
+      const tools = listed.tools.get(c.id);
+      if (!tools && c.status !== "needs_auth") {
+        const prior = this.#connectors.find((x) => x.id === c.id);
+        // A failed discovery may precede the next status read. Keep known definitions for inspection to revalidate.
+        if (prior?.providerIdentity === c.providerIdentity && prior?.name === c.name) {
+          for (const entry of this.#entries.values()) {
+            if (entry.connectorId === c.id) entries.set(entry.name, entry);
+          }
+        }
+      }
       const slug = this.#slug(c);
-      for (const tool of listed.tools.get(c.id) ?? []) {
+      for (const tool of tools ?? []) {
         const name = this.#name(c.id, slug, tool.name);
         entries.set(name, { name, connectorId: c.id, connectorName: c.name, tool });
         this.#listed.set(name, { connectorId: c.id, connectorName: c.name });
@@ -218,8 +228,10 @@ export class ConnectorToolDirectory implements ConnectorIndexSource {
     if (!this.allowed(agentId, c.id)) return `its connector ${connector} is not available to this agent`;
     if (c.status === "needs_auth")
       return `its connector ${connector} needs sign-in (Settings → Capabilities → Connectors)`;
-    if (c.status === "error") return `its connector ${connector} is not working right now`;
-    if (!this.#entries.has(name)) return `its connector ${connector} no longer lists this tool`;
+    if (!this.#entries.has(name))
+      return c.status === "error"
+        ? `its connector ${connector} is not working right now`
+        : `its connector ${connector} no longer lists this tool`;
     return undefined;
   }
 
@@ -234,8 +246,9 @@ export class ConnectorToolDirectory implements ConnectorIndexSource {
     if (!c || !this.allowed(agentId, connectorId)) return `${intro}: it isn't available to this agent.`;
     if (c.status === "needs_auth")
       return `${intro}: it needs sign-in (Settings → Capabilities → Connectors), so its tools can't be used.`;
-    if (c.status === "error") return `${intro}: it is not working right now, so its tools can't be used.`;
     const tools = [...(this.#trees.get(treeId)?.values() ?? [])].filter((e) => e.connectorId === connectorId);
+    if (c.status === "error" && tools.length === 0)
+      return `${intro}: it is not working right now, so its tools can't be used.`;
     if (tools.length === 0) return `${intro}: its tools could not be listed.`;
     return [
       `${intro}. It has ${tools.length} tool${tools.length === 1 ? "" : "s"}; none is loaded. Load the tools you need with search_capabilities({ load: [names] }):`,
@@ -252,7 +265,9 @@ export class ConnectorToolDirectory implements ConnectorIndexSource {
           c.status === "needs_auth"
             ? "needs sign-in (Settings → Capabilities → Connectors)"
             : c.status === "error"
-              ? "not working right now"
+              ? tools > 0
+                ? "connection failed, will retry when used"
+                : "not working right now"
               : tools === 0
                 ? "its tools could not be listed"
                 : undefined;

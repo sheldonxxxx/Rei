@@ -7,7 +7,7 @@
 // MCP connectors and notifications: REI_VAPID_SUBJECT (Web Push `sub`, default https://example.com/), GATEWAY_MCP_DEV_HOSTS
 // (hosts allowed over plain http, for local MCP servers; none by default). Their secrets live in <data>/secret/gateway-state.json.
 import { serve } from "@hono/node-server";
-import { createLogger, parseLogLevel } from "@rei/logging";
+import { classifyError, createLogger, parseLogLevel } from "@rei/logging";
 import { createFcmSender, readFcmAccount } from "./core/notify/fcm.ts";
 import { createGatewayApps } from "./core/proxy.ts";
 import { createRedactor } from "./core/redact.ts";
@@ -94,6 +94,13 @@ const apps = createGatewayApps({
   search: searchSetup.config,
 });
 
+const recoverConnectors = () => {
+  void apps.recoverConnectors().catch((cause: unknown) => log.error("mcp.recovery_failed", classifyError(cause)));
+};
+recoverConnectors();
+const recoveryTimer = setInterval(recoverConnectors, 15_000);
+recoveryTimer.unref();
+
 // The full app on every internal address, and the app for outside callers on its own address when one is set.
 const listeners = [
   ...config.hosts.map((host) => ({ kind: "internal", app: apps.internal, host, port: config.port })),
@@ -114,6 +121,7 @@ const servers = listeners.map(({ kind, app, host, port }) =>
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     log.info("gateway.stopping", { signal });
+    clearInterval(recoveryTimer);
     for (const server of servers) {
       server.close();
       if ("closeAllConnections" in server) server.closeAllConnections();
