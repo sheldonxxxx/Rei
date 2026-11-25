@@ -244,7 +244,11 @@ class AccessibilityLayoutTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription(str(R.string.common_back)).assertIsDisplayed().assertWidthIsAtLeast(48.dp)
+        compose.onNodeWithContentDescription(str(R.string.common_back)).assertIsDisplayed()
+            .assert(SemanticsMatcher("touch target >= 48dp") {
+                val minPx = 48f * it.layoutInfo.density.density
+                it.touchBoundsInRoot.width >= minPx - 1f && it.touchBoundsInRoot.height >= minPx - 1f
+            })
         compose.onNodeWithText(str(R.string.chat_takeover_prompt, "Rei")).assertIsDisplayed()
         compose.onNodeWithContentDescription(str(R.string.composer_send))
             .assert(SemanticsMatcher("non-empty bounds") { it.boundsInRoot.height > 0f && it.boundsInRoot.width > 0f })

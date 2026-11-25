@@ -45,7 +45,7 @@ fun ReiFab(
         expanded = expanded,
         icon = { Icon(icon, contentDescription = null) },
         text = { Text(label) },
-        modifier = if (!expanded) modifier.semantics { contentDescription = label } else modifier,
+        modifier = modifier.semantics { contentDescription = label },
         shape = ReiShapes.Pill,
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,

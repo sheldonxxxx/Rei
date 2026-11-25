@@ -39,8 +39,11 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -151,13 +154,18 @@ fun Composer(
     val colors = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
     val textState = rememberTextFieldState(state.draft)
+    var appliedEpoch by rememberSaveable { mutableIntStateOf(state.draftEpoch) }
     val latestDraft by rememberUpdatedState(state.draft)
     val latestOnDraftChange by rememberUpdatedState(onDraftChange)
 
-    // The field owns what you type; the draft is taken back from outside only when its epoch says it was replaced.
+    // The field owns what you type; the draft is taken back from outside only when its epoch advances,
+    // so rotation/recreation restores rememberTextFieldState without wiping live edits.
     LaunchedEffect(state.draftEpoch) {
-        if (state.draft != textState.text.toString()) {
-            textState.setTextAndPlaceCursorAtEnd(state.draft)
+        if (state.draftEpoch != appliedEpoch) {
+            appliedEpoch = state.draftEpoch
+            if (state.draft != textState.text.toString()) {
+                textState.setTextAndPlaceCursorAtEnd(state.draft)
+            }
         }
     }
     LaunchedEffect(textState) {

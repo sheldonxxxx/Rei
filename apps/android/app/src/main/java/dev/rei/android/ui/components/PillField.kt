@@ -127,15 +127,23 @@ fun PillField(
     val latestOnValueChange by rememberUpdatedState(onValueChange)
     val latestActions by rememberUpdatedState(keyboardActions)
     val latestOptions by rememberUpdatedState(keyboardOptions)
+    val emitted = androidx.compose.runtime.remember { ArrayDeque<String>() }
 
     LaunchedEffect(value) {
-        if (value != textState.text.toString()) {
+        val idx = emitted.indexOf(value)
+        if (idx >= 0) {
+            repeat(idx + 1) { emitted.removeFirst() }
+        } else if (value != textState.text.toString()) {
+            emitted.clear()
             textState.setTextAndPlaceCursorAtEnd(value)
         }
     }
     LaunchedEffect(textState) {
         snapshotFlow { textState.text.toString() }.collect { typed ->
-            if (typed != latestValue) latestOnValueChange(typed)
+            if (typed != latestValue || emitted.isNotEmpty()) {
+                emitted.addLast(typed)
+                latestOnValueChange(typed)
+            }
         }
     }
 

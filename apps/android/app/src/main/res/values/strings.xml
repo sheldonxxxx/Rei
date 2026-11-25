@@ -257,7 +257,7 @@
     <string name="chat_activity_row_desc">%1$s — %2$s</string>
     <string name="chat_activity_inspect_step">Inspect step</string>
     <string name="chat_activity_acted_outside_chip">acted outside</string>
-    <string name="chat_activity_acted_outside_suffix"> · %1$d acted outside</string>
+    <string name="chat_activity_acted_outside_suffix">" · %1$d acted outside"</string>
     <string name="chat_activity_tokens">%1$s tokens</string>
     <string name="chat_activity_page">Page</string>
     <string name="chat_activity_model_call">Model call</string>
@@ -599,7 +599,7 @@
     <string name="chat_step_fetch_rendering">Rendering</string>
     <string name="chat_step_fetch_waited">Waited for the browser</string>
     <string name="chat_step_fetch_engine">Render engine</string>
-    <string name="chat_step_fetch_engine_fallback"> (fallback after %1$s: %2$s)</string>
+    <string name="chat_step_fetch_engine_fallback">" (fallback after %1$s: %2$s)"</string>
     <string name="chat_step_fetch_render_time">Render time</string>
     <string name="chat_step_fetch_connections">Render connections</string>
     <string name="chat_step_fetch_connections_refused">%1$s, %2$s refused</string>
@@ -763,8 +763,8 @@
     <string name="knowledge_page_err_open">Could not open this page.</string>
     <string name="knowledge_page_in_trash">This page is in Trash.</string>
     <string name="knowledge_page_locked_banner">This page is locked. Open it in Rei web to change it.</string>
-    <string name="knowledge_page_updated_by">Updated by %1$s · </string>
-    <string name="knowledge_page_revision"> · revision %1$d</string>
+    <string name="knowledge_page_updated_by">"Updated by %1$s · "</string>
+    <string name="knowledge_page_revision">" · revision %1$d"</string>
     <string name="knowledge_page_empty_body">This page has no text yet.</string>
     <string name="knowledge_page_subpages">Sub-pages</string>
     <string name="knowledge_page_conflict_msg">%1$s Reload to see the latest version; your edits here will be discarded.</string>

@@ -169,7 +169,7 @@ internal fun SettingsIndexContent(
                     )
                     SettingsSwitchRow(
                         stringResource(R.string.settings_show_details), showDetails, onShowDetails,
-                        icon = ReiIcons.Info, summary = stringResource(R.string.settings_show_details_summary),
+                        icon = ReiIcons.Sliders, summary = stringResource(R.string.settings_show_details_summary),
                         dividerBelow = true,
                     )
                     SettingsRow(

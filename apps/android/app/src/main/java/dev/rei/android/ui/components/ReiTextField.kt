@@ -128,59 +128,44 @@ fun ReiTextField(
     trailingContent: @Composable (() -> Unit)? = null,
     contentType: ContentType? = null,
 ) {
-    val textState = rememberTextFieldState(value)
-    val latestValue by rememberUpdatedState(value)
-    val latestOnValueChange by rememberUpdatedState(onValueChange)
-    val latestActions by rememberUpdatedState(keyboardActions)
-    val latestOptions by rememberUpdatedState(keyboardOptions)
-
-    LaunchedEffect(value) {
-        if (value != textState.text.toString()) {
-            textState.setTextAndPlaceCursorAtEnd(value)
-        }
-    }
-    LaunchedEffect(textState) {
-        snapshotFlow { textState.text.toString() }.collect { typed ->
-            if (typed != latestValue) latestOnValueChange(typed)
-        }
-    }
-
-    val outputTransformation = when (visualTransformation) {
-        is PasswordVisualTransformation -> PasswordMaskOutputTransformation
-        else -> null
-    }
-    ReiTextField(
-        state = textState,
-        label = label,
-        modifier = modifier,
+    val hint = error ?: supportingText
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                if (error != null) error(error)
+                if (contentType != null) this.contentType = contentType
+            },
         enabled = enabled,
         readOnly = readOnly,
-        error = error,
-        supportingText = supportingText,
-        placeholder = placeholder,
+        label = { Text(label) },
+        placeholder = placeholder?.let { { Text(it) } },
+        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
+        trailingIcon = trailingContent,
+        supportingText = hint?.let { { Text(it) } },
+        isError = error != null,
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
         keyboardOptions = keyboardOptions,
-        onKeyboardAction = KeyboardActionHandler { performDefault ->
-            val scope = object : KeyboardActionScope {
-                override fun defaultKeyboardAction(imeAction: ImeAction) = performDefault()
-            }
-            val handler = when (latestOptions.imeAction) {
-                ImeAction.Done -> latestActions.onDone
-                ImeAction.Go -> latestActions.onGo
-                ImeAction.Search -> latestActions.onSearch
-                ImeAction.Send -> latestActions.onSend
-                ImeAction.Next -> latestActions.onNext
-                ImeAction.Previous -> latestActions.onPrevious
-                else -> null
-            }
-            if (handler != null) handler.invoke(scope) else performDefault()
-        },
-        outputTransformation = outputTransformation,
-        leadingIcon = leadingIcon,
-        trailingContent = trailingContent,
-        contentType = contentType,
+        keyboardActions = keyboardActions,
+        visualTransformation = visualTransformation,
+        shape = if (singleLine) ReiShapes.Pill else ReiShapes.Card,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = ReiTheme.colors.card,
+            unfocusedContainerColor = ReiTheme.colors.card,
+            disabledContainerColor = ReiTheme.colors.card,
+            errorContainerColor = ReiTheme.colors.card,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            disabledBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            cursorColor = MaterialTheme.colorScheme.primary,
+        ),
     )
 }
 

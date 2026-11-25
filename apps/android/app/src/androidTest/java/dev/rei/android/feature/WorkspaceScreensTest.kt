@@ -72,6 +72,7 @@ class WorkspaceScreensTest {
             }
         }
         compose.onNodeWithContentDescription(str(R.string.library_search)).performTextInput("inv")
+        compose.waitForIdle()
         assertEquals("inv", typed)
         compose.onNodeWithContentDescription(str(R.string.common_filters)).assertIsEnabled()
         compose.onNodeWithContentDescription(str(R.string.library_upload_btn)).performClick()

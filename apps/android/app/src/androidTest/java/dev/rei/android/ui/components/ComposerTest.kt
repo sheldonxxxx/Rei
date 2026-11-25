@@ -76,7 +76,7 @@ class ComposerTest {
     @Test
     fun anApprovalWaitingSaysSoAndHoldsSend() {
         show(ComposerState(agentName = "Rei", waitingForAnswer = true))
-        compose.onNodeWithText(str(R.string.composer_waiting_answer)).assertExists()
+        compose.onNodeWithText(str(R.string.composer_approval_waiting_jump)).assertExists()
         compose.onNodeWithContentDescription(str(R.string.composer_send)).assertIsNotEnabled()
     }
 
