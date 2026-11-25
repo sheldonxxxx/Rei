@@ -323,7 +323,7 @@ Numeric control-plane environment settings must be non-negative safe integers; b
 
 ### Web search defaults
 
-Rei uses keyless Exa by default and does not bundle SearXNG. In the web app, choose **Exa · no API key (default)** or **Exa · API key**. Keyless mode ignores any saved Exa credential; the API-key option keeps the credential in the gateway and reuses it when the field is blank. Brave, Tavily, and explicitly configured external SearXNG remain optional.
+Rei uses keyless Exa by default and does not bundle SearXNG. In the web app, enable and order **Exa (keyless)** and **Exa (API key)** independently. Keyless mode ignores any saved Exa credential; the API-key option keeps the credential in the gateway and reuses it when the field is blank. Brave, Tavily, and explicitly configured external SearXNG remain optional.
 
 Existing saved bundled SearXNG defaults migrate to keyless Exa. The retired container and its networks are removed on a normal Compose redeploy with `--remove-orphans`; existing application volumes and secrets are preserved.
 

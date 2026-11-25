@@ -10,6 +10,7 @@ import type { Db } from "../db/db.ts";
 const NAMES: Record<string, string> = {
   "codex-subscription": "ChatGPT / Codex",
   exa: "Exa",
+  "exa-api": "Exa (API key)",
   brave: "Brave",
   tavily: "Tavily",
   searxng: "SearXNG",

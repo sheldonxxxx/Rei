@@ -37,7 +37,6 @@ export type FakeSearchHandler = (req: FakeSearchRequest) => FakeSearchReply | Pr
 
 export interface SearchRigOptions {
   providers?: ProviderId[];
-  exaAuth?: "keyless" | "api_key";
   keys?: Partial<Record<"brave" | "tavily" | "exa" | "searxng", string>>;
   /** Give SearXNG a URL (the fake's); default true. */
   searxng?: boolean;
@@ -72,7 +71,8 @@ export async function startSearchRig(options: SearchRigOptions = {}) {
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", async () => {
-      const provider = whichProvider(req.method ?? "GET", req.url ?? "");
+      const route = whichProvider(req.method ?? "GET", req.url ?? "");
+      const provider = route === "exa" && req.headers["x-api-key"] ? "exa-api" : route;
       const raw = Buffer.concat(chunks).toString("utf8");
       let json: unknown;
       try {
@@ -117,10 +117,15 @@ export async function startSearchRig(options: SearchRigOptions = {}) {
   const keys = options.keys ?? {};
   const search: SearchDeps = {
     providers: options.providers ?? ["brave", "tavily", "searxng", "exa"],
-    exaAuth: options.exaAuth ?? (options.keys?.exa ? "api_key" : "keyless"),
     keys: async (name) => keys[name] ?? null,
     ...(options.searxng === false ? {} : { searxngUrl: fakeUrl + (options.searxngPath ?? "") }),
-    endpoints: { brave: fakeUrl, tavily: fakeUrl, exa: fakeUrl, searxng: fakeUrl + (options.searxngPath ?? "") },
+    endpoints: {
+      brave: fakeUrl,
+      tavily: fakeUrl,
+      exa: fakeUrl,
+      "exa-api": fakeUrl,
+      searxng: fakeUrl + (options.searxngPath ?? ""),
+    },
     ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
   };
   const app = createGatewayApp({

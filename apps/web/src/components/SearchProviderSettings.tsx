@@ -14,17 +14,17 @@ import { Tip } from "./Tip.tsx";
 
 const names: Record<SearchProviderId, string> = {
   "codex-subscription": "ChatGPT / Codex",
-  exa: "Exa",
+  exa: "Exa (keyless)",
+  "exa-api": "Exa (API key)",
   brave: "Brave",
   tavily: "Tavily",
   searxng: "SearXNG",
 };
 export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: () => void }) {
   const [settings, setSettings] = useState<SearchSetupSettings | null>(null);
-  const [exaApiConfigured, setExaApiConfigured] = useState(false);
   const [keys, setKeys] = useState<NonNullable<SaveSearchSetupSettings["apiKeys"]>>({});
-  const [expanded, setExpanded] = useState<SearchProviderId | "exa-api" | null>(null);
-  const [dragged, setDragged] = useState<SearchProviderId | "exa-api" | null>(null);
+  const [expanded, setExpanded] = useState<SearchProviderId | null>(null);
+  const [dragged, setDragged] = useState<SearchProviderId | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -33,12 +33,7 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
     void api
       .getSearchSetup()
       .then((value) => {
-        if (active) {
-          setSettings(value);
-          setExaApiConfigured(
-            value.exaAuth === "api_key" && !!value.providerStatus?.some((item) => item.id === "exa" && item.configured),
-          );
-        }
+        if (active) setSettings(value);
       })
       .catch((cause) => {
         if (active) setError(describeError(cause));
@@ -50,30 +45,16 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
   const providerOrder = [
     ...new Set([...(settings?.providerOrder ?? settings?.providers ?? []), ...SEARCH_PROVIDER_IDS]),
   ];
-  const order = providerOrder.flatMap((id): (SearchProviderId | "exa-api")[] =>
-    id === "exa" ? ["exa", "exa-api"] : [id],
-  );
-  const label = (id: SearchProviderId | "exa-api") =>
-    id === "exa" ? "Exa (keyless)" : id === "exa-api" ? "Exa (API key)" : names[id];
   const change = (patch: Partial<SearchSetupSettings>) => {
     setSettings((current) => (current ? { ...current, ...patch } : current));
     setNotice("");
   };
-  const move = (id: SearchProviderId | "exa-api", destination: number) => {
-    const provider = id === "exa-api" ? "exa" : id;
-    const target = order[destination];
-    if (!target) return;
-    const targetProvider = target === "exa-api" ? "exa" : target;
-    const currentIndex = providerOrder.indexOf(provider);
-    const destinationIndex =
-      targetProvider === provider
-        ? currentIndex + (destination < order.indexOf(id) ? -1 : 1)
-        : providerOrder.indexOf(targetProvider);
-    const position = Math.max(0, Math.min(providerOrder.length - 1, destinationIndex));
-    const next = providerOrder.filter((item) => item !== provider);
-    next.splice(position, 0, provider);
+  const move = (id: SearchProviderId, destination: number) => {
+    if (!providerOrder[destination]) return;
+    const next = providerOrder.filter((item) => item !== id);
+    next.splice(destination, 0, id);
     change({ providerOrder: next });
-    setNotice(`${label(id)} moved. Save changes to apply.`);
+    setNotice(`${names[id]} moved. Save changes to apply.`);
   };
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -86,14 +67,10 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
         providers: providerOrder.filter((id) => settings.providers.includes(id)),
         providerOrder,
         searxngUrl: settings.searxngUrl,
-        exaAuth: settings.exaAuth ?? "keyless",
         codexModel: settings.codexModel ?? DEFAULT_SEARCH_MODEL,
         ...(Object.values(keys).some(Boolean) ? { apiKeys: keys } : {}),
       });
       setSettings(value);
-      if (value.exaAuth === "api_key") {
-        setExaApiConfigured(!!value.providerStatus?.some((item) => item.id === "exa" && item.configured));
-      }
       setKeys({});
       setNotice("Saved");
       onSaved();
@@ -136,15 +113,12 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
         aria-label="Search providers in priority order"
         className="m-0 flex list-none flex-col divide-y rounded-2xl border px-3"
       >
-        {order.map((option, index) => {
-          const id = option === "exa-api" ? "exa" : option;
-          const exaAuth = option === "exa-api" ? "api_key" : "keyless";
-          const enabled =
-            settings.providers.includes(id) && (id !== "exa" || (settings.exaAuth ?? "keyless") === exaAuth);
-          const rowName = label(option);
+        {providerOrder.map((id, index) => {
+          const enabled = settings.providers.includes(id);
+          const rowName = names[id];
           const readiness = settings.providerStatus?.find((item) => item.id === id);
-          const configured =
-            id === "exa" ? exaAuth === "keyless" || exaApiConfigured || !!keys.exa : (readiness?.configured ?? false);
+          const keyId = id === "codex-subscription" || id === "exa" ? null : id === "exa-api" ? "exa" : id;
+          const configured = id === "exa" || (readiness?.configured ?? false) || (id === "exa-api" && !!keys.exa);
           const limited = !!readiness?.limitedUntil && readiness.limitedUntil > Date.now();
           const state = !configured
             ? "Needs setup"
@@ -153,7 +127,7 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
               : readiness?.lastError
                 ? "Last attempt failed"
                 : "Configured";
-          const open = expanded === option;
+          const open = expanded === id;
           const iconButton = (
             label: string,
             icon: "up" | "down" | "settings",
@@ -175,7 +149,7 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
           );
           return (
             <li
-              key={option}
+              key={id}
               aria-label={rowName}
               onDragOver={(event) => {
                 if (dragged) event.preventDefault();
@@ -196,7 +170,7 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                     aria-label={`Drag ${rowName} to reorder`}
                     draggable={!busy}
                     onDragStart={(event) => {
-                      setDragged(option);
+                      setDragged(id);
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", id);
                     }}
@@ -204,11 +178,11 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                     onKeyDown={(event) => {
                       if (event.key === "ArrowUp" && index > 0) {
                         event.preventDefault();
-                        move(option, index - 1);
+                        move(id, index - 1);
                       }
-                      if (event.key === "ArrowDown" && index < order.length - 1) {
+                      if (event.key === "ArrowDown" && index < providerOrder.length - 1) {
                         event.preventDefault();
-                        move(option, index + 1);
+                        move(id, index + 1);
                       }
                     }}
                   >
@@ -232,7 +206,6 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                   disabled={busy}
                   onCheckedChange={(checked) =>
                     change({
-                      ...(id === "exa" && checked ? { exaAuth } : {}),
                       providers: checked
                         ? [...new Set([...settings.providers, id])]
                         : settings.providers.filter((value) => value !== id),
@@ -240,14 +213,14 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                   }
                 />
                 <div className="grid shrink-0 grid-cols-[repeat(3,2rem)] items-center">
-                  {iconButton(`Move ${rowName} up`, "up", () => move(option, index - 1), index === 0)}
+                  {iconButton(`Move ${rowName} up`, "up", () => move(id, index - 1), index === 0)}
                   {iconButton(
                     `Move ${rowName} down`,
                     "down",
-                    () => move(option, index + 1),
-                    index === order.length - 1,
+                    () => move(id, index + 1),
+                    index === providerOrder.length - 1,
                   )}
-                  {option !== "exa" && (
+                  {id !== "exa" && (
                     <Tip label={`Configure ${rowName}`}>
                       <Button
                         type="button"
@@ -255,8 +228,8 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                         size="icon-sm"
                         aria-label={`Configure ${rowName}`}
                         aria-expanded={open}
-                        aria-controls={`search-config-${option}`}
-                        onClick={() => setExpanded(open ? null : option)}
+                        aria-controls={`search-config-${id}`}
+                        onClick={() => setExpanded(open ? null : id)}
                       >
                         <Icon name="settings" size={14} />
                       </Button>
@@ -265,7 +238,7 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                 </div>
               </div>
               {open && (
-                <FieldGroup id={`search-config-${option}`} className="mt-3 gap-3 border-t pt-3">
+                <FieldGroup id={`search-config-${id}`} className="mt-3 gap-3 border-t pt-3">
                   {id === "codex-subscription" && (
                     <>
                       <Field>
@@ -297,18 +270,20 @@ export function SearchProviderSettings({ api, onSaved }: { api: Api; onSaved: ()
                       />
                     </Field>
                   )}
-                  {id !== "codex-subscription" && !(id === "exa" && exaAuth !== "api_key") && (
+                  {keyId && (
                     <Field>
                       <FieldLabel htmlFor={`search-key-${id}`}>
-                        {id === "searxng" ? "Authentication (optional)" : `${names[id]} API key`}
+                        {id === "searxng"
+                          ? "Authentication (optional)"
+                          : `${id === "exa-api" ? "Exa" : names[id]} API key`}
                       </FieldLabel>
                       <Input
                         id={`search-key-${id}`}
                         type="password"
                         autoComplete="off"
-                        value={keys[id] ?? ""}
+                        value={keys[keyId] ?? ""}
                         onChange={(event) => {
-                          setKeys({ ...keys, [id]: event.target.value });
+                          setKeys({ ...keys, [keyId]: event.target.value });
                           setNotice("");
                         }}
                         placeholder="Leave blank to keep a saved credential"

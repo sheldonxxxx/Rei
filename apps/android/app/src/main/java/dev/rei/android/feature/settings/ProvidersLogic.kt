@@ -231,7 +231,7 @@ internal fun embeddingBody(form: EmbeddingForm): JsonObject? {
 
 // ---- web search -----------------------------------------------------------------------------------------------------
 
-internal val SearchProviderIds = listOf("codex-subscription", "exa", "brave", "tavily", "searxng")
+internal val SearchProviderIds = listOf("codex-subscription", "exa", "exa-api", "brave", "tavily", "searxng")
 internal const val DefaultSearchModel = "gpt-6-luna"
 internal const val ExaApiRow = "exa-api"
 
@@ -247,21 +247,12 @@ internal fun searchName(option: String): String = when (option) {
 /** The saved order with every known provider present once; unknown ids are kept out. */
 internal fun searchOrder(saved: List<String>): List<String> = (saved + SearchProviderIds).filter { it in SearchProviderIds }.distinct()
 
-/** The rows on screen: Exa shows twice, keyless then with an API key, the way the web does. */
-internal fun searchRows(order: List<String>): List<String> = order.flatMap { if (it == "exa") listOf("exa", ExaApiRow) else listOf(it) }
-
-internal fun providerOf(option: String) = if (option == ExaApiRow) "exa" else option
-
-/** Moves a row up or down; the Exa rows move the Exa provider. Returns the new order. */
-internal fun moveSearch(order: List<String>, option: String, delta: Int): List<String> {
-    val rows = searchRows(order)
-    val index = rows.indexOf(option)
-    val target = rows.getOrNull(index + delta) ?: return order
-    val provider = providerOf(option)
-    val targetProvider = providerOf(target)
-    val position = if (targetProvider == provider) order.indexOf(provider) + delta else order.indexOf(targetProvider)
-    val without = order.filter { it != provider }
-    return without.toMutableList().also { it.add(position.coerceIn(0, without.size), provider) }
+/** Moves one provider in the search order. */
+internal fun moveSearch(order: List<String>, id: String, delta: Int): List<String> {
+    val index = order.indexOf(id)
+    val destination = index + delta
+    if (index < 0 || destination !in order.indices) return order
+    return order.toMutableList().also { it.removeAt(index); it.add(destination, id) }
 }
 
 internal data class SearchStatus(val id: String, val configured: Boolean, val limitedUntil: Long?, val lastError: String?)
@@ -282,7 +273,6 @@ internal data class SearchForm(
     val providers: List<String>,
     val order: List<String>,
     val searxngUrl: String,
-    val exaAuth: String,
     val codexModel: String,
     /** Typed keys by provider; write-only, cleared after a save. */
     val keys: Map<String, String> = emptyMap(),
@@ -292,22 +282,11 @@ internal fun searchForm(settings: JsonObject) = SearchForm(
     providers = (settings["providers"] as? JsonArray).orEmpty().map { (it as JsonPrimitive).content },
     order = searchOrder((settings["providerOrder"] as? JsonArray ?: settings["providers"] as? JsonArray).orEmpty().map { (it as JsonPrimitive).content }),
     searxngUrl = settings.optionalString("searxngUrl").orEmpty(),
-    exaAuth = settings.optionalString("exaAuth") ?: "keyless",
     codexModel = settings.optionalString("codexModel") ?: DefaultSearchModel,
 )
 
-internal fun SearchForm.enabled(option: String): Boolean {
-    val id = providerOf(option)
-    if (id !in providers) return false
-    return id != "exa" || exaAuth == if (option == ExaApiRow) "api_key" else "keyless"
-}
-
-/** Turning a row on or off; turning an Exa row on also picks its sign-in kind. */
-internal fun SearchForm.toggled(option: String, on: Boolean): SearchForm {
-    val id = providerOf(option)
-    val next = if (on) (providers + id).distinct() else providers - id
-    return copy(providers = next, exaAuth = if (id == "exa" && on) (if (option == ExaApiRow) "api_key" else "keyless") else exaAuth)
-}
+internal fun SearchForm.toggled(id: String, on: Boolean): SearchForm =
+    copy(providers = if (on) (providers + id).distinct() else providers - id)
 
 internal sealed interface SearchSave {
     data class Invalid(val message: String) : SearchSave
@@ -322,7 +301,6 @@ internal fun searchSave(form: SearchForm): SearchSave {
         put("providers", buildJsonArray { form.order.filter { it in form.providers }.forEach { add(JsonPrimitive(it)) } })
         put("providerOrder", buildJsonArray { form.order.forEach { add(JsonPrimitive(it)) } })
         put("searxngUrl", form.searxngUrl.trim())
-        put("exaAuth", form.exaAuth)
         put("codexModel", model)
         if (typed.isNotEmpty()) put("apiKeys", buildJsonObject { typed.forEach { (id, key) -> put(id, key) } })
     })
