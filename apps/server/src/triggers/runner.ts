@@ -173,6 +173,7 @@ export class TriggerRunner {
           triggerId: trigger.id,
           title: trigger.name,
           profile: trigger.profile,
+          hideInList: trigger.hide_in_list === 1,
         });
         session = app.getSessionRow(made.session.id)!;
         treeId = made.treeId;

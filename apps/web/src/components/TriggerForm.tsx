@@ -23,6 +23,7 @@ import { describeSetupError } from "../api/client.ts";
 import { CLASS_LABEL, PROFILE_HELP, PROFILE_LABEL, PROFILES } from "../lib/policy.ts";
 import {
   CATCH_UP_LABEL,
+  chatListLabel,
   draftFromSchedule,
   LANDING_LABEL,
   OVERLAP_LABEL,
@@ -54,6 +55,7 @@ interface Form {
   args: string;
   landing: Trigger["landing"];
   report: ReportSetting;
+  hideInList: boolean;
   lateness: string;
   catchUp: Trigger["catchUp"];
   overlap: Trigger["overlap"];
@@ -75,6 +77,7 @@ function formFromTrigger(t: Trigger): Form {
     args: a.kind === "skill" ? (a.args ?? "") : "",
     landing: t.landing,
     report: t.report,
+    hideInList: t.hideInList,
     lateness: String(t.latenessMinutes),
     catchUp: t.catchUp,
     overlap: t.overlap,
@@ -100,7 +103,8 @@ function newForm(agent: Agent | undefined): Form {
     skill: "",
     args: "",
     landing: "new",
-    report: "on_change",
+    report: "never",
+    hideInList: false,
     lateness: "",
     catchUp: "once",
     overlap: "skip",
@@ -173,11 +177,14 @@ function buildSubmission(
 
   if (f.landing !== trigger?.landing) patch.landing = f.landing;
   if (f.report !== trigger?.report) patch.report = f.report;
+  if (f.hideInList !== trigger?.hideInList) patch.hideInList = f.hideInList;
   if (f.profile !== trigger?.profile) patch.profile = f.profile;
   if (!trigger) {
     if (!agentId) return { error: "Choose an agent." };
-    const { landing, report, profile, latenessMinutes, catchUp, overlap } = patch;
-    return { create: { agentId, name, start, action, landing, report, profile, latenessMinutes, catchUp, overlap } };
+    const { landing, report, hideInList, profile, latenessMinutes, catchUp, overlap } = patch;
+    return {
+      create: { agentId, name, start, action, landing, report, hideInList, profile, latenessMinutes, catchUp, overlap },
+    };
   }
 
   if (f.allow.length !== trigger.allow.length)
@@ -447,104 +454,126 @@ export function TriggerForm({ api, trigger, agents, sources, onSaved, onCancel }
         )}
       </fieldset>
 
-      <fieldset
-        className="cfg-group m-0 flex min-w-0 flex-col gap-3 border-0 p-0 [&_legend]:mb-3 [&_legend]:p-0 [&_legend]:text-sm [&_legend]:font-medium"
-        disabled={busy}
-      >
-        <legend>Runs</legend>
-        <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
+      {(kind !== "notify" || form.startKind === "schedule") && (
+        <fieldset
+          className="cfg-group m-0 flex min-w-0 flex-col gap-3 border-0 p-0 [&_legend]:mb-3 [&_legend]:p-0 [&_legend]:text-sm [&_legend]:font-medium"
+          disabled={busy}
+        >
+          <legend>Runs</legend>
           {kind !== "notify" && (
-            <Field>
-              <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-landing`}>
-                Where it runs
-                <NativeSelect
-                  id={`${ids}-landing`}
-                  value={form.landing}
-                  onChange={(e) => set({ landing: e.target.value as Form["landing"] })}
-                >
-                  {(["new", "ongoing"] as const).map((l) => (
-                    <option key={l} value={l}>
-                      {LANDING_LABEL[l]}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </label>
-            </Field>
+            <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-landing`}>
+                  Where it runs
+                  <NativeSelect
+                    id={`${ids}-landing`}
+                    value={form.landing}
+                    onChange={(e) => set({ landing: e.target.value as Form["landing"] })}
+                  >
+                    {(["new", "ongoing"] as const).map((l) => (
+                      <option key={l} value={l}>
+                        {LANDING_LABEL[l]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </Field>
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-report`}>
+                  Report to your chat
+                  <NativeSelect
+                    id={`${ids}-report`}
+                    value={form.report}
+                    onChange={(e) => {
+                      const nextReport = e.target.value as ReportSetting;
+                      const followDefault = form.hideInList === (form.report !== "never");
+                      set({
+                        report: nextReport,
+                        ...(followDefault ? { hideInList: nextReport !== "never" } : {}),
+                      });
+                    }}
+                  >
+                    {(["never", "on_change", "always"] as const).map((r) => (
+                      <option key={r} value={r}>
+                        {REPORT_LABEL[r]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </Field>
+            </div>
           )}
-          <Field>
-            <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-report`}>
-              Report to your chat
-              <NativeSelect
-                id={`${ids}-report`}
-                value={form.report}
-                onChange={(e) => set({ report: e.target.value as ReportSetting })}
-              >
-                {(["always", "on_change", "never"] as const).map((r) => (
-                  <option key={r} value={r}>
-                    {REPORT_LABEL[r]}
-                  </option>
-                ))}
-              </NativeSelect>
-            </label>
-          </Field>
-        </div>
-        <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
+          {kind !== "notify" && (
+            <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-chat-list`}>
+                  Chat list
+                  <NativeSelect
+                    id={`${ids}-chat-list`}
+                    value={form.hideInList ? "hide" : "show"}
+                    onChange={(e) => set({ hideInList: e.target.value === "hide" })}
+                  >
+                    <option value="show">{chatListLabel(false)}</option>
+                    <option value="hide">{chatListLabel(true)}</option>
+                  </NativeSelect>
+                </label>
+              </Field>
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-profile`}>
+                  Permissions for its runs
+                  <NativeSelect
+                    id={`${ids}-profile`}
+                    value={form.profile}
+                    onChange={(e) => set({ profile: e.target.value as Form["profile"] })}
+                  >
+                    {PROFILES.map((p) => (
+                      <option key={p} value={p}>
+                        {PROFILE_LABEL[p]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </Field>
+            </div>
+          )}
           {form.startKind === "schedule" && (
-            <Field>
-              <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-late`}>
-                Skip if late by (minutes)
-                <Input
-                  id={`${ids}-late`}
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={TRIGGER_LIMITS.maxLatenessMinutes}
-                  step={1}
-                  placeholder={creating ? "Automatic" : undefined}
-                  value={form.lateness}
-                  onChange={(e) => set({ lateness: e.target.value })}
-                />
-              </label>
-            </Field>
+            <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-late`}>
+                  Skip if late by (minutes)
+                  <Input
+                    id={`${ids}-late`}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={TRIGGER_LIMITS.maxLatenessMinutes}
+                    step={1}
+                    placeholder={creating ? "Automatic" : undefined}
+                    value={form.lateness}
+                    onChange={(e) => set({ lateness: e.target.value })}
+                  />
+                </label>
+              </Field>
+              <Field>
+                <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-catchup`}>
+                  If a run is missed
+                  <NativeSelect
+                    id={`${ids}-catchup`}
+                    value={form.catchUp}
+                    onChange={(e) => set({ catchUp: e.target.value as Form["catchUp"] })}
+                  >
+                    {(["once", "skip"] as const).map((c) => (
+                      <option key={c} value={c}>
+                        {CATCH_UP_LABEL[c]}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </Field>
+            </div>
           )}
-          {kind !== "notify" && (
-            <Field>
-              <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-profile`}>
-                Permissions for its runs
-                <NativeSelect
-                  id={`${ids}-profile`}
-                  value={form.profile}
-                  onChange={(e) => set({ profile: e.target.value as Form["profile"] })}
-                >
-                  {PROFILES.map((p) => (
-                    <option key={p} value={p}>
-                      {PROFILE_LABEL[p]}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </label>
-            </Field>
-          )}
-        </div>
-        {form.startKind === "schedule" && (
-          <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
-            <Field>
-              <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-catchup`}>
-                If a run is missed
-                <NativeSelect
-                  id={`${ids}-catchup`}
-                  value={form.catchUp}
-                  onChange={(e) => set({ catchUp: e.target.value as Form["catchUp"] })}
-                >
-                  {(["once", "skip"] as const).map((c) => (
-                    <option key={c} value={c}>
-                      {CATCH_UP_LABEL[c]}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </label>
-            </Field>
-            {kind !== "notify" && (
+          {form.startKind === "schedule" && kind !== "notify" && (
+            <div className="cfg-row flex flex-wrap gap-3 [&>[data-slot=field]]:min-w-0 [&>[data-slot=field]]:flex-[1_1_9rem]">
               <Field>
                 <label className="flex min-w-0 flex-col gap-2 text-sm font-medium" htmlFor={`${ids}-overlap`}>
                   If the last run is still going
@@ -561,22 +590,22 @@ export function TriggerForm({ api, trigger, agents, sources, onSaved, onCancel }
                   </NativeSelect>
                 </label>
               </Field>
-            )}
-          </div>
-        )}
-        {kind !== "notify" &&
-          (form.profile === "yolo" ? (
-            <p className="cfg-hint approval-warn yolo-warn m-0 flex items-center gap-2 rounded-2xl bg-attention-soft px-3 py-2.5 text-xs text-attention-text">
-              <Icon name="alert" size={16} />
-              <span>
-                {PROFILE_HELP.yolo} Content its runs read on the web could talk the agent into things you wouldn't
-                choose.
-              </span>
-            </p>
-          ) : (
-            <p className="cfg-hint m-0 text-xs text-muted-foreground">{PROFILE_HELP[form.profile]}</p>
-          ))}
-      </fieldset>
+            </div>
+          )}
+          {kind !== "notify" &&
+            (form.profile === "yolo" ? (
+              <p className="cfg-hint approval-warn yolo-warn m-0 flex items-center gap-2 rounded-2xl bg-attention-soft px-3 py-2.5 text-xs text-attention-text">
+                <Icon name="alert" size={16} />
+                <span>
+                  {PROFILE_HELP.yolo} Content its runs read on the web could talk the agent into things you wouldn't
+                  choose.
+                </span>
+              </p>
+            ) : (
+              <p className="cfg-hint m-0 text-xs text-muted-foreground">{PROFILE_HELP[form.profile]}</p>
+            ))}
+        </fieldset>
+      )}
 
       {!creating && kind !== "notify" && (
         <fieldset

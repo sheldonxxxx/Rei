@@ -4,7 +4,14 @@ import { Badge } from "@/components/primitives/badge.tsx";
 import { Button } from "@/components/primitives/button.tsx";
 import { cn } from "@/lib/utils.ts";
 import { CLASS_LABEL, PROFILE_LABEL } from "../lib/policy.ts";
-import { CATCH_UP_LABEL, formatNextRun, LANDING_LABEL, OVERLAP_LABEL, REPORT_LABEL } from "../lib/triggers.ts";
+import {
+  CATCH_UP_LABEL,
+  chatListLabel,
+  formatNextRun,
+  LANDING_LABEL,
+  OVERLAP_LABEL,
+  REPORT_LABEL,
+} from "../lib/triggers.ts";
 import { FACTS } from "./approvalStyles.ts";
 import { SkillMdView } from "./SkillDetail.tsx";
 
@@ -129,6 +136,13 @@ function TriggerCard({ preview: p }: { preview: TriggerPreview }) {
           label="Reports"
           value={REPORT_LABEL[p.report]}
           before={b && b.action.kind !== "notify" ? REPORT_LABEL[b.report] : undefined}
+        />
+      )}
+      {kind !== "notify" && (
+        <Row
+          label="Chat list"
+          value={chatListLabel(p.hideInList)}
+          before={b && b.action.kind !== "notify" ? chatListLabel(b.hideInList) : undefined}
         />
       )}
       {p.startKind === "schedule" && (

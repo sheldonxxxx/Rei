@@ -76,7 +76,7 @@ CREATE TABLE sessions (
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         deleted_at INTEGER
-        , parent_session_id TEXT, forked_from_session_id TEXT, forked_from_message_id TEXT, depth INTEGER NOT NULL DEFAULT 0, spawn_key TEXT, profile TEXT NOT NULL DEFAULT 'standard', taint TEXT NOT NULL DEFAULT '[]', pending_approvals INTEGER NOT NULL DEFAULT 0, browser_url TEXT, browser_title TEXT, forked_from_step_id TEXT, forked_from_edited INTEGER NOT NULL DEFAULT 0, forked_from_retried INTEGER NOT NULL DEFAULT 0, trigger_id TEXT, pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)), last_run_status TEXT, unread INTEGER NOT NULL DEFAULT 0);
+        , parent_session_id TEXT, forked_from_session_id TEXT, forked_from_message_id TEXT, depth INTEGER NOT NULL DEFAULT 0, spawn_key TEXT, profile TEXT NOT NULL DEFAULT 'standard', taint TEXT NOT NULL DEFAULT '[]', pending_approvals INTEGER NOT NULL DEFAULT 0, browser_url TEXT, browser_title TEXT, forked_from_step_id TEXT, forked_from_edited INTEGER NOT NULL DEFAULT 0, forked_from_retried INTEGER NOT NULL DEFAULT 0, trigger_id TEXT, hide_in_list INTEGER NOT NULL DEFAULT 0 CHECK (hide_in_list IN (0, 1)), pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)), last_run_status TEXT, unread INTEGER NOT NULL DEFAULT 0);
 
 -- Approval, takeover and memory cards shown in a conversation: anchored to a Pi tool task, entry or run, never stored in Pi.
 CREATE TABLE overlays (
@@ -378,6 +378,7 @@ CREATE TABLE triggers (
         landing TEXT NOT NULL,
         ongoing_session_id TEXT,
         report TEXT NOT NULL,
+        hide_in_list INTEGER NOT NULL DEFAULT 0 CHECK (hide_in_list IN (0, 1)),
         lateness_minutes INTEGER NOT NULL,
         profile TEXT NOT NULL,
         allow_json TEXT NOT NULL DEFAULT '[]',
@@ -965,6 +966,17 @@ function ensureTriggerStartColumns(db: Db): void {
   if (!columns.has("start_kind"))
     db.exec("ALTER TABLE triggers ADD COLUMN start_kind TEXT NOT NULL DEFAULT 'schedule'");
   if (!columns.has("event_json")) db.exec("ALTER TABLE triggers ADD COLUMN event_json TEXT");
+  if (!columns.has("hide_in_list")) {
+    db.exec("ALTER TABLE triggers ADD COLUMN hide_in_list INTEGER NOT NULL DEFAULT 0 CHECK (hide_in_list IN (0, 1))");
+    db.exec("UPDATE triggers SET hide_in_list = CASE WHEN report = 'never' THEN 0 ELSE 1 END");
+  }
+  const sessionColumns = new Set(db.all<{ name: string }>("PRAGMA table_info(sessions)").map((c) => c.name));
+  if (!sessionColumns.has("hide_in_list")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN hide_in_list INTEGER NOT NULL DEFAULT 0 CHECK (hide_in_list IN (0, 1))");
+    db.exec(
+      "UPDATE sessions SET hide_in_list = COALESCE((SELECT t.hide_in_list FROM triggers t WHERE t.id = sessions.trigger_id), 1) WHERE origin = 'trigger'",
+    );
+  }
   const runColumns = new Set(db.all<{ name: string }>("PRAGMA table_info(trigger_runs)").map((c) => c.name));
   if (!runColumns.has("dropped_events"))
     db.exec("ALTER TABLE trigger_runs ADD COLUMN dropped_events INTEGER NOT NULL DEFAULT 0");

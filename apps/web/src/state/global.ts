@@ -136,7 +136,7 @@ export function globalReducer(state: GlobalState, action: GlobalAction): GlobalS
   }
 }
 
-/** Session list, newest first, of one agent when `agentId` is given. Home chats are excluded; they are pinned through the agents. A trigger run stays out unless it is selected, needs you, or failed (the rest are on the Triggers page). */
+/** Session list, newest first, of one agent when `agentId` is given. Home chats are excluded; they are pinned through the agents. Hidden trigger runs stay out unless selected, waiting for you, failed, or the filter is on. */
 export function selectSessions(
   state: GlobalState,
   agentId?: string | null,
@@ -144,10 +144,10 @@ export function selectSessions(
   showTriggers = false,
 ): Session[] {
   const homeIds = new Set(state.agents.map((a) => a.homeSessionId));
-  // Trigger runs stay out of the list unless they need you, failed, or the "Trigger sessions" filter is on.
+  // Hidden trigger runs stay out of the list unless they need you, failed, or the "Hidden trigger sessions" filter is on.
   const shown = (s: Session) =>
     s.id === selectedId ||
-    s.origin !== "trigger" ||
+    !s.hideInList ||
     showTriggers ||
     s.status === "failed" ||
     effectiveStatus(s) === "waiting_for_user";

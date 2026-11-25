@@ -167,15 +167,17 @@ describe("Sidebar: settings", () => {
 });
 
 describe("Sidebar: triggers", () => {
-  it("hides a trigger's finished runs, but shows one that waits or failed, with a trigger icon and no title tooltip", async () => {
+  it("shows user-facing trigger runs and hides hidden ones unless they wait or failed, with a trigger icon and no title tooltip", async () => {
     renderSidebar({
       sessions: [
-        session({ id: "t1", origin: "trigger", title: "Morning check", status: "completed" }),
-        session({ id: "t2", origin: "trigger", title: "Rent reminder", status: "failed" }),
-        session({ id: "t3", origin: "trigger", title: "Inbox sweep", status: "waiting_for_user" }),
+        session({ id: "t0", origin: "trigger", title: "Daily report", status: "completed" }),
+        session({ id: "t1", origin: "trigger", title: "Morning check", status: "completed", hideInList: true }),
+        session({ id: "t2", origin: "trigger", title: "Rent reminder", status: "failed", hideInList: true }),
+        session({ id: "t3", origin: "trigger", title: "Inbox sweep", status: "waiting_for_user", hideInList: true }),
         session({ id: "s1", title: "Pay the bill" }),
       ],
     });
+    expect(screen.getByRole("link", { name: /Daily report/ }).querySelector(".row-kind")).toBeTruthy();
     expect(screen.queryByText("Morning check")).toBeNull();
     const failed = screen.getByRole("link", { name: /Rent reminder/ });
     await userEvent.setup().hover(failed);
@@ -258,14 +260,14 @@ describe("Sidebar session actions", () => {
   });
 });
 
-it("shows the selected finished trigger run and removes it when another chat opens", () => {
+it("shows the selected hidden trigger run and removes it when another chat opens", () => {
   const global = {
     ...initialGlobalState,
     ready: true,
     agents: [agent],
     defaultAgentId: "a1",
     sessions: [
-      session({ id: "t1", origin: "trigger", title: "Morning check", status: "completed" }),
+      session({ id: "t1", origin: "trigger", title: "Morning check", status: "completed", hideInList: true }),
       session({ id: "s1", title: "Pay the bill" }),
     ],
   };
@@ -337,7 +339,7 @@ describe("Sidebar: follows the active agent", () => {
     expect(screen.queryByRole("button", { name: "New chat with another agent" })).toBeNull();
   });
 
-  it("lists trigger runs only while the Trigger sessions filter is on", () => {
+  it("lists hidden trigger runs only while the Hidden trigger sessions filter is on", () => {
     const onShowTriggersChange = vi.fn();
     const global = {
       ...initialGlobalState,
@@ -346,7 +348,7 @@ describe("Sidebar: follows the active agent", () => {
       defaultAgentId: "a1",
       sessions: [
         session({ id: "s1", title: "Pay the bill" }),
-        session({ id: "t1", title: "Nightly digest", origin: "trigger", status: "completed" }),
+        session({ id: "t1", title: "Nightly digest", origin: "trigger", status: "completed", hideInList: true }),
       ],
     };
     const { rerender } = render(
@@ -360,7 +362,7 @@ describe("Sidebar: follows the active agent", () => {
     );
     expect(screen.queryByText("Nightly digest")).toBeNull();
     openMenu(screen.getByRole("button", { name: "Filter chats" }));
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Trigger sessions" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Hidden trigger sessions" }));
     expect(onShowTriggersChange).toHaveBeenLastCalledWith(true);
     rerender(
       <Sidebar

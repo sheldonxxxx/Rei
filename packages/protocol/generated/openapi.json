@@ -3794,6 +3794,9 @@
               }
             ]
           },
+          "hideInList": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "number"
           },
@@ -4576,6 +4579,9 @@
               "never"
             ]
           },
+          "hideInList": {
+            "type": "boolean"
+          },
           "latenessMinutes": {
             "type": "integer"
           },
@@ -4705,6 +4711,7 @@
           "landing",
           "ongoingSessionId",
           "report",
+          "hideInList",
           "latenessMinutes",
           "catchUp",
           "overlap",
@@ -4876,6 +4883,9 @@
               "never"
             ]
           },
+          "hideInList": {
+            "type": "boolean"
+          },
           "latenessMinutes": {
             "type": "integer"
           },
@@ -5032,6 +5042,9 @@
                   "never"
                 ]
               },
+              "hideInList": {
+                "type": "boolean"
+              },
               "latenessMinutes": {
                 "type": "integer"
               },
@@ -5106,6 +5119,7 @@
               "action",
               "landing",
               "report",
+              "hideInList",
               "latenessMinutes",
               "catchUp",
               "overlap",
@@ -5126,6 +5140,7 @@
           "action",
           "landing",
           "report",
+          "hideInList",
           "latenessMinutes",
           "catchUp",
           "overlap",
@@ -23436,7 +23451,7 @@
           "chat"
         ],
         "summary": "The sessions: all of them, or with paged=1 up to 30 history sessions of one agent per page.",
-        "description": "With paged=1, home chats and finished trigger runs are left out unless triggers=1; `before` is the previous page's nextCursor.",
+        "description": "With paged=1, home chats and hidden trigger runs are left out unless triggers=1; `before` is the previous page's nextCursor.",
         "parameters": [
           {
             "name": "paged",
@@ -35171,6 +35186,9 @@
                       "never"
                     ]
                   },
+                  "hideInList": {
+                    "type": "boolean"
+                  },
                   "latenessMinutes": {
                     "type": "integer"
                   },
@@ -35533,6 +35551,9 @@
                       "on_change",
                       "never"
                     ]
+                  },
+                  "hideInList": {
+                    "type": "boolean"
                   },
                   "latenessMinutes": {
                     "type": "integer"

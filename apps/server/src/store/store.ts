@@ -120,6 +120,7 @@ export interface SessionRow {
   browser_url: string | null;
   browser_title: string | null;
   trigger_id: string | null;
+  hide_in_list: number;
   last_run_status: string | null;
   /** Agent entries after the read marker (`agent_entries`, `read_markers`). */
   unread: number;
@@ -225,6 +226,7 @@ const toSession = (r: SessionRow, takeover: Takeover | null = null): Session => 
   unread: r.unread,
   browser: r.browser_url === null ? null : { url: r.browser_url, title: r.browser_title ?? "", takeover },
   ...(r.origin === "trigger" ? { triggerId: r.trigger_id } : {}),
+  ...(r.origin === "trigger" && r.hide_in_list === 1 ? { hideInList: true } : {}),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -409,7 +411,7 @@ export class AppStore {
     const rows = this.db.all<SessionRow>(
       `SELECT * FROM sessions WHERE deleted_at IS NULL
       AND origin != 'home' AND id NOT IN (SELECT home_session_id FROM agents WHERE home_session_id IS NOT NULL)
-      AND (origin != 'trigger' OR ${options.triggers ? "1" : "status IN ('failed', 'waiting_for_user') OR EXISTS (SELECT 1 FROM takeovers WHERE session_id = sessions.id AND status = 'pending')"})
+      AND (hide_in_list = 0 OR ${options.triggers ? "1" : "status IN ('failed', 'waiting_for_user') OR EXISTS (SELECT 1 FROM takeovers WHERE session_id = sessions.id AND status = 'pending')"})
       ${agentId ? "AND agent_id = ?" : ""}
       ${boundary ? "AND (updated_at < ? OR (updated_at = ? AND id < ?))" : ""}
       ORDER BY updated_at DESC, id DESC LIMIT ?`,
@@ -901,21 +903,44 @@ export class AppStore {
   }
 
   /** A session for a trigger's run, in a new tree, with the trigger's profile and the trigger's name as its title. The adapter creates the tree folder. */
-  createTriggerSession(input: { agentId: string; triggerId: string; title: string; profile: string }): {
+  createTriggerSession(input: {
+    agentId: string;
+    triggerId: string;
+    title: string;
+    profile: string;
+    hideInList?: boolean;
+  }): {
     session: Session;
     treeId: string;
   } {
     return this.tx(() => {
       const made = this.createSession(input.agentId, "trigger");
       this.db.run(
-        "UPDATE sessions SET title = ?, profile = ?, trigger_id = ? WHERE id = ?",
+        "UPDATE sessions SET title = ?, profile = ?, trigger_id = ?, hide_in_list = ? WHERE id = ?",
         input.title,
         canonicalProfile(input.profile),
         input.triggerId,
+        input.hideInList ? 1 : 0,
         made.session.id,
       );
       this.#emitSession(made.session.id);
       return { session: this.getSession(made.session.id)!, treeId: made.treeId };
+    });
+  }
+
+  /** Syncs existing live sessions of a trigger when its chat-list visibility changes, without moving their sort order. */
+  setTriggerSessionsHidden(triggerId: string, hideInList: boolean): void {
+    this.tx(() => {
+      const ids = this.db
+        .all<{ id: string }>("SELECT id FROM sessions WHERE trigger_id = ? AND deleted_at IS NULL", triggerId)
+        .map((r) => r.id);
+      if (ids.length === 0) return;
+      this.db.run(
+        "UPDATE sessions SET hide_in_list = ? WHERE trigger_id = ? AND deleted_at IS NULL",
+        hideInList ? 1 : 0,
+        triggerId,
+      );
+      for (const id of ids) this.#emitSession(id);
     });
   }
 

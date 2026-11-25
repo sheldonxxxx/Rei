@@ -16,8 +16,8 @@ data class ChatGroup(val key: String, val label: UiText, val sessions: List<Sess
 
 /**
  * The drawer's chat list, the way web's `selectSessions` and `dateGroup` build the sidebar: one agent's chats, newest
- * first; home chats are reached through the agents, not listed; a trigger run stays out unless it is open, needs you,
- * failed, or [showTriggers] is on. Pinned chats come first under "Pinned".
+ * first; home chats are reached through the agents, not listed; hidden trigger runs stay out unless open, waiting for
+ * you, failed, or [showTriggers] is on. Pinned chats come first under "Pinned".
  */
 fun groupChats(
     sessions: List<Session>,
@@ -33,7 +33,7 @@ fun groupChats(
     val shown = sessions
         .filter { s ->
             (agentId == null || s.agentId == agentId) && s.origin != "home" && s.id !in homeIds &&
-                (s.id == openSessionId || s.origin != "trigger" || showTriggers || s.status == "failed" ||
+                (s.id == openSessionId || !s.hideInList || showTriggers || s.status == "failed" ||
                     s.pendingApprovals > 0 || s.status == "waiting_for_user")
         }
         .sortedWith(compareByDescending<Session> { it.updatedAt }.thenByDescending { it.id })

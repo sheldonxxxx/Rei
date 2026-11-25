@@ -163,7 +163,8 @@ describe("TriggersPage: creation", () => {
         start: { kind: "schedule", schedule: { kind: "daily", times: ["09:00"], timeZone: "Asia/Macau" } },
         action: { kind: "prompt", prompt: "Check the weather." },
         landing: "new",
-        report: "on_change",
+        report: "never",
+        hideInList: false,
         catchUp: "once",
         overlap: "skip",
         profile: "standard",
@@ -205,13 +206,48 @@ describe("TriggersPage: creation", () => {
       start: { kind: "event", source: "feed", types: ["items.new"] },
       action: { kind: "notify", message: "The feed changed." },
       landing: "new",
-      report: "on_change",
+      report: "never",
+      hideInList: false,
       profile: "strict",
     });
     expect(form.getByLabelText<HTMLInputElement>("Name").value).toBe("Feed update");
     fireEvent.click(form.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("heading", { name: "Triggers" })).toBeTruthy();
     expect(createTrigger).toHaveBeenCalledTimes(1);
+  });
+
+  it("couples Chat list visibility to Report by default and preserves manual overrides", async () => {
+    const createTrigger = vi.fn().mockResolvedValue({ trigger: trigger({ report: "on_change", hideInList: false }) });
+    const previousPath = window.location.href;
+    setup({ getTriggers: vi.fn().mockResolvedValue({ triggers: [] }), createTrigger });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "New trigger" }));
+      const form = within(screen.getByRole("form", { name: "New trigger" }));
+      const reportSelect = form.getByLabelText<HTMLSelectElement>("Report to your chat");
+      const listSelect = form.getByLabelText<HTMLSelectElement>("Chat list");
+      expect(reportSelect.value).toBe("never");
+      expect(listSelect.value).toBe("show");
+      // Switching to a reporting trigger defaults to hiding from the chat list.
+      fireEvent.change(reportSelect, { target: { value: "on_change" } });
+      expect(listSelect.value).toBe("hide");
+      // Switching back to never returns to showing in the chat list.
+      fireEvent.change(reportSelect, { target: { value: "never" } });
+      expect(listSelect.value).toBe("show");
+      // Switching to always hides again, and a manual override to show is preserved.
+      fireEvent.change(reportSelect, { target: { value: "always" } });
+      expect(listSelect.value).toBe("hide");
+      fireEvent.change(listSelect, { target: { value: "show" } });
+      fireEvent.change(reportSelect, { target: { value: "on_change" } });
+      expect(listSelect.value).toBe("show");
+      fireEvent.change(form.getByLabelText("Name"), { target: { value: "Visible watcher" } });
+      fireEvent.change(form.getByLabelText("Prompt"), { target: { value: "Check prices." } });
+      fireEvent.change(form.getByLabelText("Time zone"), { target: { value: "Asia/Macau" } });
+      fireEvent.click(form.getByRole("button", { name: "Create trigger" }));
+      await waitFor(() => expect(createTrigger).toHaveBeenCalledOnce());
+      expect(createTrigger).toHaveBeenCalledWith(expect.objectContaining({ report: "on_change", hideInList: false }));
+    } finally {
+      window.history.replaceState(null, "", previousPath);
+    }
   });
 });
 
