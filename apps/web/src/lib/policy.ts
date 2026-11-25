@@ -25,7 +25,6 @@ export const CLASS_LABEL: Record<ActionClass, string> = {
 export const PROFILE_LABEL: Record<ProfileName, string> = {
   strict: "Strict",
   standard: "Standard",
-  relaxed: "Relaxed",
   yolo: "YOLO",
 };
 
@@ -33,7 +32,6 @@ export const PROFILE_LABEL: Record<ProfileName, string> = {
 export const PROFILE_HELP: Record<ProfileName, string> = {
   strict: "Asks before web research and actions outside the sandbox.",
   standard: "Researches, makes reversible edits, and updates memory automatically.",
-  relaxed: "Also allows reversible writes. After reading outside content, asks only for new destinations.",
   yolo: "Runs built-in actions automatically, including sends, trigger changes and irreversible actions. Logins still need you.",
 };
 export const PROFILES: ProfileName[] = ["strict", "standard", "yolo"];

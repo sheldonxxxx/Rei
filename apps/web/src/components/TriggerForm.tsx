@@ -20,7 +20,7 @@ import { NativeSelect } from "@/components/primitives/native-select.tsx";
 import { Textarea } from "@/components/primitives/textarea.tsx";
 import type { Api } from "../api/client.ts";
 import { describeSetupError } from "../api/client.ts";
-import { CLASS_LABEL, PROFILE_HELP, PROFILE_LABEL } from "../lib/policy.ts";
+import { CLASS_LABEL, PROFILE_HELP, PROFILE_LABEL, PROFILES } from "../lib/policy.ts";
 import {
   CATCH_UP_LABEL,
   draftFromSchedule,
@@ -33,8 +33,6 @@ import {
 import { Icon } from "./Icon.tsx";
 import { ScheduleEditor } from "./ScheduleEditor.tsx";
 import { Tip } from "./Tip.tsx";
-
-const PROFILES = ["strict", "standard", "relaxed"] as const;
 
 const KIND_LABEL: Record<TriggerAction["kind"], string> = {
   notify: "Posts a message",
@@ -85,9 +83,9 @@ function formFromTrigger(t: Trigger): Form {
   };
 }
 
+/** A new trigger's runs start on the agent's default level, YOLO included. */
 function triggerProfile(agent: Agent | undefined): Trigger["profile"] {
-  const profile = agent?.defaultProfile;
-  return profile === "strict" || profile === "relaxed" ? profile : "standard";
+  return agent?.defaultProfile ?? "standard";
 }
 
 function newForm(agent: Agent | undefined): Form {
@@ -566,9 +564,18 @@ export function TriggerForm({ api, trigger, agents, sources, onSaved, onCancel }
             )}
           </div>
         )}
-        {kind !== "notify" && (
-          <p className="cfg-hint m-0 text-xs text-muted-foreground">{PROFILE_HELP[form.profile]}</p>
-        )}
+        {kind !== "notify" &&
+          (form.profile === "yolo" ? (
+            <p className="cfg-hint approval-warn yolo-warn m-0 flex items-center gap-2 rounded-2xl bg-attention-soft px-3 py-2.5 text-xs text-attention-text">
+              <Icon name="alert" size={16} />
+              <span>
+                {PROFILE_HELP.yolo} Content its runs read on the web could talk the agent into things you wouldn't
+                choose.
+              </span>
+            </p>
+          ) : (
+            <p className="cfg-hint m-0 text-xs text-muted-foreground">{PROFILE_HELP[form.profile]}</p>
+          ))}
       </fieldset>
 
       {!creating && kind !== "notify" && (

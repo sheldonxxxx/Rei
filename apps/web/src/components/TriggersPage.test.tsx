@@ -634,25 +634,28 @@ describe("TriggersPage: settings", () => {
     expect(list.textContent).toContain("to ana@example.com");
     expect(list.textContent).toContain("to any destination");
     fireEvent.change(screen.getByLabelText("Where it runs"), { target: { value: "ongoing" } });
-    fireEvent.change(screen.getByLabelText("Permissions for its runs"), { target: { value: "relaxed" } });
+    fireEvent.change(screen.getByLabelText("Permissions for its runs"), { target: { value: "strict" } });
     fireEvent.click(screen.getByRole("button", { name: "Remove Send an email to ana@example.com" }));
     fireEvent.click(save());
     await waitFor(() =>
       expect(api.updateTrigger).toHaveBeenCalledWith("trg1", {
         landing: "ongoing",
-        profile: "relaxed",
+        profile: "strict",
         allow: [{ tool: "write_file" }],
       }),
     );
   });
 
-  it("does not offer yolo, and has no way to add an allow entry", async () => {
-    await open();
-    const options = [...(screen.getByLabelText("Permissions for its runs") as HTMLSelectElement).options].map(
-      (o) => o.textContent,
-    );
-    expect(options).toEqual(["Strict", "Standard", "Relaxed"]);
+  it("offers the chat's three levels, warns on YOLO, and has no way to add an allow entry", async () => {
+    const api = await open();
+    const select = screen.getByLabelText("Permissions for its runs") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Strict", "Standard", "YOLO"]);
+    expect(screen.queryByText(/could talk the agent into things/)).toBeNull();
+    fireEvent.change(select, { target: { value: "yolo" } });
+    expect(screen.getByText(/could talk the agent into things/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /add .*allow/i })).toBeNull();
+    fireEvent.click(save());
+    await waitFor(() => expect(api.updateTrigger).toHaveBeenCalledWith("trg1", { profile: "yolo" }));
   });
 
   it("follows a refetch when you haven't edited, and keeps your edit when you have", async () => {

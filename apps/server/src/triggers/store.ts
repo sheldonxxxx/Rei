@@ -16,6 +16,7 @@ import type {
 } from "@rei/protocol";
 import { type SuggestionRow, toSuggestion } from "../memory/rows.ts";
 import type { ToolCatalog } from "../pi/policy-ext.ts";
+import { canonicalProfile } from "../policy/decision.ts";
 import { GLOBAL_STREAM } from "../store/events.ts";
 import type { AppStore } from "../store/store.ts";
 import { newId } from "../util/ids.ts";
@@ -163,7 +164,7 @@ export class TriggerStore {
       latenessMinutes: r.lateness_minutes,
       catchUp: r.catch_up as TriggerFields["catchUp"],
       overlap: r.overlap as TriggerFields["overlap"],
-      profile: r.profile as TriggerFields["profile"],
+      profile: canonicalProfile(r.profile),
       allow: this.allow(r),
     };
   }
@@ -194,7 +195,7 @@ export class TriggerStore {
       latenessMinutes: r.lateness_minutes,
       catchUp: r.catch_up as Trigger["catchUp"],
       overlap: r.overlap as Trigger["overlap"],
-      profile: r.profile as Trigger["profile"],
+      profile: canonicalProfile(r.profile),
       allow: this.allowViews(this.allow(r)),
       status: r.status as TriggerStatus,
       pausedReason: r.paused_reason as Trigger["pausedReason"],

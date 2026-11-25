@@ -7,7 +7,7 @@ import type {
   ApprovalId,
   ErrorInfo,
   MessageId,
-  ProfileName,
+  ProfileInput,
   Run,
   RunId,
   Session,
@@ -323,7 +323,8 @@ export interface AgentSettingsPatch {
   thinkingLevel?: ThinkingLevel;
   /** What the agent's sandbox may reach outside (see SandboxNetworkMode). */
   networkMode?: SandboxNetworkMode;
-  defaultProfile?: ProfileName;
+  /** "relaxed" is accepted as an older name for "standard". */
+  defaultProfile?: ProfileInput;
   /** Null allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
   canCreateTriggersForOtherAgents?: boolean;

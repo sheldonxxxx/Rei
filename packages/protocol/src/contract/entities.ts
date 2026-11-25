@@ -66,7 +66,9 @@ export const ActionClassSchema = oneOf([
   "memory_write",
   "configure",
 ]);
-export const ProfileNameSchema = oneOf(["strict", "standard", "relaxed", "yolo"]);
+export const ProfileNameSchema = oneOf(["strict", "standard", "yolo"]);
+/** What a request may name: "relaxed" is an older name the server reads as "standard" (ADR 0009: input only grows). */
+export const ProfileInputSchema = oneOf(["strict", "standard", "relaxed", "yolo"]);
 export const TaintLabelSchema = oneOf(["external", "private"]);
 export const GrantLengthSchema = oneOf(["once", "session", "web_session", "agent", "hours", "always", "trigger"]);
 
@@ -179,7 +181,7 @@ const triggerPreviewFields = {
   latenessMinutes: int(),
   catchUp: oneOf(["once", "skip"]),
   overlap: oneOf(["skip", "queue"]),
-  profile: oneOf(["strict", "standard", "relaxed"]),
+  profile: ProfileNameSchema,
   allow: arr(TriggerAllowViewSchema),
   skillNeeds: opt(arr(str())),
 } as const;

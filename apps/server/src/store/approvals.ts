@@ -706,40 +706,6 @@ export class ApprovalStore {
     return row ? toGrant(row) : undefined;
   }
 
-  /** Approval history at a destination, for validating definition-bound MCP authority. */
-  approvedFor(input: {
-    connector: string;
-    operation: string;
-    destination: string | null;
-    sessionId: string;
-  }): ApprovalRow[] {
-    return this.#db.all<ApprovalRow>(
-      "SELECT * FROM approvals WHERE session_id = ? AND connector = ? AND operation = ? AND destination IS ? AND status = 'approved'",
-      input.sessionId,
-      input.connector,
-      input.operation,
-      input.destination,
-    );
-  }
-
-  /** True when nothing was ever approved for this connector + operation + destination in this session. */
-  isNewDestination(input: {
-    connector: string;
-    operation: string;
-    destination: string | null;
-    sessionId: string;
-  }): boolean {
-    return (
-      this.#db.get(
-        "SELECT 1 AS x FROM approvals WHERE session_id = ? AND connector = ? AND operation = ? AND destination IS ? AND status = 'approved' LIMIT 1",
-        input.sessionId,
-        input.connector,
-        input.operation,
-        input.destination,
-      ) === undefined
-    );
-  }
-
   /** Grants in force (not revoked, not past their hours), newest first. */
   listGrants(): Grant[] {
     return this.#db

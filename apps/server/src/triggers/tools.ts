@@ -1,5 +1,5 @@
 // The "triggers" extension: create, change, delete and list triggers, and its prompt section; the "trigger_run"
-// extension: report() and the section for a trigger's own run. create/update/delete are `configure` calls: they always show a card, in every profile. An invalid
+// extension: report() and the section for a trigger's own run. create/update/delete are `configure` calls: they show a card at every level but YOLO. An invalid
 // draft is refused in the policy's preview step (before any card) and checked again when the approved call runs.
 
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -160,8 +160,9 @@ const settings = {
     }),
   ),
   profile: opt(
-    StringEnum(["strict", "standard", "relaxed"], {
-      description: "The permission profile of its runs. Default: your own profile.",
+    StringEnum(["strict", "standard", "yolo", "relaxed"], {
+      description:
+        "The permission level of its runs, with the same rules as a chat: strict, standard or yolo (relaxed is an older name for standard). Default: the agent's default level.",
     }),
   ),
   allow: opt(

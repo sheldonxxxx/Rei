@@ -172,7 +172,7 @@ export class TriggerRunner {
           agentId: trigger.agent_id,
           triggerId: trigger.id,
           title: trigger.name,
-          profile: trigger.profile as never,
+          profile: trigger.profile,
         });
         session = app.getSessionRow(made.session.id)!;
         treeId = made.treeId;

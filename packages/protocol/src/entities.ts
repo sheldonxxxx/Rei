@@ -80,12 +80,15 @@ export type ActionClass =
   | "configure";
 
 /**
+ * One set of levels for every kind of session (a chat, a worker, a trigger's run):
  * - strict: ask for outside reads and effects
- * - standard (default): allow routine research, reversible writes and memory edits in interactive chats
- * - relaxed: legacy profile retained for unattended runs and older clients
+ * - standard (default): allow routine research, reversible writes and memory edits
  * - yolo: allow built-in actions automatically except credential entry, which uses takeover
  */
-export type ProfileName = "strict" | "standard" | "relaxed" | "yolo";
+export type ProfileName = "strict" | "standard" | "yolo";
+
+/** A level a request may name: a ProfileName, or "relaxed", an older name the server reads as "standard". */
+export type ProfileInput = ProfileName | "relaxed";
 
 /** external: the session read outside content. private: it read your private data. Labels never come off a session. */
 export type TaintLabel = "external" | "private";
@@ -252,7 +255,7 @@ export interface Session {
  * - report: a spawned session finished; it is also the input of the run in which this chat's agent reacts to it
  * - approval: a blocked call waiting for you, or what became of it; `approval` holds it and the message is upserted as
  *   it changes. It also shows in the chat that spawned the session (same approval, its own message there).
- * - notice: a line from the app, not the agent (e.g. "You changed the profile to Relaxed"); `text` holds it
+ * - notice: a line from the app, not the agent (e.g. "Permissions changed to Strict."); `text` holds it
  * - takeover: the agent asked you to take over the browser, or you did; `takeover` holds it and the message is upserted
  *   as it changes
  * - trigger: a trigger's line in the agent's home chat: a notify message, a report, a failure or a self-pause;

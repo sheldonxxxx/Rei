@@ -36,8 +36,11 @@ const make = (over: Partial<TriggerFields> = {}): Trigger =>
     },
   });
 const runsOf = (id: string) => T().store.runsOfTrigger(id);
-/** An action that stays running: it asks for an approval nobody answers. */
-const BLOCKING: TriggerFields["action"] = { kind: "prompt", prompt: tool("demo_add_todo", { text: "x" }) };
+/** An action that stays running: a send asks at Standard, and nobody answers. */
+const BLOCKING: TriggerFields["action"] = {
+  kind: "prompt",
+  prompt: tool("demo_send_message", { to: "sam", text: "x" }),
+};
 const start = async () => {
   server = await startSignedIn();
   return eventSender(server);

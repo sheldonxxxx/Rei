@@ -660,10 +660,10 @@ describe("ChatView: permissions and approvals", () => {
     expect(screen.queryByRole("menuitem", { name: /Permissions/ })).toBeNull();
   });
 
-  it("shows the profile chip for Relaxed and a YOLO chip in warning style, and no taint labels", () => {
+  it("shows the profile chip for Standard and a YOLO chip in warning style, and no taint labels", () => {
     const es = setup({}, { sessions: [] });
-    open(es, session({ profile: "relaxed", taint: ["external", "private"] }));
-    expect(screen.getByRole("button", { name: "Permissions: Relaxed. Change" }).textContent).toBe("Relaxed");
+    open(es, session({ profile: "standard", taint: ["external", "private"] }));
+    expect(screen.getByRole("button", { name: "Permissions: Standard. Change" }).textContent).toBe("Standard");
     expect(screen.queryByText("Read outside content")).toBeNull();
     expect(screen.queryByText("Read private data")).toBeNull();
     act(() => es.emit({ type: "session.upserted", session: session({ profile: "yolo" }) }, "2"));
@@ -701,8 +701,8 @@ describe("ChatView: permissions and approvals", () => {
         }),
     );
     const es = setup({ updateSession }, { sessions: [] });
-    open(es, session({ profile: "relaxed" }));
-    const chip = screen.getByRole("button", { name: /Permissions: Relaxed/ });
+    open(es, session({ profile: "strict" }));
+    const chip = screen.getByRole("button", { name: /Permissions: Strict/ });
     chip.focus();
     fireEvent.click(chip);
     const dialog = screen.getByRole("dialog", { name: "Permissions" });
@@ -721,8 +721,8 @@ describe("ChatView: permissions and approvals", () => {
   it("shows an error in the dialog when saving fails, and the chip also opens it", async () => {
     const updateSession = vi.fn().mockRejectedValue(new ApiError(400, "bad_profile", ""));
     const es = setup({ updateSession }, { sessions: [] });
-    open(es, session({ origin: "home", profile: "relaxed" }));
-    fireEvent.click(screen.getByRole("button", { name: /Permissions: Relaxed/ }));
+    open(es, session({ origin: "home", profile: "standard" }));
+    fireEvent.click(screen.getByRole("button", { name: /Permissions: Standard/ }));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("radio", { name: /Strict/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));

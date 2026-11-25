@@ -7,7 +7,7 @@ import type { Extension, HookApi, JsonObject, SignalKey, ToolRegistration } from
 import { defineExtension, defineTool, hook, section, ToolTask } from "@earendil-works/pi-durable";
 import { str } from "@earendil-works/pi-schema";
 import type { ActionClass, Approval, Grant, GrantLength, StepDecision, TaintLabel, TriggerAllow } from "@rei/protocol";
-import { argsPreview, canonicalJson, type Decision, decide, isTainted } from "../policy/decision.ts";
+import { argsPreview, canonicalJson, canonicalProfile, type Decision, decide, isTainted } from "../policy/decision.ts";
 import type { ApprovalDraft, ApprovalRow, ApprovalStore } from "../store/approvals.ts";
 import type { AppStore, SessionRow } from "../store/store.ts";
 import { sha256Hex } from "../util/encoding.ts";
@@ -238,7 +238,7 @@ export interface ToolEvaluation {
   decision: Decision;
 }
 
-/** Trigger sessions use their own saved permissions and fail fast on nested approval requests. */
+/** A trigger's run: its allow list counts like a grant, and a script's nested call that asks fails fast. */
 const isTriggerSession = (session: Pick<SessionRow, "origin">): boolean => session.origin === "trigger";
 
 /** The decision for a call: class, destination, matching grant and the policy function; the hook and redirects share it. */
@@ -249,7 +249,6 @@ export function evaluateTool(
   args: JsonObject,
   facts?: unknown,
   grantValid: (grant: Grant) => boolean = () => true,
-  newDestination?: boolean,
 ): ToolEvaluation {
   let destination: string | null = null;
   try {
@@ -270,12 +269,13 @@ export function evaluateTool(
     const policy = tool.mcpPolicy(facts);
     const decision: Decision =
       actionClass === "credentials"
-        ? decide({ actionClass, profile: "strict", grantMatches: false, taint, newDestination: true })
+        ? decide({ actionClass, profile: "strict", grantMatches: false, taint })
         : policy.automatic
           ? { kind: "allow", via: "profile" }
           : { kind: "ask", lengths: ["once"], reason: "this connector's MCP profile requires approval of this call" };
     return { actionClass, destination, operation, taint, grant: undefined, decision };
   }
+  const profile = canonicalProfile(session.profile);
   if (tool.approvalOnce) {
     return {
       actionClass,
@@ -284,7 +284,7 @@ export function evaluateTool(
       taint,
       grant: undefined,
       decision:
-        session.profile === "yolo" || (session.profile === "standard" && tool.approvalOnce.allowStandard)
+        profile === "yolo" || (profile === "standard" && tool.approvalOnce.allowStandard)
           ? { kind: "allow", via: "profile" }
           : { kind: "ask", lengths: ["once"], reason: tool.approvalOnce.reason },
     };
@@ -297,7 +297,7 @@ export function evaluateTool(
       taint,
       grant: undefined,
       decision:
-        session.profile === "relaxed" || session.profile === "yolo"
+        profile === "yolo"
           ? { kind: "allow", via: "profile" }
           : { kind: "ask", lengths: ["once"], reason: "this changes an installed plugin" },
     };
@@ -308,19 +308,16 @@ export function evaluateTool(
     destination,
     sessionId: session.id,
   };
-  const unattended = isTriggerSession(session);
-  const web = !unattended && tool.webResearch?.(args) === true;
+  const web = tool.webResearch?.(args) === true;
   const found = approvals.findGrant({ ...key, agentId: session.agent_id });
   const grant =
     (found && grantValid(found) ? found : undefined) ?? (web ? approvals.findWebGrant(session.id) : undefined);
   const normal = decide({
     actionClass,
-    profile: session.profile as never,
-    unattended,
+    profile,
     ...(web ? { scope: "web" } : browserInput ? { scope: "browser_site" } : {}),
     grantMatches: grant !== undefined,
     taint,
-    newDestination: newDestination ?? approvals.isNewDestination(key),
   });
   return { actionClass, destination, operation, taint, grant, decision: normal };
 }
@@ -408,8 +405,8 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
     tool: ToolPolicy,
     args: JsonObject,
     facts: unknown,
-  ): Promise<{ grantValid: (grant: Grant) => boolean; newDestination?: boolean }> => {
-    if (tool.mcpPolicy || tool.approvalOnce) return { grantValid: () => false, newDestination: true };
+  ): Promise<{ grantValid: (grant: Grant) => boolean }> => {
+    if (tool.mcpPolicy || tool.approvalOnce) return { grantValid: () => false };
     if (binding === undefined) return { grantValid: () => true };
     const valid = new Set<string>();
     const candidate = evaluateTool(approvals, session, tool, args, facts);
@@ -422,23 +419,7 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
         /* malformed persisted approvals never authorize */
       }
     }
-    let known = false;
-    for (const row of approvals.approvedFor({
-      connector: tool.connector,
-      operation: candidate.operation,
-      destination: candidate.destination,
-      sessionId: session.id,
-    })) {
-      try {
-        if (row.args_hash === (await approvalHash(JSON.parse(row.args_json), binding))) {
-          known = true;
-          break;
-        }
-      } catch {
-        /* malformed persisted approvals never authorize */
-      }
-    }
-    return { grantValid: (grant) => valid.has(grant.id), newDestination: !known };
+    return { grantValid: (grant) => valid.has(grant.id) };
   };
 
   const planRead = async (
@@ -596,7 +577,6 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
         args,
         facts,
         authority.grantValid,
-        authority.newDestination,
       );
       if (saved.via === "profile") {
         if (evaluation.decision.kind !== "allow" || evaluation.decision.via !== "profile") throw new Error(STALE);
@@ -827,15 +807,7 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
               }
             }
             const authority = await authorizationFor(binding, current, tool, policyArgs, facts);
-            const evaluated = evaluateTool(
-              approvals,
-              current,
-              tool,
-              policyArgs,
-              facts,
-              authority.grantValid,
-              authority.newDestination,
-            );
+            const evaluated = evaluateTool(approvals, current, tool, policyArgs, facts, authority.grantValid);
             const { actionClass, destination, operation, taint, grant } = evaluated;
             const readTaint = (): readonly TaintLabel[] =>
               typeof tool.taint === "function" ? tool.taint(policyArgs, facts) : (tool.taint ?? ["external"]);

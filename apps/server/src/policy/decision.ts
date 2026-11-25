@@ -1,23 +1,31 @@
-// The decision point: a pure function of (action class, session profile, matching grant, session
-// taint labels, whether the destination is new) that says allow, ask or deny. No I/O; everything it needs is passed in.
-import type { ActionClass, GrantLength, ProfileName, TaintLabel } from "@rei/protocol";
+// The decision point: a pure function of (action class, session level, matching grant, session taint labels) that says
+// allow, ask or deny. No I/O; everything it needs is passed in. Every kind of session (a chat, a worker, a trigger's run)
+// gets the same table: the same level and the same inputs give the same decision (docs/chat-permissions.md).
+import type { ActionClass, GrantLength, ProfileInput, ProfileName, TaintLabel } from "@rei/protocol";
 
 export const ALL_LENGTHS: readonly GrantLength[] = ["once", "session", "agent", "hours", "always"];
 export const ONCE_ONLY: readonly GrantLength[] = ["once"];
-const CHAT_DESTINATION: readonly GrantLength[] = ["once", "session"];
-const CHAT_WEB: readonly GrantLength[] = ["once", "session", "web_session"];
+const SITE_LENGTHS: readonly GrantLength[] = ["once", "session"];
+const WEB_LENGTHS: readonly GrantLength[] = ["once", "session", "web_session"];
+
+/**
+ * The level a stored or requested name stands for. "relaxed" is an older name for Standard, kept so stored chats,
+ * triggers and older clients still work; anything else unknown reads as Strict, so a damaged value never opens more.
+ */
+export function canonicalProfile(value: ProfileInput | string | null | undefined): ProfileName {
+  if (value === "relaxed") return "standard";
+  return value === "standard" || value === "yolo" ? value : "strict";
+}
 
 export interface DecisionInput {
   actionClass: ActionClass;
   profile: ProfileName;
-  unattended?: boolean;
+  /** web: a public web search or fetch (web grants cover it). browser_site: typing into a site after private reads. */
   scope?: "web" | "browser_site";
   /** A standing grant (session, agent, hours, always) matches connector + operation + destination for this session. */
   grantMatches: boolean;
   /** The session's taint labels. */
   taint: readonly TaintLabel[];
-  /** No approval or grant for this connector + operation + destination exists in this session yet. */
-  newDestination: boolean;
 }
 
 export type Decision =
@@ -34,19 +42,18 @@ export const CREDENTIALS_DENIED =
 
 export function decide(input: DecisionInput): Decision {
   const { actionClass, grantMatches, scope } = input;
-  const profile = input.profile === "relaxed" && !input.unattended ? "standard" : input.profile;
-  const standardChat = profile === "standard" && !input.unattended;
+  const profile = canonicalProfile(input.profile);
   const open = (via: "profile" | "grant"): Decision => ({ kind: "allow", via });
-  if (!input.unattended && scope === "web" && (actionClass === "send" || actionClass === "read_external")) {
-    if (profile === "yolo" || standardChat || (profile !== "strict" && actionClass === "read_external"))
-      return open("profile");
+  // Public web research: Standard and YOLO search and fetch on their own, also after private reads.
+  if (scope === "web" && (actionClass === "send" || actionClass === "read_external")) {
+    if (profile !== "strict") return open("profile");
     if (grantMatches) return open("grant");
-    return { kind: "ask", lengths: CHAT_WEB, reason: "this web request needs approval" };
+    return { kind: "ask", lengths: WEB_LENGTHS, reason: "this web request needs approval" };
   }
-  if (!input.unattended && scope === "browser_site" && actionClass === "send") {
+  if (scope === "browser_site" && actionClass === "send") {
     if (profile === "yolo") return open("profile");
     if (grantMatches) return open("grant");
-    return { kind: "ask", lengths: CHAT_DESTINATION, reason: "the page can read what is typed into it" };
+    return { kind: "ask", lengths: SITE_LENGTHS, reason: "the page can read what is typed into it" };
   }
   switch (actionClass) {
     case "read_internal":
@@ -58,32 +65,20 @@ export function decide(input: DecisionInput): Decision {
         ? open("grant")
         : { kind: "ask", lengths: ALL_LENGTHS, reason: "strict profile asks before reading outside content" };
     case "write_external":
-      if (standardChat || profile === "relaxed" || profile === "yolo") return open("profile");
+      if (profile !== "strict") return open("profile");
       return grantMatches ? open("grant") : { kind: "ask", lengths: ALL_LENGTHS, reason: "writing outside asks first" };
     case "send":
-      if (isTainted(input.taint)) {
-        if (profile === "yolo") return open("profile");
-        if (profile === "relaxed") {
-          // Only a destination nobody approved or granted yet asks; grants are how a destination stops being new.
-          return grantMatches || !input.newDestination
-            ? open(grantMatches ? "grant" : "profile")
-            : {
-                kind: "ask",
-                lengths: ONCE_ONLY,
-                reason: "this session read outside content and private data, and this destination is new",
-              };
-        }
-        // strict / standard: every time, grants ignored, only "once" offered
+      if (profile === "yolo") return open("profile");
+      if (isTainted(input.taint))
+        // Strict and Standard: every time, grants ignored, only "once" offered.
         return {
           kind: "ask",
           lengths: ONCE_ONLY,
           reason: "this session read outside content and private data, so every send asks",
         };
-      }
-      if (profile === "yolo") return open("profile");
       return grantMatches ? open("grant") : { kind: "ask", lengths: ALL_LENGTHS, reason: "sending asks first" };
     case "memory_write":
-      if (standardChat || profile === "yolo" || !input.taint.includes("external")) return open("profile");
+      if (profile !== "strict" || !input.taint.includes("external")) return open("profile");
       return grantMatches
         ? open("grant")
         : {
@@ -124,7 +119,6 @@ export function canonicalJson(value: unknown): string {
 export const PROFILE_LABEL: Record<ProfileName, string> = {
   strict: "Strict",
   standard: "Standard",
-  relaxed: "Relaxed",
   yolo: "YOLO",
 };
 

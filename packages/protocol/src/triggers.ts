@@ -1,6 +1,6 @@
 // Triggers: when an agent does something on its own, on a schedule or when an outside event arrives (ADR 0019). A trigger is made
 // in chat (the agent drafts it and you approve a card), then edited, paused, run or deleted on the Triggers page.
-import type { ActionClass, AgentId, ProfileName, RunId, SessionId } from "./entities.ts";
+import type { ActionClass, AgentId, ProfileInput, ProfileName, RunId, SessionId } from "./entities.ts";
 
 export type TriggerId = string;
 export type TriggerRunId = string;
@@ -113,8 +113,8 @@ export interface Trigger {
   catchUp: "once" | "skip";
   /** Schedules only. skip: a firing while the last run is still going is skipped as "overlap" (default). queue: it waits and starts when that run ends (one waits at most). */
   overlap: "skip" | "queue";
-  /** The permission profile of its runs (never yolo). */
-  profile: Exclude<ProfileName, "yolo">;
+  /** The permission level of its runs: the same levels and rules as a chat. */
+  profile: ProfileName;
   allow: TriggerAllowView[];
   status: TriggerStatus;
   pausedReason: "user" | "agent" | "failures" | null;
@@ -202,7 +202,8 @@ export interface CreateTriggerRequest {
   latenessMinutes?: number;
   catchUp?: "once" | "skip";
   overlap?: "skip" | "queue";
-  profile?: Exclude<ProfileName, "yolo">;
+  /** "relaxed" is accepted as an older name for "standard". */
+  profile?: ProfileInput;
 }
 export interface TriggerCreatedResponse {
   trigger: Trigger;
@@ -228,7 +229,8 @@ export interface UpdateTriggerRequest {
   latenessMinutes?: number;
   catchUp?: "once" | "skip";
   overlap?: "skip" | "queue";
-  profile?: Exclude<ProfileName, "yolo">;
+  /** "relaxed" is accepted as an older name for "standard". */
+  profile?: ProfileInput;
   /** Replaces the allow list; the page can only remove entries (adding one is the agent's card, or an approval). */
   allow?: TriggerAllow[];
   paused?: boolean;
@@ -264,7 +266,7 @@ export interface TriggerPreview {
   latenessMinutes: number;
   catchUp: "once" | "skip";
   overlap: "skip" | "queue";
-  profile: Exclude<ProfileName, "yolo">;
+  profile: ProfileName;
   allow: TriggerAllowView[];
   /** For a skill action: what the skill says it needs (its allowed-tools), which grants nothing by itself. */
   skillNeeds?: string[];

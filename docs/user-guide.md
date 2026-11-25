@@ -48,7 +48,7 @@ Document previews depend on the format. If a direct Office preview fails, **Comp
 
 ## Review permissions and browser requests
 
-Choose **Strict**, **Standard**, or **YOLO** in the composer. Standard handles Knowledge and Library reads, public web research, reversible edits, and memory updates automatically. See [Chat permissions](chat-permissions.md) for the full table and grant scopes.
+Choose **Strict**, **Standard**, or **YOLO** in the composer. Standard handles Knowledge and Library reads, public web research, reversible edits, and memory updates automatically. Triggers use the same levels: choose one under **Permissions for its runs** in a trigger's settings. See [Chat permissions](chat-permissions.md) for the full table and grant scopes.
 
 Rei shows an approval request when a tool action needs your decision. Read the proposed action, destination, and permission duration before approving it. Reject it if the request does not match the work you intended.
 

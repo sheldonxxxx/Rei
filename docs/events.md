@@ -96,4 +96,4 @@ Rei does not receive events while it is down, and it does not queue them for you
 
 Events gather. When one arrives and nothing of that trigger is running, a run starts with it. While a run is going, events make one waiting run and join it, so a burst becomes one more run, not many. A run carries at most 20 events; past that the oldest are dropped and the run is told how many. A retry of a failed run keeps its events. A paused trigger ignores events, and resuming does not replay them. Run now on an event trigger starts a run with no event.
 
-The agent sees a line per event (type, ref and time) after its prompt and looks the items up with its own tools; what it reads is treated like any connector result.
+The agent sees a line per event (type, ref and time) after its prompt and looks the items up with its own tools; what it reads is treated like any connector result. The trigger's permission level decides each call with the same rules as a chat ([Chat permissions](chat-permissions.md)).

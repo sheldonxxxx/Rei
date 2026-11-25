@@ -258,7 +258,6 @@
             "enum": [
               "strict",
               "standard",
-              "relaxed",
               "yolo"
             ]
           },
@@ -3754,7 +3753,6 @@
             "enum": [
               "strict",
               "standard",
-              "relaxed",
               "yolo"
             ]
           },
@@ -4597,7 +4595,7 @@
             "enum": [
               "strict",
               "standard",
-              "relaxed"
+              "yolo"
             ]
           },
           "allow": {
@@ -4897,7 +4895,7 @@
             "enum": [
               "strict",
               "standard",
-              "relaxed"
+              "yolo"
             ]
           },
           "allow": {
@@ -5053,7 +5051,7 @@
                 "enum": [
                   "strict",
                   "standard",
-                  "relaxed"
+                  "yolo"
                 ]
               },
               "allow": {
@@ -35182,7 +35180,8 @@
                     "enum": [
                       "strict",
                       "standard",
-                      "relaxed"
+                      "relaxed",
+                      "yolo"
                     ]
                   }
                 },
@@ -35544,7 +35543,8 @@
                     "enum": [
                       "strict",
                       "standard",
-                      "relaxed"
+                      "relaxed",
+                      "yolo"
                     ]
                   },
                   "allow": {
