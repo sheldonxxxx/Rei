@@ -13,9 +13,16 @@ export interface HomeContextConfig {
 }
 type Entry = { role?: string; content?: unknown };
 let tokenizer: Tiktoken | undefined;
+// Opaque values a provider hands back so that a reply can be replayed, such as encrypted reasoning. The model does not
+// read them as text, and counting their characters can nearly double the estimate of a reasoning chat.
+const REPLAY_SIGNATURES = new Set(["textSignature", "thinkingSignature", "thoughtSignature"]);
 const tokens = (value: unknown) => {
   tokenizer ??= new Tiktoken(o200k);
-  const text = JSON.stringify(value, (key, v) => (key === "data" && typeof v === "string" ? "[binary]" : v)) ?? "";
+  const text =
+    JSON.stringify(value, (key, v) => {
+      if (REPLAY_SIGNATURES.has(key)) return undefined;
+      return key === "data" && typeof v === "string" ? "[binary]" : v;
+    }) ?? "";
   // Bound BPE work on unusually long, repetitive reports. Chunk boundaries conservatively overestimate tokens.
   let count = 0;
   for (let at = 0; at < text.length; at += 2048) count += tokenizer.encode(text.slice(at, at + 2048)).length;

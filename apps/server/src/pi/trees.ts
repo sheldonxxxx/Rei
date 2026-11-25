@@ -166,7 +166,6 @@ export class TreeSession {
   readonly sync: SessionSync;
   readonly home: boolean;
   providerSessionId: string | undefined;
-  homeCompactionRun: string | undefined;
 
   constructor(sessionId: string, conv: Conversation, sync: SessionSync, home: boolean) {
     this.sessionId = sessionId;
@@ -462,7 +461,7 @@ export class TreeManager {
           this.#pins,
           {
             midConversationSystem: midConversationSystem === true,
-            ...(ts?.home && runId ? { compact: () => this.#noteHomeBudget(ts, runId) } : {}),
+            ...(ts?.home && runId ? { compact: () => this.#checkHomeBudget(ts, true) } : {}),
           },
         );
       },
@@ -746,25 +745,28 @@ export class TreeManager {
     return { ...policy, ...modelOverrides[`${model.provider}/${model.modelId}`] };
   }
 
-  #noteHomeBudget(ts: TreeSession, runId: string): void {
-    if (ts.homeCompactionRun === runId) return;
-    ts.homeCompactionRun = runId;
-    this.#checkHomeBudget(ts, true);
-  }
-
   #checkHomeBudget(ts: TreeSession, crossed = false): void {
     const { store, log } = this.#d;
     const conv = ts.conv;
     void (async () => {
       const { model } = await conv.agent(context);
       await conv.commit(async (tx) => {
+        const head = (await tx.latestHeadMarker(conv.id))?.id ?? 0;
         const budget = await tx.doc(HomeBudgetCompactionDoc, conv.id);
         if (!model || !this.#homeCompactionPolicy(model).enabled) {
           delete budget.pending;
           return;
         }
-        if (crossed) budget.pending = true;
+        if (crossed) {
+          budget.pending = true;
+          budget.head = head;
+        }
         if (!budget.pending) return;
+        // A summary or reset placed since the crossing replaced what was measured. The next model call measures again.
+        if (budget.head !== head) {
+          delete budget.pending;
+          return;
+        }
         const live = await tx.doc(LiveDoc, conv.id);
         if (live.run || live.compactions?.length || store.manualCompactions.open(ts.sessionId).length) return;
         await enqueueHomeCompaction(tx, conv.id, HOME_COMPACTION_FOCUS);
