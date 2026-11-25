@@ -198,7 +198,9 @@ export class PiAdapter implements SessionHost {
         this.#files.create(treeId);
         return { sessionId: session.id };
       },
-      deleteSession: (sessionId) => this.deleteSession(sessionId, false),
+      deleteSession: async (sessionId) => {
+        await this.deleteSession(sessionId, false);
+      },
     });
     this.surfaceActions = new SurfaceActions({ store, trees, commands: this.commands, clock });
     this.surfaceFeeds = new SurfaceFeeds({ store, trees, clock, intervalMs: this.#o.surfaceFeedMs });
@@ -747,16 +749,22 @@ export class PiAdapter implements SessionHost {
    * be deleted (the agent gets a new one); "purge" deletes it with no new one (the agent is being deleted). Resolves when
    * it is all done.
    */
-  deleteSession(sessionId: string, withForks: boolean, clearHome: boolean | "purge" = false): Promise<void> {
+  deleteSession(
+    sessionId: string,
+    withForks: boolean,
+    clearHome: boolean | "purge" = false,
+  ): Promise<string | undefined> {
     const next = this.#deleteChain.then(async () => {
       const row = this.#store.getSessionRow(sessionId);
       if (!row) throw notFound("That session does not exist.");
+      let homeSessionId: string | undefined;
       if (row.origin === "home") {
         // Only "forget" may clear a home chat: it is deleted like any other and the agent gets a fresh one in a new tree.
         if (!clearHome) throw new HttpError(409, "home_chat", "A home chat can't be deleted.");
         if (clearHome !== "purge") {
           const fresh = this.#store.replaceHome(row.agent_id);
           this.#files.create(fresh.treeId);
+          homeSessionId = fresh.session.id;
         }
       }
       const doomed = withForks ? [row, ...this.#store.forkDescendants(row.id)] : [row];
@@ -767,8 +775,12 @@ export class PiAdapter implements SessionHost {
       const jobId = this.#store.beginDeletion({ sessionIds: [...ids], treeId: row.tree_id, removeTree });
       const job = this.#store.deletionJobs().find((j) => j.id === jobId)!;
       await this.#runDeletion(job);
+      return homeSessionId;
     });
-    this.#deleteChain = next.catch(() => undefined);
+    this.#deleteChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 

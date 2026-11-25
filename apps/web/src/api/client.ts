@@ -32,6 +32,7 @@ import type {
   DecideApprovalGroupRequest,
   DecideApprovalRequest,
   DecideApprovalResponse,
+  DeleteSessionResponse,
   Device,
   DevicePresenceRequest,
   DevicesResponse,
@@ -514,7 +515,7 @@ export function createApi(options: ApiOptions = {}) {
     /** `withForks` also deletes every other session in the same fork tree; `clearHome` clears an agent's home chat (it gets a fresh one). */
     deleteSession: (sessionId: string, opts: { withForks?: boolean; clearHome?: boolean } = {}) => {
       const query = [opts.withForks && "withForks=1", opts.clearHome && "clearHome=1"].filter(Boolean).join("&");
-      return request<OkResponse>("DELETE", `/api/sessions/${enc(sessionId)}${query ? `?${query}` : ""}`);
+      return request<DeleteSessionResponse>("DELETE", `/api/sessions/${enc(sessionId)}${query ? `?${query}` : ""}`);
     },
     /** Moves the session's read marker (shared by every device) to an item seen on screen; it never moves backwards. */
     markRead: (sessionId: string, req: ReadMarker) =>

@@ -263,13 +263,13 @@ export function Main({
     }
   }
 
-  // The open chat was deleted. Both streams report it, so act once. Deleting it yourself just navigates.
+  // Both streams report removals. Local actions handle navigation when the request completes.
   const handleRemoved = useCallback(
     (id: string) => {
-      if (id !== sessionId || removalHandled.current.has(id)) return;
+      if (id !== sessionId || removalHandled.current.has(id) || localDeletes.current.has(id)) return;
       removalHandled.current.add(id);
       go(null);
-      if (!localDeletes.current.has(id)) setNotice("Chat deleted");
+      setNotice("Chat deleted");
     },
     [sessionId, go],
   );

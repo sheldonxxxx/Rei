@@ -271,6 +271,7 @@ describe("clearing a home chat", () => {
     const after = await homeOf();
     expect(after.id).toBe(before.id);
     expect(after.homeSessionId).not.toBe(before.homeSessionId);
+    expect(cleared.body).toEqual({ ok: true, homeSessionId: after.homeSessionId });
     const fresh = await detail(server, after.homeSessionId);
     expect(fresh.session).toMatchObject({ origin: "home", status: "idle" });
     expect(fresh.messages).toEqual([]);

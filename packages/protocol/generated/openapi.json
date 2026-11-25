@@ -23972,7 +23972,7 @@
           "chat"
         ],
         "summary": "Delete a session; withForks=1 also deletes the branches taken from it.",
-        "description": "Errors: \"not_found\", \"home_chat\".",
+        "description": "With clearHome=1, clearing a Home chat returns its replacement as homeSessionId. Errors: \"not_found\", \"home_chat\".",
         "parameters": [
           {
             "name": "id",
@@ -24009,6 +24009,9 @@
                   "properties": {
                     "ok": {
                       "const": true
+                    },
+                    "homeSessionId": {
+                      "type": "string"
                     }
                   },
                   "required": [

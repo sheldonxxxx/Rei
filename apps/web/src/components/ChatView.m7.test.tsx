@@ -655,7 +655,7 @@ describe("ChatView: agent settings", () => {
     open(es, session({ origin: "home" }), [userMsg()]);
     openMenu(screen.getByRole("button", { name: "Chat options" }));
     const items = screen.getAllByRole("menuitem").map((m) => m.textContent?.trim());
-    expect(items).toEqual(["Agent settings", "Inspect chat", "Delete agent"]);
+    expect(items).toEqual(["Agent settings", "Inspect chat", "Delete agent", "Clear Home chat"]);
   });
 
   it("offers Delete agent on a home chat in Simple mode too, and never for the default agent", () => {
