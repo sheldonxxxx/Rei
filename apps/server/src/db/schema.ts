@@ -1005,6 +1005,19 @@ CREATE TABLE IF NOT EXISTS backup_runs (
 CREATE INDEX IF NOT EXISTS backup_runs_started ON backup_runs (started_at);
 `;
 
+/**
+ * The notification categories a device turned off (packages/protocol, NOTIFY_CATEGORIES): a row is a muted category, so a
+ * device that never chose receives everything, and a category added later reaches it. Additive and idempotent, like
+ * PASSKEY_SCHEMA. Rows go with their device.
+ */
+const NOTIFY_DEVICE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS device_notification_muted (
+        device_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        PRIMARY KEY (device_id, category)
+      ) WITHOUT ROWID;
+`;
+
 export const SCHEMA_VERSION = 20;
 /**
  * The oldest schema this release upgrades in place. Each release upgrades a database from at least the previous minor
@@ -1196,6 +1209,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
       ensureApprovalCheckpointColumns(db);
       db.exec(SESSION_IMPORTS_SCHEMA);
       db.exec(BACKUP_SCHEMA);
+      db.exec(NOTIFY_DEVICE_SCHEMA);
       if (
         !db
           .all<{ name: string }>("PRAGMA table_info(agents)")
@@ -1227,6 +1241,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
     ensureApprovalCheckpointColumns(db);
     db.exec(SESSION_IMPORTS_SCHEMA);
     db.exec(BACKUP_SCHEMA);
+    db.exec(NOTIFY_DEVICE_SCHEMA);
     db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     return true;
   });

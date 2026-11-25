@@ -4,7 +4,7 @@
 import { TRIGGER_LIMITS, type TriggerAction, type TriggerMessage, type TriggerRunEvent } from "@rei/protocol";
 import { suggestionsLine } from "../memory/rows.ts";
 import type { AppStore, OutboxRow } from "../store/store.ts";
-import { REPORT_SUMMARY_MAX } from "../store/store.ts";
+import { REPORT_SUMMARY_MAX, SEEN_SUFFIX } from "../store/store.ts";
 import type { Clock } from "../util/clock.ts";
 import type { Logger } from "../util/log.ts";
 import type { SkillLookup } from "./spec.ts";
@@ -314,6 +314,19 @@ export class TriggerRunner {
       if (!denied) store.setFailures(trigger.id, failures);
       if (trigger.report !== "never")
         this.#post(trigger, fresh, "failed", `Couldn't ${trigger.name}: ${clip(why, 200)}`, null);
+      else if (!denied) {
+        // Not reported to the home chat, so it is told like any chat that ran into trouble: on the task's own session
+        // (or the home chat when it failed before it had one).
+        const target = fresh.session_id ?? app.getAgent(trigger.agent_id)?.homeSessionId;
+        if (target)
+          app.queueNotify({
+            event: "trigger_failed",
+            sessionId: target,
+            title: trigger.name,
+            body: `Couldn't ${trigger.name}: ${clip(why, 200)}`,
+            dedupe: `${run.id}:failed${SEEN_SUFFIX}`,
+          });
+      }
       if (!denied && failures >= TRIGGER_LIMITS.failuresBeforePause && trigger.status === "active") {
         store.setPaused(trigger.id, true, "failures", { log: false });
         this.#post(

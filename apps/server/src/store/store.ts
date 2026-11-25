@@ -92,6 +92,12 @@ export interface QueuedAdmission {
 export const NEW_CHAT_TITLE = "New chat";
 /** Chats the user has (their own words are input there): not a worker, not a trigger run. */
 export const USER_CHAT_ORIGINS: readonly string[] = ["home", "user", "fork", "import"];
+/**
+ * A notification whose dedupe key ends like this tells you about something you can see in the app: a chat's reply, or
+ * the outcome of a scheduled task. If you were using a device when it happened it is dropped, instead of waiting to
+ * reach you once you step away (as an approval, which still needs you, does).
+ */
+export const SEEN_SUFFIX = ":chat";
 
 export interface SessionRow {
   id: string;
@@ -1999,6 +2005,26 @@ export class AppStore {
           body,
           dedupe: `${run.request_id}:reply`,
         });
+      // A reply you asked for, in a chat of yours or a scheduled task that does not report to the home chat, is told like
+      // any finished session. Spawned sessions report to their parent instead, and reporting triggers through the home chat.
+      if (shown && input.role === "user" && body) {
+        const trigger =
+          session.origin === "trigger" && session.trigger_id
+            ? this.db.get<{ name: string; report: string }>(
+                "SELECT name, report FROM triggers WHERE id = ?",
+                session.trigger_id,
+              )
+            : undefined;
+        if (USER_CHAT_ORIGINS.includes(session.origin) || trigger?.report === "never")
+          this.queueNotify({
+            event: "session_done",
+            sessionId: session.id,
+            messageId: replyItemId(run.id),
+            title: trigger?.name ?? session.title,
+            body,
+            dedupe: `${run.request_id}${SEEN_SUFFIX}`,
+          });
+      }
       const preview = (!eventRun || shown) && !run.silent && body ? collapse(body) : undefined;
       if (status === "completed" && input.firstUser && reply)
         this.#titleSources.set(run.id, { sessionId: session.id, user: input.text, reply: body });

@@ -454,6 +454,10 @@ describe("api client: notifications", () => {
     await api.testNotifications();
     fetchMock.mockImplementationOnce(async () => json(200, { devices: 1, preview: false }));
     await api.updatePreview(false);
+    fetchMock.mockImplementationOnce(async () => json(200, { categories: { replies: false } }));
+    await api.updateDeviceNotifications({ categories: { replies: false } });
+    fetchMock.mockImplementationOnce(async () => json(200, { categories: { replies: false } }));
+    await api.getDeviceNotifications();
     fetchMock.mockImplementationOnce(async () => json(200, { publicKey: "BKey" }));
     expect((await api.getPushKey()).publicKey).toBe("BKey");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
@@ -463,12 +467,15 @@ describe("api client: notifications", () => {
       "POST /api/devices/current/presence",
       "POST /api/notifications/test",
       "PUT /api/notifications/preview",
+      "PUT /api/devices/current/notifications",
+      "GET /api/devices/current/notifications",
       "GET /api/push/key",
     ]);
     expect(calls[0]![1].body).toBe(JSON.stringify({ kind: "webpush", subscription }));
     expect(calls[2]![1].body).toBe(JSON.stringify({ visible: true, idleMs: 5 }));
-    for (const i of [0, 1, 2, 3, 4]) expect(header(calls[i]![1], "x-rei")).toBe("1");
-    expect(header(calls[5]![1], "x-rei")).toBeUndefined();
+    expect(calls[5]![1].body).toBe(JSON.stringify({ categories: { replies: false } }));
+    for (const i of [0, 1, 2, 3, 4, 5]) expect(header(calls[i]![1], "x-rei")).toBe("1");
+    expect(header(calls[7]![1], "x-rei")).toBeUndefined();
   });
 
   it("words the notification errors", () => {

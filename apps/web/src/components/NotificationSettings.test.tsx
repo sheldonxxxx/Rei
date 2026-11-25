@@ -1,4 +1,4 @@
-import type { NotificationsResponse } from "@rei/protocol";
+import type { DeviceNotifications, NotificationsResponse, UpdateDeviceNotificationsRequest } from "@rei/protocol";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client.ts";
@@ -10,6 +10,16 @@ const state = (devices = 0): NotificationsResponse => ({
   devices,
   preview: true,
 });
+const allOn: DeviceNotifications = {
+  categories: {
+    approvals: true,
+    takeovers: true,
+    replies: true,
+    trigger_results: true,
+    trigger_problems: true,
+    backups: true,
+  },
+};
 
 function setup(
   opts: { support?: PushSupport; subscribed?: boolean; enable?: PushEnv["enable"]; api?: Record<string, unknown> } = {},
@@ -26,6 +36,10 @@ function setup(
     getDevices: vi.fn(),
     removeChannel: vi.fn(),
     getNotifications: vi.fn().mockResolvedValue(state()),
+    getDeviceNotifications: vi.fn().mockResolvedValue(allOn),
+    updateDeviceNotifications: vi.fn().mockImplementation(async (req: UpdateDeviceNotificationsRequest) => ({
+      categories: { ...allOn.categories, ...req.categories },
+    })),
     testNotifications: vi.fn().mockResolvedValue(undefined),
     updatePreview: vi.fn().mockResolvedValue({ ...state(), preview: false }),
     ...opts.api,
@@ -80,6 +94,59 @@ describe("Notifications on this device", () => {
     fireEvent.click(toggle());
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/gateway/i));
     expect(toggle().getAttribute("aria-checked")).toBe("false");
+  });
+});
+
+describe("Notify me about", () => {
+  const names = [
+    "Approvals",
+    "Browser help",
+    "Replies",
+    "Scheduled task results",
+    "Scheduled task problems",
+    "Backup problems",
+  ];
+  const sw = (name: string) => screen.getByRole("switch", { name });
+
+  it("lists every kind with this device's choice, and turns one off for this device only", async () => {
+    const stored = { categories: { ...allOn.categories, trigger_results: false } };
+    const { api } = setup({
+      api: {
+        getDeviceNotifications: vi.fn().mockResolvedValue(stored),
+        updateDeviceNotifications: vi.fn().mockResolvedValue({ categories: { ...stored.categories, replies: false } }),
+      },
+    });
+    await screen.findByRole("switch", { name: "Approvals" });
+    expect(names.map((n) => sw(n).getAttribute("aria-checked"))).toEqual([
+      "true",
+      "true",
+      "true",
+      "false",
+      "true",
+      "true",
+    ]);
+    fireEvent.click(sw("Replies"));
+    await waitFor(() => expect(api.updateDeviceNotifications).toHaveBeenCalledWith({ categories: { replies: false } }));
+    await waitFor(() => expect(sw("Replies").getAttribute("aria-checked")).toBe("false"));
+    // The others are untouched by it.
+    expect(sw("Approvals").getAttribute("aria-checked")).toBe("true");
+    expect(sw("Scheduled task results").getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("puts the switch back and says why when saving fails", async () => {
+    setup({ api: { updateDeviceNotifications: vi.fn().mockRejectedValue(new ApiError(500, "internal", "x")) } });
+    await screen.findByRole("switch", { name: "Backup problems" });
+    fireEvent.click(sw("Backup problems"));
+    await screen.findByRole("alert");
+    expect(sw("Backup problems").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows nothing when the server can't say", async () => {
+    setup({
+      api: { getDeviceNotifications: vi.fn().mockRejectedValue(new ApiError(503, "gateway_unavailable", "x")) },
+    });
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Show previews" })).toBeTruthy());
+    expect(screen.queryByRole("switch", { name: "Approvals" })).toBeNull();
   });
 });
 
