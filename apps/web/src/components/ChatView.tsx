@@ -509,10 +509,21 @@ export function ChatView({
     (takeoverId: string, req: EndTakeoverRequest) => api.endTakeover(takeoverId, req).then((r) => r.takeover),
     [api],
   );
+  // Newest first, in a ref so a trace reload doesn't redraw every message.
+  const traceRuns = useRef(trace.runs);
+  traceRuns.current = trace.runs;
   const fullHandlers = useMemo<FullHandlers | undefined>(
     () =>
       full
-        ? { onInspect: (runId) => openInspector(runId), onFork: (messageId) => setForkAt({ messageId }) }
+        ? {
+            // A reply that was continued opens at the latest run that wrote it, not at the one that failed.
+            onInspect: (runId) =>
+              openInspector(
+                traceRuns.current.find((t) => t.run.id === runId || t.triggerMessageId === `u:${runId}`)?.run.id ??
+                  runId,
+              ),
+            onFork: (messageId) => setForkAt({ messageId }),
+          }
         : undefined,
     [full, openInspector],
   );

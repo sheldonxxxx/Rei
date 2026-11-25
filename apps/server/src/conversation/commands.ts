@@ -38,7 +38,7 @@ import {
   TRIGGER_KIND,
   type TriggerLineData,
 } from "./ledger.ts";
-import { isTerminal, userItemId } from "./runs.ts";
+import { isTerminal, unfinishedAssignment, userItemId } from "./runs.ts";
 import { REPORT_KIND } from "./view-model.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -445,12 +445,14 @@ export class ConversationCommands {
       const now = clock.now();
       const runId = newId("run", now);
       const requestId = `continue:${runId}`;
+      const assignedBy = unfinishedAssignment(store.runs.forSession(sessionId));
       const record: CommandRecord = {
         requestId,
         kind: "continue",
         role: "user",
         direct: USER_CHAT_ORIGINS.includes(row.origin),
         createdAt: now,
+        ...(assignedBy ? { assignedBy } : {}),
       };
       try {
         await ts.conv.commit(async (tx) => {

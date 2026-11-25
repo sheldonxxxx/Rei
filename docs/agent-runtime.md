@@ -4,6 +4,8 @@ Only an agent's **home chat** coordinates workers. It receives the delegation gu
 
 `start_session` still creates an independent conversation tree and receives a self-contained brief, rather than the parent's message history. Reports return to the home chat that started the work. Its optional `agent` parameter selects another agent; otherwise the worker uses the home chat's agent.
 
+A report says the work completed or was cancelled. A run that **fails** (a model usage limit, say) sends none: the work is unfinished, the worker shows as failed, and the home chat is not started on it. **Continue** in the worker takes the assignment up again, so the Continue run reports when it completes. A message you type in the worker instead is your own turn and reports nothing.
+
 ## Shared sandbox files
 
 The raw sandbox workspace is `/workspace/<agent-id>` (or `<local-root>/<agent-id>` in faux mode). Home chats, workers, ordinary chats, triggers and forks using that agent share this directory. Cross-agent workers use the selected agent's directory. These directories define working-directory ownership, not separate OS sandboxes or filesystem access controls.

@@ -543,6 +543,8 @@ export function buildView(input: ViewInputs): ViewModel {
     );
     if (!shown) continue;
     if (!run) shown.runId = null;
+    // A continued reply is as new as the run that last wrote it, so reading it moves the read marker past that run.
+    if (continuer) shown.createdAt = Math.max(shown.createdAt, continuer.started_at);
     // A surface sits in the reply of its run (or a continue of it), before the answer text written after its call.
     const parts = surfaceParts(input.surfaces, [key, ...(continuesOf.get(key) ?? [])], sessionId, shown.text);
     if (parts) shown.parts = parts;
