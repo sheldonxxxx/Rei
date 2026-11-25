@@ -51,4 +51,10 @@ class MarkdownRenderTest {
         compose.onNodeWithText("Hello world", substring = true).assertExists()
         compose.onNodeWithText("one", substring = true).assertExists()
     }
+
+    @Test
+    fun boldBesidePunctuationRendersWithoutAsterisks() {
+        show("**Note:**text and 这是**（重点）**内容")
+        compose.onNodeWithText("Note:text and 这是（重点）内容").assertExists()
+    }
 }

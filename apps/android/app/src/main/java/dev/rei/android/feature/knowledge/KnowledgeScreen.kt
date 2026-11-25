@@ -171,6 +171,7 @@ fun KnowledgeContent(
                                 PageRow(
                                     row = row,
                                     tags = state.tags[row.node.id].orEmpty(),
+                                    showTree = state.tab == KnowledgeTab.All,
                                     trash = state.tab == KnowledgeTab.Trash,
                                     onOpen = { onOpen(row.node.id) },
                                     onToggle = { onToggleExpanded(row.node.id) },
@@ -195,6 +196,7 @@ fun KnowledgeContent(
 private fun PageRow(
     row: KnowledgeRow,
     tags: List<String>,
+    showTree: Boolean,
     trash: Boolean,
     onOpen: () -> Unit,
     onToggle: () -> Unit,
@@ -215,7 +217,7 @@ private fun PageRow(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (!trash && node.childCount > 0) {
+            if (showTree && node.childCount > 0) {
                 val collapsedRotation = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 90f else -90f
                 ReiIconButton(
                     ReiIcons.Chevron,

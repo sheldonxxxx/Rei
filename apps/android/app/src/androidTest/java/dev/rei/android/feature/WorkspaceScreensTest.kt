@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import dev.rei.android.R
+import dev.rei.android.data.KnowledgeNode
 import dev.rei.android.data.KnowledgePageData
 import dev.rei.android.data.LibraryDetail
 import dev.rei.android.data.LibraryFile
@@ -214,5 +215,26 @@ class WorkspaceScreensTest {
         )
         compose.onNodeWithText(str(R.string.common_save)).assertIsEnabled().performClick()
         assertEquals(1, saved)
+    }
+
+    @Test
+    fun clickingASubPageOpensIt() {
+        val child = KnowledgeNode(
+            id = "sub-1", parentId = "p1", title = "Day 1", description = "", updatedAt = 1_700_000_000_000,
+            updatedBy = "Me", locked = false, pinned = false, inbox = false, childCount = 0, trashedAt = null,
+        )
+        var opened: String? = null
+        compose.setContent {
+            Shell {
+                KnowledgePageContent(
+                    PageUiState(pageId = "p1", page = page.copy(children = listOf(child)), loading = false),
+                    null, menuOpen = false, onMenu = {}, onBack = {}, onEdit = {}, onSave = {}, onTitle = {}, onDescription = {},
+                    onBody = {}, onTagEntry = {}, onCommitTag = {}, onRemoveTag = {}, onReload = {}, onRetry = {},
+                    onOpenPage = { opened = it }, onFavorite = {}, onTrash = {}, onRestore = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Day 1").performClick()
+        assertEquals("sub-1", opened)
     }
 }

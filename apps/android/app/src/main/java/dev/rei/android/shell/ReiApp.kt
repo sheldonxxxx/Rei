@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowSizeClass
 import dev.rei.android.NotificationTarget
 import dev.rei.android.R
@@ -113,15 +114,28 @@ internal fun ReiApp(
     val opener = remember(nav) {
         object : WorkspaceOpener {
             override fun openFile(fileId: String, versionId: String?) {
-                nav.navigate(FileViewerRoute(fileId, versionId)) { launchSingleTop = true }
+                val top = nav.currentBackStackEntry
+                if (top?.destination?.hasRoute<FileViewerRoute>() == true) {
+                    val current = top.toRoute<FileViewerRoute>()
+                    if (current.fileId == fileId && current.versionId == versionId) return
+                }
+                nav.navigate(FileViewerRoute(fileId, versionId))
             }
 
             override fun openPage(pageId: String) {
-                nav.navigate(KnowledgePageRoute(pageId)) { launchSingleTop = true }
+                val top = nav.currentBackStackEntry
+                if (top?.destination?.hasRoute<KnowledgePageRoute>() == true &&
+                    top.toRoute<KnowledgePageRoute>().target == pageId
+                ) return
+                nav.navigate(KnowledgePageRoute(pageId))
             }
 
             override fun newPage() {
-                nav.navigate(KnowledgePageRoute(NewPageTarget)) { launchSingleTop = true }
+                val top = nav.currentBackStackEntry
+                if (top?.destination?.hasRoute<KnowledgePageRoute>() == true &&
+                    top.toRoute<KnowledgePageRoute>().target == NewPageTarget
+                ) return
+                nav.navigate(KnowledgePageRoute(NewPageTarget))
             }
         }
     }

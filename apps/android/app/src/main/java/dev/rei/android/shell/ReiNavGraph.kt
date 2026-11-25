@@ -14,7 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -133,6 +136,7 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
             if (expanded) {
                 val navigator = rememberListDetailPaneScaffoldNavigator<String>()
                 val scope = rememberCoroutineScope()
+                var newPageSeq by rememberSaveable { mutableIntStateOf(0) }
                 BackHandler(enabled = navigator.canNavigateBack()) { scope.launch { navigator.navigateBack() } }
                 val bothExpanded = navigator.scaffoldValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Expanded
                 ListDetailPaneScaffold(
@@ -143,23 +147,28 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
                             KnowledgeScreen(
                                 env.container,
                                 onOpenPage = { id -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, id) } },
-                                onNewPage = { scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, NewPageTarget) } },
+                                onNewPage = {
+                                    newPageSeq++
+                                    scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, "$NewPageTarget:$newPageSeq") }
+                                },
                             )
                         }
                     },
                     detailPane = {
                         AnimatedPane {
-                            val pageId = navigator.currentDestination?.contentKey
-                            if (pageId != null) {
-                                key(pageId) {
+                            val contentKey = navigator.currentDestination?.contentKey
+                            if (contentKey != null) {
+                                val target = if (contentKey.startsWith("$NewPageTarget:")) NewPageTarget else contentKey
+                                key(contentKey) {
                                     KnowledgePageScreen(
                                         container = env.container,
                                         api = env.api,
-                                        target = pageId,
+                                        target = target,
                                         onOpenPage = { nextId -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, nextId) } },
                                         onClose = { scope.launch { navigator.navigateBack() } },
                                         onDirtyChanged = env.onKnowledgeDirtyChanged,
                                         showBack = !bothExpanded,
+                                        viewModelKey = contentKey,
                                     )
                                 }
                             } else {

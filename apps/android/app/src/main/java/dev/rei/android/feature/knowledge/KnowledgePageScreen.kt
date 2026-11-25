@@ -80,8 +80,9 @@ fun KnowledgePageScreen(
     modifier: Modifier = Modifier,
     onDirtyChanged: (Boolean) -> Unit = {},
     showBack: Boolean = true,
+    viewModelKey: String = target,
 ) {
-    val vm: KnowledgePageViewModel = viewModel(factory = KnowledgePageViewModel.factory(target, container))
+    val vm: KnowledgePageViewModel = viewModel(key = viewModelKey, factory = KnowledgePageViewModel.factory(target, container))
     val state by vm.state.collectAsStateWithLifecycle()
     var discard by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
