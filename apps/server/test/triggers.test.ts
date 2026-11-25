@@ -183,7 +183,7 @@ describe("the scheduler", () => {
   it("skips a run while the previous one is still going (overlap)", async () => {
     server = await startSignedIn();
     // The run asks for approval and waits: it reads as waiting until you answer.
-    const t = make({ action: { kind: "prompt", prompt: tool("demo_add_todo", { text: "x" }) } });
+    const t = make({ action: { kind: "prompt", prompt: tool("demo_send_message", { to: "sam", text: "x" }) } });
     fireAt(t);
     const first = runsOf(t.id)[0]!;
     await until(
@@ -227,7 +227,7 @@ describe("the scheduler", () => {
     expect((await homeLines()).map((l) => l.text)).toEqual(["Hello there"]);
     expect(T().store.get(t.id)).toMatchObject({ status: "paused", pausedReason: "user", nextRunAt: null });
 
-    const busy = make({ action: { kind: "prompt", prompt: tool("demo_add_todo", { text: "x" }) } });
+    const busy = make({ action: { kind: "prompt", prompt: tool("demo_send_message", { to: "sam", text: "x" }) } });
     const a = await server.client.post(`/api/triggers/${busy.id}/run`, {});
     await until(() => T().store.get(busy.id)!.lastRun?.status === "waiting", 20_000, "the run to wait");
     const b = await server.client.post(`/api/triggers/${busy.id}/run`, {});
@@ -279,12 +279,12 @@ describe("the scheduler", () => {
 describe("trigger runs", () => {
   it("a prompt run is a trigger session without the user", async () => {
     server = await startSignedIn();
-    const t = make({ name: "Morning check", profile: "relaxed" });
+    const t = make({ name: "Morning check", profile: "strict" });
     fireAt(t);
     const run = await finished(t.id);
     expect(run).toMatchObject({ status: "succeeded", attempt: 0 });
     const d = await detail(server, run.session_id!);
-    expect(d.session).toMatchObject({ origin: "trigger", triggerId: t.id, title: "Morning check", profile: "relaxed" });
+    expect(d.session).toMatchObject({ origin: "trigger", triggerId: t.id, title: "Morning check", profile: "strict" });
     expect(d.messages[0]).toMatchObject({ role: "user", text: "hello" });
     const runs = plane().store.runs.forSession(d.session.id);
     expect(runs.map((r) => r.direct)).toEqual([0]);
@@ -546,9 +546,9 @@ describe("trigger runs", () => {
 describe("what a trigger's runs may do without asking", () => {
   const todo = tool("demo_add_todo", { text: "water the plants" });
 
-  it("a write the profile would ask about asks, and offers 'for this trigger'", async () => {
+  it("a write the level would ask about (Strict) asks, and offers 'for this trigger'", async () => {
     server = await startSignedIn();
-    const t = make({ name: "Plants", action: { kind: "prompt", prompt: todo } });
+    const t = make({ name: "Plants", profile: "strict", action: { kind: "prompt", prompt: todo } });
     fireAt(t);
     const run = runsOf(t.id)[0]!;
     const sessionId = await sessionOfRun(run.id);
@@ -573,7 +573,7 @@ describe("what a trigger's runs may do without asking", () => {
 
   it("a run whose call you deny fails with that reason, not a stale report", async () => {
     server = await startSignedIn();
-    const t = make({ name: "Plants", action: { kind: "prompt", prompt: todo }, report: "always" });
+    const t = make({ name: "Plants", profile: "strict", action: { kind: "prompt", prompt: todo }, report: "always" });
     fireAt(t);
     const run = runsOf(t.id)[0]!;
     const sessionId = await sessionOfRun(run.id);
@@ -589,7 +589,7 @@ describe("what a trigger's runs may do without asking", () => {
 
   it("an allow entry lets the call through as granted", async () => {
     server = await startSignedIn();
-    const t = make({ allow: [{ tool: "demo_add_todo" }], action: { kind: "prompt", prompt: todo } });
+    const t = make({ profile: "strict", allow: [{ tool: "demo_add_todo" }], action: { kind: "prompt", prompt: todo } });
     fireAt(t);
     const run = await finished(t.id);
     expect(run.status).toBe("succeeded");
@@ -632,7 +632,7 @@ describe("what a trigger's runs may do without asking", () => {
     server = await startSignedIn();
     const t = make({
       allow: [{ tool: "demo_buy" }],
-      profile: "relaxed",
+      profile: "standard",
       action: { kind: "prompt", prompt: tool("demo_buy", { item: "tv", price: 5 }) },
     });
     fireAt(t);
@@ -1083,7 +1083,8 @@ describe("the edit log names the agent", () => {
 });
 
 describe("a denied call is not a failure of the trigger", () => {
-  const todo = tool("demo_add_todo", { text: "water the plants" });
+  // A send asks at Standard, so the run waits for an answer.
+  const todo = tool("demo_send_message", { to: "sam", text: "water the plants" });
   const denyOnce = async (t: Trigger, offset: number) => {
     T().store.update(
       t.id,
@@ -1173,7 +1174,7 @@ describe("catch-up and overlap", () => {
   });
 
   const busy = () =>
-    make({ overlap: "queue", action: { kind: "prompt", prompt: tool("demo_add_todo", { text: "x" }) } });
+    make({ overlap: "queue", action: { kind: "prompt", prompt: tool("demo_send_message", { to: "sam", text: "x" }) } });
 
   it("overlap queue: the new run waits, only one waits, and it starts when the running one ends", async () => {
     server = await startSignedIn();

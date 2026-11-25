@@ -85,6 +85,10 @@ function Row({ label, value, before }: { label: string; value: string; before?: 
   );
 }
 
+/** A trigger's level on its card; YOLO says what it means, since its runs then act without asking. */
+const levelLine = (profile: TriggerPreview["profile"]): string =>
+  profile === "yolo" ? "YOLO: built-in actions run without asking" : PROFILE_LABEL[profile];
+
 function TriggerCard({ preview: p }: { preview: TriggerPreview }) {
   const b: Shown | undefined = p.before;
   const kind = p.action.kind;
@@ -140,9 +144,7 @@ function TriggerCard({ preview: p }: { preview: TriggerPreview }) {
           before={b && OVERLAP_LABEL[b.overlap]}
         />
       )}
-      {kind !== "notify" && (
-        <Row label="Permissions" value={PROFILE_LABEL[p.profile]} before={b && PROFILE_LABEL[b.profile]} />
-      )}
+      {kind !== "notify" && <Row label="Permissions" value={levelLine(p.profile)} before={b && levelLine(b.profile)} />}
       {p.allow.length > 0 && (
         <div>
           <dt>Allowed without asking</dt>

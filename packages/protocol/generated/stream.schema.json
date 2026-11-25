@@ -478,7 +478,6 @@
           "enum": [
             "strict",
             "standard",
-            "relaxed",
             "yolo"
           ]
         },
@@ -1968,7 +1967,6 @@
           "enum": [
             "strict",
             "standard",
-            "relaxed",
             "yolo"
           ]
         },
@@ -2524,7 +2522,7 @@
           "enum": [
             "strict",
             "standard",
-            "relaxed"
+            "yolo"
           ]
         },
         "allow": {
@@ -2680,7 +2678,7 @@
               "enum": [
                 "strict",
                 "standard",
-                "relaxed"
+                "yolo"
               ]
             },
             "allow": {

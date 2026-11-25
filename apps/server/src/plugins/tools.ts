@@ -127,7 +127,7 @@ export function createPluginsExtension(deps: {
       {
         name: `${op}_plugin`,
         callers: MODEL_ONLY,
-        description: `${op === "create" ? "Create a plugin" : "Update an existing plugin using its expectedRevision"} with complete skill files and MCP connection definitions. No credentials or permission grants. Standard/Strict show a preview for approval; Relaxed/YOLO apply automatically. Connections needing authentication are completed by the user in Settings → Capabilities → Plugins. Never put credentials in a plugin's content.`,
+        description: `${op === "create" ? "Create a plugin" : "Update an existing plugin using its expectedRevision"} with complete skill files and MCP connection definitions. No credentials or permission grants. Strict and Standard show a preview for approval; YOLO applies automatically. Connections needing authentication are completed by the user in Settings → Capabilities → Plugins. Never put credentials in a plugin's content.`,
         parameters:
           op === "create"
             ? obj({ package: pkgSchema })

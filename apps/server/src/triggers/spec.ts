@@ -4,6 +4,7 @@ import type { ProfileName, ReportSetting, Schedule, TriggerAction, TriggerAllow,
 import { TRIGGER_LIMITS } from "@rei/protocol";
 import { EVENT_TYPE } from "../events/receive.ts";
 import type { ToolCatalog } from "../pi/policy-ext.ts";
+import { canonicalProfile } from "../policy/decision.ts";
 import type { AppStore } from "../store/store.ts";
 import { Invalid } from "../util/errors.ts";
 import { minGapMs, nextRuns, validateSchedule } from "./schedule.ts";
@@ -12,8 +13,6 @@ import { minGapMs, nextRuns, validateSchedule } from "./schedule.ts";
 export interface SkillLookup {
   find(agentId: string, name: string): { name: string; version: number; allowedTools: string[] } | undefined;
 }
-
-export type TriggerProfile = Exclude<ProfileName, "yolo">;
 
 /** The editable part of a trigger. */
 export interface TriggerFields {
@@ -25,7 +24,7 @@ export interface TriggerFields {
   latenessMinutes: number;
   catchUp: "once" | "skip";
   overlap: "skip" | "queue";
-  profile: TriggerProfile;
+  profile: ProfileName;
   allow: TriggerAllow[];
 }
 
@@ -43,7 +42,7 @@ export interface SpecContext {
   skills: SkillLookup;
   /** The event sources; absent when this installation takes no outside events. */
   sources?: EventSourceLookup | undefined;
-  /** The agent's own default profile (yolo reads as standard). */
+  /** The agent's own default level: a new trigger's runs get it when the draft names none. */
   agentProfile: ProfileName;
 }
 
@@ -141,10 +140,11 @@ export function checkOverlap(value: unknown): "skip" | "queue" {
     );
   return value;
 }
-export function checkProfile(value: unknown): TriggerProfile {
-  if (value !== "strict" && value !== "standard" && value !== "relaxed")
-    throw new Invalid("profile must be strict, standard or relaxed (a trigger never runs on YOLO).");
-  return value;
+/** A run's level: the same levels as a chat. "relaxed" is an older name for standard. */
+export function checkProfile(value: unknown): ProfileName {
+  if (value !== "strict" && value !== "standard" && value !== "yolo" && value !== "relaxed")
+    throw new Invalid("profile must be strict, standard or yolo.");
+  return canonicalProfile(value);
 }
 
 /** An allow list: known tools only, none that always ask, no repeats. */
@@ -243,12 +243,7 @@ export function buildNew(input: unknown, ctx: SpecContext): TriggerFields {
     latenessMinutes: field(o, "latenessMinutes") === undefined ? cap : checkLateness(o.latenessMinutes),
     catchUp: field(o, "catchUp") === undefined ? "once" : checkCatchUp(o.catchUp),
     overlap: field(o, "overlap") === undefined ? "skip" : checkOverlap(o.overlap),
-    profile:
-      field(o, "profile") === undefined
-        ? ctx.agentProfile === "yolo"
-          ? "standard"
-          : ctx.agentProfile
-        : checkProfile(o.profile),
+    profile: field(o, "profile") === undefined ? ctx.agentProfile : checkProfile(o.profile),
     allow: field(o, "allow") === undefined ? [] : checkAllow(o.allow, ctx.catalog),
   };
 }

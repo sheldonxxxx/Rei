@@ -230,7 +230,7 @@ import type { ToolCatalog } from "../pi/policy-ext.ts";
 import type { TitleService } from "../pi/titles.ts";
 import { pluginRoutes } from "../plugins/routes.ts";
 import type { PluginService } from "../plugins/service.ts";
-import { PROFILE_LABEL } from "../policy/decision.ts";
+import { canonicalProfile, PROFILE_LABEL } from "../policy/decision.ts";
 import type { ProviderService } from "../providers/service.ts";
 import type { SkillStore } from "../skills/store.ts";
 import { exportZip, importZip } from "../skills/zip.ts";
@@ -1281,13 +1281,14 @@ export function createApp(deps: AppDeps): Hono {
         throw badRequest("bad_title", "A chat name must be between 1 and 80 characters.");
     }
     const pinned = b.pinned;
-    const profile = b.profile === "relaxed" && session.origin !== "trigger" ? "standard" : b.profile;
+    // "relaxed" from an older client is Standard.
+    const profile = b.profile === undefined ? undefined : canonicalProfile(b.profile);
     if (title !== undefined) store.setSessionTitle(id, title);
     if (pinned !== undefined) store.setSessionPinned(id, pinned);
     if (profile !== undefined && profile !== session.profile) {
       store.tx(() => {
-        store.setProfile(id, profile!);
-        store.addNotice(id, `Permissions changed to ${PROFILE_LABEL[profile!]}.`);
+        store.setProfile(id, profile);
+        store.addNotice(id, `Permissions changed to ${PROFILE_LABEL[profile]}.`);
       });
       log.info("session.profile_changed", { sessionId: id, from: session.profile, to: profile });
     }

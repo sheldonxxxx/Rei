@@ -49,7 +49,7 @@ Web reading always renders pages in an isolated browser through the shared reade
 
 ## Policy
 
-A first fetch or a refresh reaches the network. In interactive Standard and YOLO chats, public web research runs automatically even after reading private data. Strict public research prompts offer one request, one destination for this chat, or all public web research for this chat. The all-web grant covers public redirects and uses the reader's public network scope. A redirect that needs its own approval stops at the new host and names it so Rei can request that destination directly. See [Chat permissions](chat-permissions.md).
+A first fetch or a refresh reaches the network. In Standard and YOLO, public web research runs automatically even after reading private data, in chats, workers and trigger runs alike. Strict public research prompts offer one request, one destination for this chat, or all public web research for this chat. The all-web grant covers public redirects and uses the reader's public network scope. A redirect that needs its own approval stops at the new host and names it so Rei can request that destination directly. See [Chat permissions](chat-permissions.md).
 
 A fresh stored copy is an internal read. The tool requires a network decision before it fetches. If the stored copy expires between the policy check and the read, the tool asks the agent to fetch again.
 

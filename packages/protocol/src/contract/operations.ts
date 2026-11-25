@@ -48,7 +48,13 @@ import {
 } from "../usage.ts";
 import { OkSchema } from "./auth.ts";
 import { defineRoute, named } from "./define.ts";
-import { ActionClassSchema, ErrorInfoSchema, TakeoverSchema } from "./entities.ts";
+import {
+  ActionClassSchema,
+  ErrorInfoSchema,
+  ProfileInputSchema,
+  ProfileNameSchema,
+  TakeoverSchema,
+} from "./entities.ts";
 import type { Same } from "./same.ts";
 
 // ---- triggers -------------------------------------------------------------------------------------------------------
@@ -85,7 +91,6 @@ const TriggerActionSchema = union([
   obj({ kind: lit("skill"), skill: str(), args: opt(str()) }),
 ]);
 const ReportSettingSchema = oneOf(["always", "on_change", "never"]);
-const TriggerProfileSchema = oneOf(["strict", "standard", "relaxed"]);
 
 const TriggerRunEventSchema = obj({ id: str(), type: str(), ref: str(), receivedAt: num() });
 
@@ -126,7 +131,7 @@ export const TriggerSchema = named(
     latenessMinutes: int(),
     catchUp: oneOf(["once", "skip"]),
     overlap: oneOf(["skip", "queue"]),
-    profile: TriggerProfileSchema,
+    profile: ProfileNameSchema,
     allow: arr(obj({ tool: str(), destination: opt(str()), actionClass: ActionClassSchema, label: str() })),
     status: oneOf(["active", "paused", "done"]),
     pausedReason: nullable(oneOf(["user", "agent", "failures"])),
@@ -167,7 +172,7 @@ const triggerSettings = {
   latenessMinutes: opt(int()),
   catchUp: opt(oneOf(["once", "skip"])),
   overlap: opt(oneOf(["skip", "queue"])),
-  profile: opt(TriggerProfileSchema),
+  profile: opt(ProfileInputSchema),
 };
 
 export const CreateTriggerRequestSchema = obj({

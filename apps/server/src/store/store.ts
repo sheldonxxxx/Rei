@@ -12,7 +12,7 @@ import type {
   MessagePart,
   NotifyEvent,
   NotifyPayload,
-  ProfileName,
+  ProfileInput,
   ReadMarker,
   ReadMarkerResponse,
   RunStatus,
@@ -40,6 +40,7 @@ import {
 } from "../conversation/runs.ts";
 import type { Db } from "../db/db.ts";
 import { type SuggestionRow, suggestionsLine, toSuggestion } from "../memory/rows.ts";
+import { canonicalProfile } from "../policy/decision.ts";
 import { replyText } from "../surfaces/text.ts";
 import type { Clock } from "../util/clock.ts";
 import { fromBase64Url, fromUtf8, toBase64Url, utf8 } from "../util/encoding.ts";
@@ -198,9 +199,6 @@ export const reportInputText = (r: SessionReport): string => {
 
 const collapse = (text: string): string => text.replace(/\s+/g, " ").trim();
 
-const interactiveProfile = (profile: string): ProfileName =>
-  profile === "relaxed" ? "standard" : (profile as ProfileName);
-
 const toSession = (r: SessionRow, takeover: Takeover | null = null): Session => ({
   id: r.id,
   agentId: r.agent_id,
@@ -221,7 +219,7 @@ const toSession = (r: SessionRow, takeover: Takeover | null = null): Session => 
         }
       : null,
   depth: r.depth,
-  profile: r.origin === "trigger" ? (r.profile as ProfileName) : interactiveProfile(r.profile),
+  profile: canonicalProfile(r.profile),
   taint: JSON.parse(r.taint) as TaintLabel[],
   pendingApprovals: r.pending_approvals,
   unread: r.unread,
@@ -239,7 +237,7 @@ const toAgent = (r: AgentRow): Agent => ({
   networkMode: r.network_mode,
   allowedConnectorIds: r.allowed_connector_ids === null ? null : JSON.parse(r.allowed_connector_ids),
   canCreateTriggersForOtherAgents: r.can_create_triggers_for_other_agents === 1,
-  defaultProfile: interactiveProfile(r.default_profile),
+  defaultProfile: canonicalProfile(r.default_profile),
   homeSessionId: r.home_session_id ?? "",
 });
 
@@ -807,7 +805,7 @@ export class AppStore {
           "defaultProfile",
           "default_profile",
           row.default_profile,
-          patch.defaultProfile === undefined ? undefined : interactiveProfile(patch.defaultProfile),
+          patch.defaultProfile === undefined ? undefined : canonicalProfile(patch.defaultProfile),
         ],
         ["instructions", "instructions", row.instructions, patch.instructions],
       ];
@@ -892,7 +890,7 @@ export class AppStore {
         treeId,
         origin,
         NEW_CHAT_TITLE,
-        agent.default_profile,
+        canonicalProfile(agent.default_profile),
         now,
         now,
       );
@@ -903,7 +901,7 @@ export class AppStore {
   }
 
   /** A session for a trigger's run, in a new tree, with the trigger's profile and the trigger's name as its title. The adapter creates the tree folder. */
-  createTriggerSession(input: { agentId: string; triggerId: string; title: string; profile: ProfileName }): {
+  createTriggerSession(input: { agentId: string; triggerId: string; title: string; profile: string }): {
     session: Session;
     treeId: string;
   } {
@@ -912,7 +910,7 @@ export class AppStore {
       this.db.run(
         "UPDATE sessions SET title = ?, profile = ?, trigger_id = ? WHERE id = ?",
         input.title,
-        input.profile,
+        canonicalProfile(input.profile),
         input.triggerId,
         made.session.id,
       );
@@ -1258,7 +1256,7 @@ export class AppStore {
         caller.id,
         depth,
         input.spawnKey,
-        interactiveProfile(caller.profile),
+        canonicalProfile(caller.profile),
         now,
         now,
       );
@@ -1329,14 +1327,9 @@ export class AppStore {
     });
   }
 
-  setProfile(sessionId: string, profile: ProfileName): void {
+  setProfile(sessionId: string, profile: ProfileInput): void {
     this.tx(() => {
-      this.db.run(
-        "UPDATE sessions SET profile = CASE WHEN origin = 'trigger' THEN ? ELSE ? END WHERE id = ?",
-        profile,
-        interactiveProfile(profile),
-        sessionId,
-      );
+      this.db.run("UPDATE sessions SET profile = ? WHERE id = ?", canonicalProfile(profile), sessionId);
       this.#emitSession(sessionId);
     });
   }

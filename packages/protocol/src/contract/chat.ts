@@ -40,7 +40,7 @@ import {
   GrantLengthSchema,
   MessageMentionSchema,
   MessageSchema,
-  ProfileNameSchema,
+  ProfileInputSchema,
   RunSchema,
   SelectedSkillSchema,
   SessionSchema,
@@ -88,7 +88,7 @@ export const SessionDetailResponseSchema = obj({
 true satisfies Same<Static<typeof SessionDetailResponseSchema>, SessionDetailResponse>;
 
 export const UpdateSessionRequestSchema = obj({
-  profile: opt(ProfileNameSchema),
+  profile: opt(ProfileInputSchema),
   title: opt(str({ description: "1 to 80 characters once whitespace is collapsed." })),
   pinned: opt(bool()),
 });

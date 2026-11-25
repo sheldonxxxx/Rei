@@ -1,4 +1,4 @@
-import type { Approval, Grant, GrantLength, ProfileName, Session } from "@rei/protocol";
+import type { Approval, Grant, GrantLength, ProfileInput, Session } from "@rei/protocol";
 import { until } from "./client.ts";
 import type { TestServer } from "./server.ts";
 import { detail, say, settled } from "./sessions.ts";
@@ -12,7 +12,7 @@ export const decide = (
   id: string,
   body: { decision: "approve" | "deny"; length?: GrantLength; hours?: number },
 ) => s.client.post(`/api/approvals/${id}/decide`, body);
-export const setProfile = (s: TestServer, sessionId: string, profile: ProfileName) =>
+export const setProfile = (s: TestServer, sessionId: string, profile: ProfileInput) =>
   s.client.call("PATCH", `/api/sessions/${sessionId}`, { body: { profile } });
 export const effects = (s: TestServer) => s.host.plane.approvals.demoEffects();
 export const tool = (name: string, args: unknown = {}): string => `[tool: ${name} ${JSON.stringify(args)}]`;

@@ -2,6 +2,8 @@
 
 Choose **Strict**, **Standard**, or **YOLO** from the composer. Set the starting level for an agent's new chats in **Settings → Permissions**. Standard is the default.
 
+The same three levels and the same table apply to every kind of session: a chat, a worker and a trigger's run. The same level with the same chat state always gets the same decision.
+
 | Action | Strict | Standard | YOLO |
 | --- | --- | --- | --- |
 | Read Knowledge or Library, work in the sandbox, save a draft | Automatic | Automatic | Automatic |
@@ -25,9 +27,20 @@ For browser typing, Rei uses the chat's private-data flag. Knowledge and Library
 
 Connector calls use **Always Ask**, **Read-only**, **Read and write** (reads and reversible writes run automatically; sends, deletes and tools marked destructive still ask), or the connector's explicitly confirmed **YOLO** setting. Sandbox commands use the agent's [network setting](sandbox-network.md).
 
-## Existing and unattended chats
+## Workers and triggers
 
-Worker chats use the same permission rules as their parent and start with the parent's selected level, including YOLO. Each worker has its own chat-scoped grants. Existing Relaxed chats and agent defaults are treated as Standard. Older clients can submit Relaxed as an alias for Standard in chat settings. Creating a trigger under chat YOLO applies the change immediately. Trigger runs use their own saved permission rules and levels, including Relaxed where applicable.
+Worker chats start with their parent's level, including YOLO, and cannot choose another. Each worker has its own chat-scoped grants.
+
+A trigger's runs use the level saved with the trigger (**Permissions for its runs** on the Triggers page), and the table above decides each call. A Standard trigger that read private data can still search and fetch public pages without asking, as a Standard chat can. A new trigger starts on its agent's default level, including YOLO. Creating or changing a trigger asks once in Strict and Standard, so an agent cannot put a trigger on YOLO, or raise one to YOLO, without your approval. The card shows the level the runs will have and, for a change, the level before. Under chat YOLO the change applies at once.
+
+Two things stay specific to triggers:
+
+- **For this trigger.** When a run asks, the card can also offer **For this trigger**. Approving it adds the call to the trigger's allow list, so later runs make it without asking. An allow entry never covers trigger changes, irreversible actions or sign-ins. After the run has read outside content and private data, a send matches only an entry that names its destination. Remove entries on the Triggers page.
+- **Nobody is watching.** A direct call that asks leaves the run waiting with its card until you answer. A call made by a script fails at once instead (see below).
+
+## Older levels
+
+Earlier versions had a fourth level, **Relaxed**. Chats, agent defaults and triggers saved as Relaxed now run as Standard, and a client or tool that still sends Relaxed gets Standard. Trigger runs used to follow stricter rules than chats at the same level. A Standard trigger now makes reversible external edits, edits memory after reading outside content, and researches the public web after reading private data without asking. A trigger that was Relaxed now asks for every send after reading outside content and private data. Check the levels on the Triggers page after upgrading.
 
 ## Calls inside a script
 

@@ -281,12 +281,12 @@ describe("notice message", () => {
             role: "notice",
             status: "complete",
             runId: null,
-            text: "You changed the profile to Relaxed",
+            text: "Permissions changed to Standard.",
           })}
         />
       </ul>,
     );
-    expect(container.querySelector(".msg-notice")?.textContent).toBe("You changed the profile to Relaxed");
+    expect(container.querySelector(".msg-notice")?.textContent).toBe("Permissions changed to Standard.");
     expect(container.querySelector(".bubble")).toBeNull();
     expect(container.querySelector(".avatar")).toBeNull();
   });
@@ -422,6 +422,18 @@ describe("approval card: set up", () => {
     expect(text).toContain("The skill needs");
     expect(text).toContain("Bash(git:*)");
     expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+  });
+
+  it("says plainly when a change raises a trigger to YOLO, with the level it had before", () => {
+    const preview = triggerPreview({
+      op: "update",
+      profile: "yolo",
+      before: { ...triggerPreview(), profile: "standard" },
+    });
+    const { container } = card(approval({ actionClass: "configure", lengths: ["once"], preview }));
+    const facts = container.querySelector('dl[aria-label="Trigger"]')!;
+    expect(facts.textContent).toContain("YOLO: built-in actions run without asking");
+    expect(facts.querySelector(".preview-before")?.textContent).toBe("Standard");
   });
 
   it("shows what happens to a missed run and to a firing while the last run is going, and what changed", () => {

@@ -14,7 +14,7 @@ import type {
   GrantLength,
   Message,
   MessageId,
-  ProfileName,
+  ProfileInput,
   Run,
   RunId,
   Session,
@@ -462,7 +462,8 @@ export interface DeleteSessionQuery {
  * gets a notice message naming the change. Errors: "not_found", "bad_profile", "bad_title", "bad_pinned".
  */
 export interface UpdateSessionRequest {
-  profile?: ProfileName;
+  /** "relaxed" is accepted as an older name for "standard". */
+  profile?: ProfileInput;
   /** User-facing session title. Leading and trailing whitespace is removed. */
   title?: string;
   /** Whether the session is pinned in the sidebar. */
