@@ -1427,6 +1427,42 @@ describe("ChatView: the Conversation View", () => {
     expect(getTranscript).toHaveBeenCalledExactlyOnceWith("s1", "e:2");
   });
 
+  it("loads pre-compaction history when a compacted chat opens", async () => {
+    const getTranscript = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [message({ id: "e:2", role: "user", text: "Before summarizing" })],
+        before: "e:1",
+      })
+      .mockResolvedValueOnce({
+        items: [message({ id: "e:1", role: "user", text: "Start of the chat" })],
+        before: null,
+      });
+    const es = setup({ getTranscript });
+    act(() =>
+      es.emit({
+        type: "snapshot",
+        epoch: "e",
+        rev: 0,
+        view: viewOf({
+          items: [
+            message({ id: "e:3", role: "compaction", text: "Earlier messages were summarized." }),
+            message({ id: "u:r9", role: "user", runId: "r9", text: "After summarizing" }),
+          ],
+          before: "e:2",
+        }),
+      }),
+    );
+
+    expect(await screen.findByText("Start of the chat")).toBeTruthy();
+    expect(getTranscript.mock.calls).toEqual([
+      ["s1", "e:2"],
+      ["s1", "e:1"],
+    ]);
+    expect(screen.getByRole("log").textContent).toMatch(/Start of the chat.*Before summarizing.*After summarizing/);
+    expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
+  });
+
   it("loads earlier messages above the window", async () => {
     const getTranscript = vi.fn().mockResolvedValue({
       items: [message({ id: "e:1", role: "notice", status: "complete", text: "the very start" })],

@@ -39,12 +39,17 @@ export const TRIGGERS_NOTE = [
   "You can set up triggers: things you do on your own, without the user. Their tools (create_trigger, update_trigger, delete_trigger, list_triggers) are the triggers group: load it with search_capabilities first.",
   "- When: once, daily, weekly, monthly or every so often, or when an event arrives from an outside source. An event's run is told its type and reference and should look the reference up with that source's tools. list_triggers shows the sources and the event types each sent lately; a source not listed does not exist, and only the owner adds one.",
   "- What: notify (posts a message to your home chat, no model call: right for plain reminders), prompt (you run with a brief) or skill (you run a saved skill). A run cannot ask questions, so write the prompt to stand on its own.",
-  '- Report: "always" for something the user wants each time (a daily briefing), "on_change" (the default) for checks that speak up only when something needs them, "never" for housekeeping.',
+  '- Report and chat list: triggers cover two use cases. By default, `report` is "never" and `hideInList` is false — use this for user-facing triggers (such as a daily report or digest) whose runs appear in the chat list for the user to open and read directly. For background periodic checks or alerts that should report back to the home chat, set `report` to "always" (every run) or "on_change" (only when the run calls report()); those default to `hideInList: true` so their sessions stay hidden from the chat list while the user reads results in the home chat. Override `hideInList` explicitly if needed (for example `report: "never"` with `hideInList: true` for silent housekeeping).',
   "- `allow`: what a run may do without asking, beyond its permission profile. One entry per tool; for a tool that sends, also the fixed destination. Irreversible actions always ask. Leave it empty unless the user asks.",
   "- When the time, the days or the job are unclear, ask first instead of guessing; their time zone and your profile fill other gaps.",
   "- create_trigger shows the user a card of exactly what would be set up and creates nothing until they approve. Draft it completely, then tell them in one sentence to look at the card. If a call comes back as not done with a reason, correct what it names and call again.",
   "- To create, change, pause or delete another agent's triggers, the owner must enable that permission for you in Agent Settings. list_triggers then shows the other agents and their triggers. To create one, pass the target agent's ID as agentId; leave it out for your own. A changed trigger stays with the agent that runs it.",
   "- Pause or resume with update_trigger and `paused`.",
+].join("\n");
+
+export const HOME_TRIGGERS_NOTE = [
+  TRIGGERS_NOTE,
+  '- Home chat note: triggers default to `report: "never"` (shown in the chat list). When creating a trigger from this home chat, explicitly set `report` to "always" (report to this home chat every run) or "on_change" (report to this home chat only when something changes) according to need — use those for periodic checks and background monitoring where the user expects updates here in the home chat (they hide from the chat list by default), and keep "never" for user-facing triggers like a daily report meant to be read in its own chat.',
 ].join("\n");
 
 /**
@@ -137,7 +142,13 @@ const settings = {
   report: opt(
     StringEnum(["always", "on_change", "never"], {
       description:
-        "always: every run sends its report or complete final reply to the home assistant. on_change: sends only when the run calls report() (default). never: history only.",
+        "never: do not send to the home chat; the user reads the run's own chat (default). always: every run sends its report or complete final reply to the home assistant. on_change: sends to the home assistant only when the run calls report().",
+    }),
+  ),
+  hideInList: opt(
+    bool({
+      description:
+        "Hide this trigger's sessions from the chat list by default (still shown when open, waiting, failed, or filtered in). Defaults to true when report is always or on_change, and false when report is never.",
     }),
   ),
   latenessMinutes: opt(
@@ -220,6 +231,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
       action: fields.action,
       landing: fields.landing,
       report: fields.report,
+      hideInList: fields.hideInList,
       latenessMinutes: fields.latenessMinutes,
       catchUp: fields.catchUp,
       overlap: fields.overlap,
@@ -437,7 +449,15 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
     name: "triggers",
     namespace: { name: "triggers", description: "Scheduled and event-driven runs." },
     tools: [createTrigger, updateTrigger, deleteTrigger, listTriggers],
-    sections: [section("triggers", () => TRIGGERS_NOTE)],
+    sections: [
+      section("triggers", (input) => {
+        try {
+          return callerOf(input.conversationId)?.origin === "home" ? HOME_TRIGGERS_NOTE : TRIGGERS_NOTE;
+        } catch {
+          return TRIGGERS_NOTE;
+        }
+      }),
+    ],
   });
 
   function triggerLine(t: Trigger): string {
@@ -535,7 +555,9 @@ export function createTriggerRunExtension(deps: TriggerRunDeps): Extension {
         ? "Its report setting is always: call report() at the end with what the user should receive; without it, your complete final reply is sent to the home assistant."
         : row.report === "on_change"
           ? "Its report setting is on_change: call report() at the end only when there is something the user should know or that changed since last time; otherwise stay silent and just finish. The home assistant will process the report and reply to the user."
-          : "Its report setting is never: nothing is posted, so just do the work.";
+          : row.hide_in_list === 1
+            ? "Its report setting is never: nothing is sent to the home chat and this session is hidden from the chat list, so just do the work."
+            : "Its report setting is never: nothing is sent to the home chat; the user reads your final reply directly in this chat, so write it clearly for them.";
     const last = triggers.lastReport(row.id, run.id);
     return [
       `This run was started by the trigger "${row.name}" (${when}), without the user: nobody is here to answer questions, so make reasonable choices and finish.`,

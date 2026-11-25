@@ -27,6 +27,7 @@ const make = (over: Partial<TriggerFields> = {}): Trigger =>
       action: { kind: "notify", message: "Something new" },
       landing: "new",
       report: "on_change",
+      hideInList: true,
       latenessMinutes: 120,
       catchUp: "once",
       overlap: "skip",

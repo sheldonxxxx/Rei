@@ -63,9 +63,9 @@ export type TriggerAction =
   | { kind: "skill"; skill: string; args?: string };
 
 /**
- * - always: every finished run sends a report to the home assistant (report() text, else its complete final reply)
- * - on_change: only when the agent calls report() (the default for checks)
- * - never: run history only
+ * - never: nothing is posted to the home chat; the user reads the run in its own chat (default; shown in chat list by default)
+ * - always: every finished run sends a report to the home assistant (report() text, else its complete final reply); hidden in chat list by default
+ * - on_change: only when the agent calls report(); hidden in chat list by default
  * A failed run always posts a note unless the setting is "never"; pausing itself after failures always does.
  */
 export type ReportSetting = "always" | "on_change" | "never";
@@ -107,6 +107,8 @@ export interface Trigger {
   /** Set for "ongoing" after the first run. */
   ongoingSessionId: SessionId | null;
   report: ReportSetting;
+  /** Hide this trigger's sessions from the chat list by default (shown when open, waiting, failed, or filtered in). Defaults to true when report is always or on_change, and false when report is never. */
+  hideInList: boolean;
   /** Schedules only. A run that would start later than this after its time is skipped and logged as Skipped (late). */
   latenessMinutes: number;
   /** Schedules only. once: a time missed (e.g. while the server was down) runs once when back (default). skip: it is skipped as "missed". */
@@ -199,6 +201,7 @@ export interface CreateTriggerRequest {
   action: TriggerAction;
   landing?: "new" | "ongoing";
   report?: ReportSetting;
+  hideInList?: boolean;
   latenessMinutes?: number;
   catchUp?: "once" | "skip";
   overlap?: "skip" | "queue";
@@ -226,6 +229,7 @@ export interface UpdateTriggerRequest {
   action?: TriggerAction;
   landing?: "new" | "ongoing";
   report?: ReportSetting;
+  hideInList?: boolean;
   latenessMinutes?: number;
   catchUp?: "once" | "skip";
   overlap?: "skip" | "queue";
@@ -263,6 +267,7 @@ export interface TriggerPreview {
   action: TriggerAction;
   landing: "new" | "ongoing";
   report: ReportSetting;
+  hideInList: boolean;
   latenessMinutes: number;
   catchUp: "once" | "skip";
   overlap: "skip" | "queue";

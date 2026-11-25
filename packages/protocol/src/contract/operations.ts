@@ -128,6 +128,7 @@ export const TriggerSchema = named(
     landing: oneOf(["new", "ongoing"]),
     ongoingSessionId: nullable(str()),
     report: ReportSettingSchema,
+    hideInList: bool(),
     latenessMinutes: int(),
     catchUp: oneOf(["once", "skip"]),
     overlap: oneOf(["skip", "queue"]),
@@ -169,6 +170,7 @@ true satisfies Same<Static<typeof TriggerResponseSchema>, TriggerResponse>;
 const triggerSettings = {
   landing: opt(oneOf(["new", "ongoing"])),
   report: opt(ReportSettingSchema),
+  hideInList: opt(bool()),
   latenessMinutes: opt(int()),
   catchUp: opt(oneOf(["once", "skip"])),
   overlap: opt(oneOf(["skip", "queue"])),

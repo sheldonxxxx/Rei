@@ -12,10 +12,11 @@ export const WEEKDAYS: { id: Weekday; label: string }[] = [
 ];
 
 export const REPORT_LABEL: Record<ReportSetting, string> = {
-  always: "Every run",
+  never: "Never",
   on_change: "Only when something changed",
-  never: "Never (history only)",
+  always: "Every run",
 };
+export const chatListLabel = (hideInList: boolean): string => (hideInList ? "Hide in chat list" : "Show in chat list");
 export const CATCH_UP_LABEL = { once: "Run it once when back", skip: "Skip it" } as const;
 export const OVERLAP_LABEL = { skip: "Skip this run", queue: "Run it after" } as const;
 export const LANDING_LABEL = { new: "A new chat each run", ongoing: "One ongoing chat" } as const;

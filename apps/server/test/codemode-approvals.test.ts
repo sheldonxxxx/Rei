@@ -179,6 +179,7 @@ describe("approvals inside a script", () => {
       action: { kind: "prompt", prompt: script(WRITE_THEN_SEND) },
       landing: "new",
       report: "on_change",
+      hideInList: true,
       latenessMinutes: 120,
       catchUp: "once",
       overlap: "skip",

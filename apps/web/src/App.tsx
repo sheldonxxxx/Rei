@@ -166,7 +166,7 @@ export function Main({
   // The sidebar's chat list follows this agent.
   const activeAgentId = selectActiveAgentId(global, behindId);
 
-  // The sidebar's "Trigger sessions" filter: off, only the trigger runs that need you or failed are listed.
+  // The sidebar's "Hidden trigger sessions" filter: off, hidden trigger runs stay out unless they need you or failed.
   const [showTriggers, setShowTriggers] = useState(false);
   const sessionPages = useSessionPages(
     api,

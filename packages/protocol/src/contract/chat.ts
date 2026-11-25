@@ -207,7 +207,7 @@ export const listSessionsRoute = defineRoute({
   tag: "chat",
   summary: "The sessions: all of them, or with paged=1 up to 30 history sessions of one agent per page.",
   description:
-    "With paged=1, home chats and finished trigger runs are left out unless triggers=1; `before` is the previous page's nextCursor.",
+    "With paged=1, home chats and hidden trigger runs are left out unless triggers=1; `before` is the previous page's nextCursor.",
   query: SessionsQuerySchema,
   response: SessionsResponseSchema,
 });

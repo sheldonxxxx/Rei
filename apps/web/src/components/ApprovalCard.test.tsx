@@ -415,6 +415,7 @@ describe("approval card: set up", () => {
     expect(text).toContain("Run this prompt: Check the weather.");
     expect(text).toContain("A new chat each run");
     expect(text).toContain("Only when something changed");
+    expect(text).toContain("Hide in chat list");
     expect(text).toContain("Standard");
     expect(text).toContain("120 min");
     expect(text).toContain("Send an email · ana@example.com");
@@ -466,6 +467,7 @@ describe("approval card: set up", () => {
     const { container } = card(approval({ actionClass: "configure", lengths: ["once"], preview }));
     const facts = container.querySelector('dl[aria-label="Trigger"]')!;
     expect(facts.textContent).not.toContain("Reports");
+    expect(facts.textContent).not.toContain("Chat list");
     expect(facts.querySelector(".preview-allow li span")?.textContent).toBe(
       "Send a message to someone · ana@example.com",
     );

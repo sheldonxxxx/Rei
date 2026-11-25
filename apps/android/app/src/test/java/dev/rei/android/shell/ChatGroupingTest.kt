@@ -25,7 +25,8 @@ class ChatGroupingTest {
         pinned: Boolean = false,
         status: String = "idle",
         approvals: Int = 0,
-    ) = Session(id, agent, "Chat $id", "", origin, status, 0, pinned, null, at(daysAgo), approvals)
+        hideInList: Boolean = false,
+    ) = Session(id, agent, "Chat $id", "", origin, status, 0, pinned, null, at(daysAgo), approvals, hideInList = hideInList)
 
     private fun group(sessions: List<Session>, agent: String? = "a1", open: String? = null, triggers: Boolean = false) =
         groupChats(sessions, agents, agent, open, triggers, now, zone, Locale.US)
@@ -65,15 +66,16 @@ class ChatGroupingTest {
     }
 
     @Test
-    fun triggerRunsStayHiddenUnlessTheyNeedYouFailedOrAreOpen() {
+    fun hiddenTriggerRunsStayHiddenWhileUserFacingOnesShowByDefault() {
         val all = listOf(
-            chat("quiet", origin = "trigger"),
-            chat("waiting", origin = "trigger", approvals = 1),
-            chat("failed", origin = "trigger", status = "failed"),
-            chat("open", origin = "trigger"),
+            chat("daily", origin = "trigger", status = "completed", hideInList = false),
+            chat("quiet", origin = "trigger", status = "completed", hideInList = true),
+            chat("waiting", origin = "trigger", approvals = 1, hideInList = true),
+            chat("failed", origin = "trigger", status = "failed", hideInList = true),
+            chat("open", origin = "trigger", status = "completed", hideInList = true),
         )
-        assertEquals(setOf("waiting", "failed", "open"), group(all, open = "open").flatMap { it.sessions }.map { it.id }.toSet())
-        assertEquals(4, group(all, triggers = true).flatMap { it.sessions }.size)
+        assertEquals(setOf("daily", "waiting", "failed", "open"), group(all, open = "open").flatMap { it.sessions }.map { it.id }.toSet())
+        assertEquals(5, group(all, triggers = true).flatMap { it.sessions }.size)
     }
 
     @Test

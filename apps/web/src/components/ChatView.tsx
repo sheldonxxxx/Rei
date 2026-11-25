@@ -220,12 +220,22 @@ export function ChatView({
   const agent = agents.find((a) => a.id === session?.agentId);
   const running = isRunning(state);
   const emptyTranscript = state.ready && state.messages.length === 0 && state.pending.length === 0;
-  const recoveredHistoryFor = useRef<string | null>(null);
+  // A compaction marker summarizes model context. Restore the transcript pages behind it on open.
+  const compacted = state.messages.some((message) => message.role === "compaction");
+  const [historyLoadFailed, setHistoryLoadFailed] = useState(false);
+  const manualHistoryCursor = compacted && !historyLoadFailed ? null : state.before;
+  const requestedHistory = useRef<{ sessionId: string; cursor: string } | null>(null);
   useEffect(() => {
-    if (!emptyTranscript || !state.before || loadingEarlier || recoveredHistoryFor.current === sessionId) return;
-    recoveredHistoryFor.current = sessionId;
-    void loadEarlier().catch((error: unknown) => setActionError(describeError(error)));
-  }, [emptyTranscript, state.before, loadingEarlier, sessionId, loadEarlier]);
+    const cursor = state.before;
+    if ((!emptyTranscript && !compacted) || !cursor || loadingEarlier || historyLoadFailed) return;
+    const previous = requestedHistory.current;
+    if (previous?.sessionId === sessionId && previous.cursor === cursor) return;
+    requestedHistory.current = { sessionId, cursor };
+    void loadEarlier().catch((error: unknown) => {
+      setHistoryLoadFailed(true);
+      setActionError(describeError(error));
+    });
+  }, [emptyTranscript, compacted, state.before, loadingEarlier, historyLoadFailed, sessionId, loadEarlier]);
 
   // What a message sent while a reply runs does by default (Settings > Behavior); read again after any route change, so
   // coming back from Settings applies a change.
@@ -297,11 +307,19 @@ export function ChatView({
     }
   }
 
+  async function retryEarlier() {
+    await loadEarlier();
+    if (historyLoadFailed) {
+      setHistoryLoadFailed(false);
+      setActionError(null);
+    }
+  }
+
   async function earlier() {
     const el = scroller.current;
     keepFromBottom.current = el ? el.scrollHeight - el.scrollTop : null;
     try {
-      await loadEarlier();
+      await retryEarlier();
     } catch (e) {
       keepFromBottom.current = null;
       setActionError(describeError(e));
@@ -975,7 +993,7 @@ export function ChatView({
                       data-opening={settling ? "true" : undefined}
                       className="msg-list mx-auto flex max-w-(--col) list-none flex-col gap-6 p-0 max-md:gap-[22px] [&>.msg-user:not(:first-child)]:mt-3"
                     >
-                      {state.before && (
+                      {manualHistoryCursor && (
                         <li className="msg messages-earlier text-center">
                           <Button
                             type="button"
@@ -1195,9 +1213,9 @@ export function ChatView({
           agent={agent}
           session={session}
           messages={floatingMessages}
-          earlierCursor={state.before}
+          earlierCursor={manualHistoryCursor}
           loadingEarlier={loadingEarlier}
-          onLoadEarlier={loadEarlier}
+          onLoadEarlier={retryEarlier}
           running={running}
           stopping={stopping}
           onSend={send}

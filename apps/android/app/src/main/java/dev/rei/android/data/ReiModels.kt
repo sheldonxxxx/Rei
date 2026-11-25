@@ -34,6 +34,7 @@ data class Session(
     /** Approvals waiting in this session. */
     val pendingApprovals: Int = 0,
     val triggerId: String? = null,
+    val hideInList: Boolean = false,
     /** The session has a browser window. */
     val hasBrowser: Boolean = false,
     /** The agent asked the user to take over that window. */
@@ -197,6 +198,7 @@ internal fun JsonObject.session() = Session(
     updatedAt = this["updatedAt"]?.jsonPrimitive?.long ?: 0,
     pendingApprovals = this["pendingApprovals"]?.jsonPrimitive?.int ?: 0,
     triggerId = optionalString("triggerId"),
+    hideInList = this["hideInList"]?.jsonPrimitive?.boolean == true,
     hasBrowser = (this["browser"] as? JsonObject) != null,
     takeoverPending = ((this["browser"] as? JsonObject)?.get("takeover") as? JsonObject)?.optionalString("status") == "pending",
     profile = ChatProfile.fromWire(optionalString("profile")),

@@ -34,6 +34,7 @@ export interface TriggerRow {
   landing: string;
   ongoing_session_id: string | null;
   report: string;
+  hide_in_list: number;
   lateness_minutes: number;
   catch_up: string;
   overlap: string;
@@ -161,6 +162,7 @@ export class TriggerStore {
       action: this.action(r),
       landing: r.landing as "new" | "ongoing",
       report: r.report as TriggerFields["report"],
+      hideInList: r.hide_in_list === 1,
       latenessMinutes: r.lateness_minutes,
       catchUp: r.catch_up as TriggerFields["catchUp"],
       overlap: r.overlap as TriggerFields["overlap"],
@@ -192,6 +194,7 @@ export class TriggerStore {
       landing: r.landing as "new" | "ongoing",
       ongoingSessionId: r.ongoing_session_id,
       report: r.report as Trigger["report"],
+      hideInList: r.hide_in_list === 1,
       latenessMinutes: r.lateness_minutes,
       catchUp: r.catch_up as Trigger["catchUp"],
       overlap: r.overlap as Trigger["overlap"],
@@ -446,8 +449,8 @@ export class TriggerStore {
       const id = newId("trg", now);
       const f = input.fields;
       this.#db.run(
-        `INSERT INTO triggers (id, agent_id, name, schedule_json, start_kind, event_json, action_json, landing, report, lateness_minutes, catch_up, overlap, profile, allow_json, status, failures, next_fire_at, created_by_session_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, ?, ?, ?, ?)`,
+        `INSERT INTO triggers (id, agent_id, name, schedule_json, start_kind, event_json, action_json, landing, report, hide_in_list, lateness_minutes, catch_up, overlap, profile, allow_json, status, failures, next_fire_at, created_by_session_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 0, ?, ?, ?, ?)`,
         id,
         input.agentId,
         f.name,
@@ -457,6 +460,7 @@ export class TriggerStore {
         JSON.stringify(f.action),
         f.landing,
         f.report,
+        f.hideInList ? 1 : 0,
         f.latenessMinutes,
         f.catchUp,
         f.overlap,
@@ -487,6 +491,7 @@ export class TriggerStore {
       diff("action", actionText(before.action), actionText(next.action));
       diff("landing", before.landing, next.landing);
       diff("report", before.report, next.report);
+      diff("hideInList", before.hideInList ? "hidden" : "shown", next.hideInList ? "hidden" : "shown");
       diff("latenessMinutes", String(before.latenessMinutes), String(next.latenessMinutes));
       diff("catchUp", before.catchUp, next.catchUp);
       diff("overlap", before.overlap, next.overlap);
@@ -505,7 +510,7 @@ export class TriggerStore {
         if (status === "paused") fire = null;
       }
       this.#db.run(
-        "UPDATE triggers SET name = ?, schedule_json = ?, start_kind = ?, event_json = ?, action_json = ?, landing = ?, report = ?, lateness_minutes = ?, catch_up = ?, overlap = ?, profile = ?, allow_json = ?, status = ?, next_fire_at = ?, updated_at = ? WHERE id = ?",
+        "UPDATE triggers SET name = ?, schedule_json = ?, start_kind = ?, event_json = ?, action_json = ?, landing = ?, report = ?, hide_in_list = ?, lateness_minutes = ?, catch_up = ?, overlap = ?, profile = ?, allow_json = ?, status = ?, next_fire_at = ?, updated_at = ? WHERE id = ?",
         next.name,
         scheduleJson(next.start),
         next.start.kind,
@@ -513,6 +518,7 @@ export class TriggerStore {
         JSON.stringify(next.action),
         next.landing,
         next.report,
+        next.hideInList ? 1 : 0,
         next.latenessMinutes,
         next.catchUp,
         next.overlap,
@@ -523,6 +529,7 @@ export class TriggerStore {
         now,
         id,
       );
+      if (before.hideInList !== next.hideInList) this.app.setTriggerSessionsHidden(id, next.hideInList);
       if (opts.log) for (const [field, a, b] of changes) this.#log(id, field, a, b, opts.author);
       this.changed(id);
       return this.get(id)!;

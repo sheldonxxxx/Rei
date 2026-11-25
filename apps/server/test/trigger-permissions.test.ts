@@ -32,6 +32,7 @@ const makeTrigger = (s: WebServer, over: Partial<TriggerFields> = {}): Trigger =
       action: { kind: "prompt", prompt: "hello" },
       landing: "new",
       report: "on_change",
+      hideInList: true,
       latenessMinutes: 120,
       catchUp: "once",
       overlap: "skip",

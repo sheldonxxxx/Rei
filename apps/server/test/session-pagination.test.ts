@@ -17,7 +17,10 @@ describe("progressive session history", () => {
     const ids: string[] = [];
     for (let n = 0; n < 65; n++) ids.push(await chat(server));
     for (const id of ids) store.db.run("UPDATE sessions SET updated_at = 100 WHERE id = ?", id);
-    store.db.run("UPDATE sessions SET origin = 'trigger', status = 'completed' WHERE id = ?", ids[0]!);
+    store.db.run(
+      "UPDATE sessions SET origin = 'trigger', hide_in_list = 1, status = 'completed' WHERE id = ?",
+      ids[0]!,
+    );
     store.db.run("UPDATE sessions SET deleted_at = 1 WHERE id = ?", ids[1]!);
     const agent = store.defaultAgentId()!;
     const all: string[] = [];
@@ -53,15 +56,25 @@ describe("progressive session history", () => {
     expect(seed.length).toBeLessThan(all.length);
   });
 
-  it("lists every trigger run only when asked (the Trigger sessions filter)", async () => {
+  it("lists visible trigger runs by default and hidden ones only when asked (the Hidden trigger sessions filter)", async () => {
     server = await startSignedIn();
     const store = server.host.plane.store;
-    const id = await chat(server);
-    store.db.run("UPDATE sessions SET origin = 'trigger', status = 'completed' WHERE id = ?", id);
+    const hiddenId = await chat(server);
+    const visibleId = await chat(server);
+    store.db.run(
+      "UPDATE sessions SET origin = 'trigger', hide_in_list = 1, status = 'completed' WHERE id = ?",
+      hiddenId,
+    );
+    store.db.run(
+      "UPDATE sessions SET origin = 'trigger', hide_in_list = 0, status = 'completed' WHERE id = ?",
+      visibleId,
+    );
     const agent = store.defaultAgentId()!;
-    expect(store.sessionPage(agent, undefined).sessions.map((s) => s.id)).not.toContain(id);
-    expect(store.sessionPage(agent, undefined, 30, { triggers: true }).sessions.map((s) => s.id)).toContain(id);
+    const defaultIds = store.sessionPage(agent, undefined).sessions.map((s) => s.id);
+    expect(defaultIds).not.toContain(hiddenId);
+    expect(defaultIds).toContain(visibleId);
+    expect(store.sessionPage(agent, undefined, 30, { triggers: true }).sessions.map((s) => s.id)).toContain(hiddenId);
     const reply = await server.client.get(`/api/sessions?paged=1&agent=${agent}&triggers=1`);
-    expect(reply.body.sessions.map((s: { id: string }) => s.id)).toContain(id);
+    expect(reply.body.sessions.map((s: { id: string }) => s.id)).toContain(hiddenId);
   });
 });

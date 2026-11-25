@@ -29,6 +29,7 @@ const make = (over: Partial<TriggerFields> = {}): Trigger =>
       action: { kind: "prompt", prompt: "Look at the new item." },
       landing: "new",
       report: "on_change",
+      hideInList: true,
       latenessMinutes: 120,
       catchUp: "once",
       overlap: "skip",

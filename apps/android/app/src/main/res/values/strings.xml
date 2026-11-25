@@ -143,8 +143,8 @@
     <string name="drawer_new_agent">New agent</string>
     <string name="drawer_chats">Chats</string>
     <string name="drawer_filter_chats">Filter chats</string>
-    <string name="drawer_hide_triggers">Hide trigger chats</string>
-    <string name="drawer_show_triggers">Show trigger chats</string>
+    <string name="drawer_hide_triggers">Hide hidden trigger chats</string>
+    <string name="drawer_show_triggers">Show hidden trigger chats</string>
     <string name="drawer_no_chats">No chats yet. Start a chat to begin.</string>
     <string name="drawer_version">Rei %1$s</string>
     <string name="drawer_needs_attention">Needs attention</string>

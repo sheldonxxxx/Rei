@@ -21,6 +21,7 @@ export interface TriggerFields {
   action: TriggerAction;
   landing: "new" | "ongoing";
   report: ReportSetting;
+  hideInList: boolean;
   latenessMinutes: number;
   catchUp: "once" | "skip";
   overlap: "skip" | "queue";
@@ -121,6 +122,12 @@ export function checkLanding(value: unknown): "new" | "ongoing" {
 export function checkReport(value: unknown): ReportSetting {
   if (value !== "always" && value !== "on_change" && value !== "never")
     throw new Invalid('report must be "always", "on_change" or "never".');
+  return value;
+}
+/** Triggers that report to the home chat hide from the chat list by default; user-facing ("never") triggers stay visible. */
+export const defaultHideInList = (report: ReportSetting): boolean => report !== "never";
+export function checkHideInList(value: unknown): boolean {
+  if (typeof value !== "boolean") throw new Invalid("hideInList must be true or false.");
   return value;
 }
 export function checkLateness(value: unknown): number {
@@ -234,12 +241,15 @@ export function buildNew(input: unknown, ctx: SpecContext): TriggerFields {
     gap === null
       ? TRIGGER_LIMITS.defaultLatenessMinutes
       : Math.max(1, Math.min(TRIGGER_LIMITS.defaultLatenessMinutes, Math.floor(gap / 60_000)));
+  const report = field(o, "report") === undefined ? "never" : checkReport(o.report);
+  const hideInList = field(o, "hideInList") === undefined ? defaultHideInList(report) : checkHideInList(o.hideInList);
   return {
     name: checkName(o.name),
     start,
     action,
     landing: field(o, "landing") === undefined ? "new" : checkLanding(o.landing),
-    report: field(o, "report") === undefined ? "on_change" : checkReport(o.report),
+    report,
+    hideInList,
     latenessMinutes: field(o, "latenessMinutes") === undefined ? cap : checkLateness(o.latenessMinutes),
     catchUp: field(o, "catchUp") === undefined ? "once" : checkCatchUp(o.catchUp),
     overlap: field(o, "overlap") === undefined ? "skip" : checkOverlap(o.overlap),
@@ -262,6 +272,9 @@ export function applyPatch(
   if (field(patch, "action") !== undefined) next.action = checkAction(patch.action, ctx);
   if (field(patch, "landing") !== undefined) next.landing = checkLanding(patch.landing);
   if (field(patch, "report") !== undefined) next.report = checkReport(patch.report);
+  if (field(patch, "hideInList") !== undefined) next.hideInList = checkHideInList(patch.hideInList);
+  else if (field(patch, "report") !== undefined && current.hideInList === defaultHideInList(current.report))
+    next.hideInList = defaultHideInList(next.report);
   if (field(patch, "latenessMinutes") !== undefined) next.latenessMinutes = checkLateness(patch.latenessMinutes);
   if (field(patch, "catchUp") !== undefined) next.catchUp = checkCatchUp(patch.catchUp);
   if (field(patch, "overlap") !== undefined) next.overlap = checkOverlap(patch.overlap);
@@ -303,6 +316,7 @@ export const PATCH_KEYS = [
   "action",
   "landing",
   "report",
+  "hideInList",
   "latenessMinutes",
   "catchUp",
   "overlap",

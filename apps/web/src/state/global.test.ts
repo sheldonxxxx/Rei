@@ -211,20 +211,26 @@ describe("approvals in the global state", () => {
 
 describe("selectSessions: trigger runs", () => {
   const base: GlobalState = { ...initialGlobalState, ready: true, agents: [agent()] };
-  it("keeps a trigger's sessions out of the list unless they need you or failed", () => {
+  it("shows user-facing trigger sessions and keeps hidden ones out unless they need you or failed", () => {
     const sessions = [
-      session({ id: "ok", origin: "trigger", status: "completed" }),
-      session({ id: "run", origin: "trigger", status: "running" }),
-      session({ id: "wait", origin: "trigger", status: "waiting_for_user" }),
-      session({ id: "ask", origin: "trigger", status: "running", pendingApprovals: 1 }),
-      session({ id: "bad", origin: "trigger", status: "failed" }),
+      session({ id: "daily", origin: "trigger", status: "completed" }),
+      session({ id: "ok", origin: "trigger", status: "completed", hideInList: true }),
+      session({ id: "run", origin: "trigger", status: "running", hideInList: true }),
+      session({ id: "wait", origin: "trigger", status: "waiting_for_user", hideInList: true }),
+      session({ id: "ask", origin: "trigger", status: "running", pendingApprovals: 1, hideInList: true }),
+      session({ id: "bad", origin: "trigger", status: "failed", hideInList: true }),
       session({ id: "plain", origin: "user" }),
     ];
     expect(
       selectSessions({ ...base, sessions })
         .map((x) => x.id)
         .sort(),
-    ).toEqual(["ask", "bad", "plain", "wait"]);
+    ).toEqual(["ask", "bad", "daily", "plain", "wait"]);
+    expect(
+      selectSessions({ ...base, sessions }, undefined, undefined, true)
+        .map((x) => x.id)
+        .sort(),
+    ).toEqual(["ask", "bad", "daily", "ok", "plain", "run", "wait"]);
   });
 });
 
@@ -285,7 +291,7 @@ describe("selectSessions: one agent", () => {
     session({ id: "s1", updatedAt: 1 }),
     session({ id: "s2", agentId: "a2", updatedAt: 2 }),
     session({ id: "home1", origin: "home" }),
-    session({ id: "t1", agentId: "a2", origin: "trigger", status: "completed" }),
+    session({ id: "t1", agentId: "a2", origin: "trigger", status: "completed", hideInList: true }),
   ];
   it("filters by agent, keeping the home and trigger exclusions, and no agent means all", () => {
     expect(selectSessions({ ...base, sessions }, "a2").map((x) => x.id)).toEqual(["s2"]);

@@ -317,8 +317,8 @@ export interface CreateAgentResponse {
 
 /** GET /api/sessions: complete list by default. With ?paged=1&agent=<id>&before=<cursor>,
  * returns up to 30 visible history sessions ordered by updatedAt and ID descending; home chats
- * and finished trigger runs are excluded. ?triggers=1 also includes every trigger run (the sidebar's
- * "Trigger sessions" filter). Omit before for the first page. */
+ * and hidden trigger runs are excluded. ?triggers=1 also includes hidden trigger runs (the sidebar's
+ * "Hidden trigger sessions" filter). Omit before for the first page. */
 export interface SessionsResponse {
   sessions: Session[];
   /** Cursor for the next page when pagination is requested. */

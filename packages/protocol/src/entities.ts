@@ -242,8 +242,10 @@ export interface Session {
   unread: number;
   /** The session's browser window, when it has one. */
   browser: SessionBrowser | null;
-  /** For origin "trigger", the trigger (null once it is deleted). Trigger sessions stay out of the main list unless they need you or failed. */
+  /** For origin "trigger", the trigger (null once it is deleted). */
   triggerId?: TriggerId | null;
+  /** True when this trigger session stays out of the main chat list unless open, waiting for you, failed, or the hidden-triggers filter is on. */
+  hideInList?: boolean;
   createdAt: number;
   updatedAt: number;
 }

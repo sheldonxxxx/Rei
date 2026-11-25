@@ -40,6 +40,7 @@ const make = (over: Partial<TriggerFields> = {}, agentId = agent()): Trigger =>
       action: { kind: "prompt", prompt: "hello" },
       landing: "new",
       report: "on_change",
+      hideInList: true,
       latenessMinutes: 120,
       catchUp: "once",
       overlap: "skip",
@@ -98,6 +99,7 @@ describe("fresh database schema", () => {
         "landing",
         "ongoing_session_id",
         "report",
+        "hide_in_list",
         "lateness_minutes",
         "profile",
         "allow_json",
@@ -128,7 +130,7 @@ describe("fresh database schema", () => {
       expect.arrayContaining(["skill_id", "version", "bytes", "author", "session_id", "note"]),
     );
     expect(cols("skill_uses")).toEqual(expect.arrayContaining(["run_id", "skill_id", "version"]));
-    expect(cols("sessions")).toContain("trigger_id");
+    expect(cols("sessions")).toEqual(expect.arrayContaining(["trigger_id", "hide_in_list"]));
     expect(cols("trigger_runs")).toEqual(expect.arrayContaining(["last_run_id", "last_run_status", "last_reply"]));
     expect(cols("approvals")).toContain("preview_json");
   });
@@ -704,7 +706,8 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
       startText: "Every day at 09:00 (Asia/Macau)",
       action: { kind: "prompt", prompt: "Check my notes." },
       landing: "new",
-      report: "on_change",
+      report: "never",
+      hideInList: false,
       latenessMinutes: 120,
       profile: "standard",
       allow: [],
@@ -719,7 +722,8 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
       agentId: agent(),
       status: "active",
       landing: "new",
-      report: "on_change",
+      report: "never",
+      hideInList: false,
       profile: "standard",
     });
     expect(
@@ -1175,7 +1179,8 @@ describe("the edit log names the agent", () => {
     expect(log.map((e) => [e.author, e.field, e.before, e.after])).toEqual([
       ["agent", "create", null, "Logged"],
       ["agent", "name", "Logged", "Renamed"],
-      ["agent", "report", "on_change", "always"],
+      ["agent", "report", "never", "always"],
+      ["agent", "hideInList", "shown", "hidden"],
       ["agent", "paused", "active", "paused"],
       ["agent", "paused", "paused", "active"],
       ["user", "name", "Renamed", "By you"],
@@ -1403,5 +1408,107 @@ describe("catch-up and overlap", () => {
     });
     expect(ok.status).toBe(200);
     expect(ok.body.trigger.action).toEqual({ kind: "notify", message: "Hi" });
+  });
+});
+
+describe("trigger visibility and home-chat guidance", () => {
+  const schedule = {
+    kind: "schedule" as const,
+    schedule: { kind: "daily" as const, times: ["09:00"], timeZone: "UTC" },
+  };
+
+  it("defaults to report never + visible in chat list, while reporting triggers default to hidden", async () => {
+    server = await startSignedIn();
+    const dailyRes = await server.client.post("/api/triggers", {
+      agentId: agent(),
+      name: "Daily report",
+      start: schedule,
+      action: { kind: "prompt", prompt: "Write today's digest." },
+    });
+    expect(dailyRes.status).toBe(201);
+    expect(dailyRes.body.trigger).toMatchObject({ report: "never", hideInList: false });
+
+    const checkRes = await server.client.post("/api/triggers", {
+      agentId: agent(),
+      name: "Price watch",
+      start: schedule,
+      action: { kind: "prompt", prompt: "Check price." },
+      report: "on_change",
+    });
+    expect(checkRes.status).toBe(201);
+    expect(checkRes.body.trigger).toMatchObject({ report: "on_change", hideInList: true });
+
+    const alwaysRes = await server.client.post("/api/triggers", {
+      agentId: agent(),
+      name: "Morning pulse",
+      start: schedule,
+      action: { kind: "prompt", prompt: "Summarize." },
+      report: "always",
+    });
+    expect(alwaysRes.status).toBe(201);
+    expect(alwaysRes.body.trigger).toMatchObject({ report: "always", hideInList: true });
+
+    // Run both and check session visibility and run prompts.
+    const daily = dailyRes.body.trigger as Trigger;
+    const check = checkRes.body.trigger as Trigger;
+    await server.client.post(`/api/triggers/${daily.id}/run`, {});
+    const dailyRun = await finished(daily.id);
+    await server.client.post(`/api/triggers/${check.id}/run`, {});
+    const checkRun = await finished(check.id);
+
+    const dailyDetail = await detail(server, dailyRun.session_id!);
+    const checkDetail = await detail(server, checkRun.session_id!);
+    expect(dailyDetail.session.hideInList).toBeUndefined();
+    expect(checkDetail.session.hideInList).toBe(true);
+
+    // User-facing trigger prompt tells the run the user reads its final reply directly in that chat.
+    expect(stepPayloads(server, dailyRun.session_id!)[0]).toContain("reads your final reply directly in this chat");
+
+    const defaultPage = plane()
+      .store.sessionPage(agent(), undefined)
+      .sessions.map((s) => s.id);
+    expect(defaultPage).toContain(dailyRun.session_id);
+    expect(defaultPage).not.toContain(checkRun.session_id);
+
+    const allPage = plane()
+      .store.sessionPage(agent(), undefined, 30, { triggers: true })
+      .sessions.map((s) => s.id);
+    expect(allPage).toContain(dailyRun.session_id);
+    expect(allPage).toContain(checkRun.session_id);
+
+    // Switching report updates default hideInList and syncs existing sessions without changing updated_at.
+    const beforeUpdatedAt = plane().store.getSessionRow(dailyRun.session_id!)!.updated_at;
+    const switched = await server.client.call("PATCH", `/api/triggers/${daily.id}`, { body: { report: "on_change" } });
+    expect(switched.status).toBe(200);
+    expect(switched.body.trigger).toMatchObject({ report: "on_change", hideInList: true });
+    expect(plane().store.getSession(dailyRun.session_id!)!.hideInList).toBe(true);
+    expect(plane().store.getSessionRow(dailyRun.session_id!)!.updated_at).toBe(beforeUpdatedAt);
+    expect(
+      plane()
+        .store.sessionPage(agent(), undefined)
+        .sessions.map((s) => s.id),
+    ).not.toContain(dailyRun.session_id);
+
+    // Explicit override survives a report change within reporting modes.
+    const shown = await server.client.call("PATCH", `/api/triggers/${daily.id}`, { body: { hideInList: false } });
+    expect(shown.body.trigger).toMatchObject({ report: "on_change", hideInList: false });
+    const stillShown = await server.client.call("PATCH", `/api/triggers/${daily.id}`, { body: { report: "always" } });
+    expect(stillShown.body.trigger).toMatchObject({ report: "always", hideInList: false });
+  });
+
+  it("includes the home-chat trigger report note only in the home chat system prompt", async () => {
+    server = await startSignedIn();
+    await say(server, home(), "hi");
+    await settled(server, home());
+    const homePrompt = stepPayloads(server, home())[0]!;
+    expect(homePrompt).toContain("Home chat note:");
+    expect(homePrompt).toContain('report: \\"never\\"');
+
+    const regular = await chat(server);
+    await say(server, regular, "hi");
+    await settled(server, regular);
+    const regularPrompt = stepPayloads(server, regular)[0]!;
+    expect(regularPrompt).toContain("create_trigger");
+    expect(regularPrompt).not.toContain("Home chat note:");
   });
 });

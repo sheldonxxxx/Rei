@@ -976,7 +976,14 @@ describe("Main: paged history deep links", () => {
   it("opens an unloaded chat, follows its agent, and selects its sidebar row", async () => {
     media(true);
     navigate("/s/older");
-    const older = session({ id: "older", agentId: "a2", title: "Older run", origin: "trigger", status: "completed" });
+    const older = session({
+      id: "older",
+      agentId: "a2",
+      title: "Older run",
+      origin: "trigger",
+      status: "completed",
+      hideInList: true,
+    });
     const getSessions = vi.fn().mockResolvedValue({ sessions: [], nextCursor: null });
     const getRelatedSessions = vi.fn().mockResolvedValue({ sessions: [older] });
     render(

@@ -111,3 +111,47 @@ describe("Knowledge fresh-schema boundary", () => {
     }
   });
 });
+
+describe("trigger visibility column backfill", () => {
+  it("adds hide_in_list to existing triggers and sessions based on report setting", () => {
+    const db = openSqliteDb(":memory:");
+    try {
+      initializeDatabase(db);
+      db.exec("ALTER TABLE triggers DROP COLUMN hide_in_list");
+      db.exec("ALTER TABLE sessions DROP COLUMN hide_in_list");
+      db.run(
+        `INSERT INTO triggers (id, agent_id, name, schedule_json, start_kind, action_json, landing, report, lateness_minutes, profile, status, created_at, updated_at)
+         VALUES ('t_never', 'a1', 'Daily', '{}', 'schedule', '{}', 'new', 'never', 120, 'standard', 'active', 1, 1),
+                ('t_change', 'a1', 'Check', '{}', 'schedule', '{}', 'new', 'on_change', 120, 'standard', 'active', 1, 1),
+                ('t_always', 'a1', 'Pulse', '{}', 'schedule', '{}', 'new', 'always', 120, 'standard', 'active', 1, 1)`,
+      );
+      db.run(
+        `INSERT INTO sessions (id, agent_id, tree_id, origin, title, status, created_at, updated_at, trigger_id)
+         VALUES ('s_never', 'a1', 'tr1', 'trigger', 'Daily', 'completed', 1, 1, 't_never'),
+                ('s_change', 'a1', 'tr2', 'trigger', 'Check', 'completed', 1, 1, 't_change'),
+                ('s_always', 'a1', 'tr3', 'trigger', 'Pulse', 'completed', 1, 1, 't_always'),
+                ('s_orphan', 'a1', 'tr4', 'trigger', 'Deleted', 'completed', 1, 1, NULL),
+                ('s_user', 'a1', 'tr5', 'user', 'Chat', 'idle', 1, 1, NULL)`,
+      );
+      expect(initializeDatabase(db)).toBe(false);
+      expect(db.all<{ id: string; hide_in_list: number }>("SELECT id, hide_in_list FROM triggers ORDER BY id")).toEqual(
+        [
+          { id: "t_always", hide_in_list: 1 },
+          { id: "t_change", hide_in_list: 1 },
+          { id: "t_never", hide_in_list: 0 },
+        ],
+      );
+      expect(db.all<{ id: string; hide_in_list: number }>("SELECT id, hide_in_list FROM sessions ORDER BY id")).toEqual(
+        [
+          { id: "s_always", hide_in_list: 1 },
+          { id: "s_change", hide_in_list: 1 },
+          { id: "s_never", hide_in_list: 0 },
+          { id: "s_orphan", hide_in_list: 1 },
+          { id: "s_user", hide_in_list: 0 },
+        ],
+      );
+    } finally {
+      db.close();
+    }
+  });
+});

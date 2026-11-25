@@ -43,7 +43,7 @@ interface Props {
   creating: boolean;
   /** Starts a chat with the listed agent (the active one). */
   onNewChat: () => void;
-  /** The "Trigger sessions" filter: list every trigger run, not only the ones that need you or failed. */
+  /** The "Hidden trigger sessions" filter: also list trigger runs configured to hide from the chat list. */
   showTriggers?: boolean;
   onShowTriggersChange?: (show: boolean) => void;
   onRenameSession?: (sessionId: string, title: string) => Promise<void>;
@@ -464,7 +464,7 @@ export function Sidebar({
                   checked={showTriggers}
                   onCheckedChange={(checked) => onShowTriggersChange?.(checked === true)}
                 >
-                  Trigger sessions
+                  Hidden trigger sessions
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>

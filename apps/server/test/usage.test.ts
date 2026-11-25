@@ -592,6 +592,7 @@ describe("Usage API and real Pi instrumentation", () => {
         action: { kind: "prompt", prompt: "Do scheduled work" },
         landing: "new",
         report: "never",
+        hideInList: false,
         latenessMinutes: 120,
         catchUp: "once",
         overlap: "skip",
