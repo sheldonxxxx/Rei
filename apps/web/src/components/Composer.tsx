@@ -21,6 +21,7 @@ import type { Api } from "../api/client.ts";
 import { describeCompactError, describeError } from "../api/client.ts";
 import {
   attachmentLimit,
+  bestChoice,
   COMPACT_COMMAND,
   changedDraft,
   isLargePaste,
@@ -133,7 +134,8 @@ export function Composer({
     query: string;
     source: "plus" | "at" | "slash";
   } | null>(null);
-  const [active, setActive] = useState(0);
+  /** The row moved to with the arrows or the pointer; until then (`null`) the best match is highlighted. */
+  const [moved, setActive] = useState<number | null>(null);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [pages, setPages] = useState<KnowledgeTreeNode[]>([]);
   const [connectorError, setConnectorError] = useState("");
@@ -411,14 +413,7 @@ export function Composer({
       ),
   ].filter((c) => !query || `${c.label} ${c.detail}`.toLocaleLowerCase().includes(query));
   const choices = picker?.source === "slash" ? slashChoices : contextChoices;
-
-  // Land on the first usable row when the list changes (a disabled row cannot be picked).
-  useEffect(() => {
-    if (slashOpen && choices[active]?.disabled) {
-      const first = choices.findIndex((c) => !c.disabled);
-      if (first >= 0) setActive(first);
-    }
-  }, [slashOpen, choices, active]);
+  const active = moved ?? bestChoice(choices, picker?.query ?? "");
 
   useEffect(() => {
     if (picker) document.getElementById(`${menuId}-${active}`)?.scrollIntoView?.({ block: "nearest" });
@@ -443,11 +438,12 @@ export function Composer({
     apply(replaceDraft(text, mentions, start, end, value.replace(/\r\n?/g, "\n")));
     setPicker(null);
   }
-  function choose(choice: Choice) {
+  /** `complete`: picked with Tab, which only fills the draft in and never runs or sends anything. */
+  function choose(choice: Choice, complete = false) {
     if (choice.disabled || !picker) return;
     if (choice.kind === "command") {
       // `/compact` typed in full runs now; picked from the list it waits for optional guidance.
-      if (parseSlashAction(text)) {
+      if (!complete && parseSlashAction(text)) {
         setPicker(null);
         void send();
         return;
@@ -664,6 +660,16 @@ export function Composer({
   }
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (pickerKeys(e) || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    // Tab completes the highlighted row of a typed `/` or `@` list. With nothing to complete, with a modifier
+    // (Shift+Tab) or in the + menu it moves the focus as usual.
+    if (e.key === "Tab" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const choice = picker && picker.source !== "plus" ? choices[active] : undefined;
+      if (choice && !choice.disabled) {
+        e.preventDefault();
+        choose(choice, true);
+        return;
+      }
+    }
     const el = e.currentTarget,
       start = el.selectionStart,
       end = el.selectionEnd;
@@ -722,7 +728,7 @@ export function Composer({
                 placeholder="Search connectors and chats"
                 onChange={(e) => {
                   setPicker({ ...picker, query: e.target.value });
-                  setActive(0);
+                  setActive(null);
                 }}
                 onKeyDown={pickerKeys}
               />
@@ -911,7 +917,7 @@ export function Composer({
                 if (picker) close();
                 else {
                   setPicker({ start, end, query: "", source: "plus" });
-                  setActive(0);
+                  setActive(null);
                 }
               }}
             >
@@ -957,10 +963,10 @@ export function Composer({
                 const query = mentionQuery(next.text, cursor);
                 if (slash && !next.mentions.some((m) => slash.start < m.end && slash.end > m.start)) {
                   setPicker({ ...slash, source: "slash" });
-                  setActive(0);
+                  setActive(null);
                 } else if (query && !next.mentions.some((m) => query.start >= m.start && query.start < m.end)) {
                   setPicker({ ...query, end: cursor, source: "at" });
-                  setActive(0);
+                  setActive(null);
                 } else setPicker(null);
               }}
               onScroll={(e) => {
