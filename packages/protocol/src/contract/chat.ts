@@ -12,6 +12,8 @@ import type {
   DecideApprovalGroupRequest,
   DecideApprovalRequest,
   DecideApprovalResponse,
+  DeleteSessionQuery,
+  DeleteSessionResponse,
   GlanceResponse,
   NotificationsResponse,
   PresenceRequest,
@@ -30,7 +32,6 @@ import type {
   UpdateSessionRequest,
   UpdateSessionResponse,
 } from "../api.ts";
-import { OkSchema } from "./auth.ts";
 import { defineRoute } from "./define.ts";
 import {
   AgentSchema,
@@ -95,6 +96,9 @@ export const UpdateSessionRequestSchema = obj({
 true satisfies Same<Static<typeof UpdateSessionRequestSchema>, UpdateSessionRequest>;
 
 export const DeleteSessionQuerySchema = obj({ withForks: opt(flag()), clearHome: opt(flag()) });
+true satisfies Same<Static<typeof DeleteSessionQuerySchema>, DeleteSessionQuery>;
+export const DeleteSessionResponseSchema = obj({ ok: lit(true), homeSessionId: opt(str()) });
+true satisfies Same<Static<typeof DeleteSessionResponseSchema>, DeleteSessionResponse>;
 
 export const TranscriptQuerySchema = obj({ before: str({ minLength: 1 }), limit: opt(int({ minimum: 1 })) });
 export const TranscriptPageResponseSchema = obj({ items: arr(MessageSchema), before: nullable(str()) });
@@ -278,9 +282,10 @@ export const deleteSessionRoute = defineRoute({
   path: "/api/sessions/:id",
   tag: "chat",
   summary: "Delete a session; withForks=1 also deletes the branches taken from it.",
-  description: 'Errors: "not_found", "home_chat".',
+  description:
+    'With clearHome=1, clearing a Home chat returns its replacement as homeSessionId. Errors: "not_found", "home_chat".',
   query: DeleteSessionQuerySchema,
-  response: OkSchema,
+  response: DeleteSessionResponseSchema,
 });
 export const transcriptRoute = defineRoute({
   method: "GET",

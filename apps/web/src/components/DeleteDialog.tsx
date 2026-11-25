@@ -7,7 +7,7 @@ interface Props {
   hasBranches: boolean;
   /** This chat started other sessions; they stay but stop reporting back. */
   hasSpawned: boolean;
-  /** A home chat stays; deleting it clears what was said in it. */
+  /** Clearing a Home chat replaces it with an empty one. */
   home?: boolean;
   busy: boolean;
   error: string | null;
@@ -29,11 +29,14 @@ export function DeleteDialog({
   const forksId = useId();
   return (
     <ConfirmDialog
-      title={home ? "Delete this chat's history?" : "Delete this chat?"}
+      title={home ? "Clear Home chat?" : "Delete this chat?"}
       description={
         <>
           {home ? (
-            <p>Everything said in “{title}” will be deleted. The chat itself stays. This can't be undone.</p>
+            <p>
+              The messages in “{title}” will be permanently deleted and a fresh Home chat will open. Saved memories
+              stay.
+            </p>
           ) : (
             <p>“{title}” and its messages will be removed. This can't be undone.</p>
           )}
@@ -42,8 +45,8 @@ export function DeleteDialog({
       }
       error={error}
       busy={busy}
-      confirmLabel="Delete"
-      busyLabel="Deleting…"
+      confirmLabel={home ? "Clear Home chat" : "Delete"}
+      busyLabel={home ? "Clearing…" : "Deleting…"}
       onCancel={onCancel}
       onConfirm={() => onConfirm(hasBranches && withForks)}
     >

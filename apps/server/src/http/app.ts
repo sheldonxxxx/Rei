@@ -1295,8 +1295,8 @@ export function createApp(deps: AppDeps): Hono {
     return { session: store.getSession(id)! };
   });
   mountRoute(app, deleteSessionRoute, contract, async (c, { query }) => {
-    await adapter.deleteSession(param(c, "id"), query.withForks === "1", query.clearHome === "1");
-    return { ok: true };
+    const homeSessionId = await adapter.deleteSession(param(c, "id"), query.withForks === "1", query.clearHome === "1");
+    return homeSessionId ? { ok: true, homeSessionId } : { ok: true };
   });
 
   // ---- approvals and grants ------------------------------------------------------------------------------------------

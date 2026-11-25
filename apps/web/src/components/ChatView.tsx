@@ -433,17 +433,19 @@ export function ChatView({
   );
   const unfinished = children.filter(isUnfinished).length;
   const hasBranches = sessions ? branchesOf(sessions, sessionId).length > 0 : false;
-  const canDelete = !!session && session.origin !== "home";
-  // A home chat deletes its whole agent instead; the server refuses the default agent.
-  const canDeleteAgent = !!session && session.origin === "home" && !!agent && agent.id !== defaultAgentId;
+  const home = session?.origin === "home";
+  const canDeleteAgent = home && !!agent && agent.id !== defaultAgentId;
 
   async function confirmDeletion(withForks: boolean) {
     setDeleting(true);
     setDeleteError(null);
     onLocalDelete?.(sessionId, true);
     try {
-      await api.deleteSession(sessionId, { withForks });
-      onNavigate?.(null);
+      const { homeSessionId } = await api.deleteSession(
+        sessionId,
+        home ? { withForks, clearHome: true } : { withForks },
+      );
+      onNavigate?.(homeSessionId ?? null);
     } catch (e) {
       onLocalDelete?.(sessionId, false);
       setDeleteError(describeError(e));
@@ -902,16 +904,14 @@ export function ChatView({
                   <Icon name="trash" size={16} /> Delete agent
                 </DropdownMenuItem>
               )}
-              {canDelete && (
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => {
-                    menuPick.current = () => setConfirmDelete(true);
-                  }}
-                >
-                  <Icon name="trash" size={16} /> Delete chat
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => {
+                  menuPick.current = () => setConfirmDelete(true);
+                }}
+              >
+                <Icon name="trash" size={16} /> {home ? "Clear Home chat" : "Delete chat"}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -1252,6 +1252,7 @@ export function ChatView({
           title={session.title}
           hasBranches={hasBranches}
           hasSpawned={children.length > 0}
+          home={home}
           busy={deleting}
           error={deleteError}
           onCancel={cancelDeletion}

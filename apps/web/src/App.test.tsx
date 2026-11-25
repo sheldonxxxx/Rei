@@ -89,24 +89,26 @@ const withConnectors = (api: object): Api =>
     ...api,
   }) as unknown as Api;
 
-function setup(api: Partial<Record<keyof Api, unknown>> = {}) {
+function setup(api: Partial<Record<keyof Api, unknown>> = {}, home = false) {
+  const selected = home ? sessions[0]! : sessions[1]!;
+  if (home) navigate("/s/home1");
   render(<Main api={withConnectors(api)} onUnauthorized={() => {}} onLoggedOut={() => {}} />);
   act(() => {
     stream("/api/stream").emit(
       {
         type: "snapshot",
         cursor: "1",
-        agents: [],
+        agents: home ? [agent] : [],
         defaultAgentId: "a1",
-        companion: { agentId: "a1", homeSessionId: "" },
+        companion: { agentId: "a1", homeSessionId: home ? selected.id : "" },
         sessions,
         approvals: [],
         takeovers: [],
       } satisfies GlobalEvent,
       "1",
     );
-    stream("/api/sessions/s2/stream")?.emit(
-      { type: "snapshot", cursor: "1", session: sessions[1], messages: [], runs: [] },
+    stream(`/api/sessions/${selected.id}/stream`)?.emit(
+      { type: "snapshot", cursor: "1", session: selected, messages: [], runs: [] },
       "1",
     ); // none on a page
   });
@@ -150,6 +152,34 @@ describe("Main: the open chat is removed", () => {
     await waitFor(() => expect(currentRoute()).toBe("/"));
     expect(screen.queryByText("Chat deleted")).toBeNull();
     expect(deleteSession).toHaveBeenCalledWith("s2", { withForks: false });
+  });
+
+  it("opens the default agent's fresh Home chat even when removal arrives before the response", async () => {
+    media(false);
+    const result = Promise.withResolvers<{ ok: true; homeSessionId: string }>();
+    const deleteSession = vi.fn(() => result.promise);
+    setup({ deleteSession }, true);
+    const options = screen.getByRole("button", { name: "Chat options" });
+    const openClear = async () => {
+      openMenu(options);
+      expect(screen.queryByRole("menuitem", { name: "Delete agent" })).toBeNull();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Clear Home chat" }));
+      return screen.findByRole("alertdialog", { name: "Clear Home chat?" });
+    };
+    const first = await openClear();
+    fireEvent.click(within(first).getByRole("button", { name: "Cancel" }));
+    expect(deleteSession).not.toHaveBeenCalled();
+
+    const confirmation = await openClear();
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Clear Home chat" }));
+    expect(deleteSession).toHaveBeenCalledWith("home1", { withForks: false, clearHome: true });
+    act(() => stream("/api/stream").emit({ type: "session.removed", sessionId: "home1" }, "2"));
+    expect(currentRoute()).toBe("/s/home1");
+    expect(screen.getByRole("button", { name: "Clearing…" }).hasAttribute("disabled")).toBe(true);
+
+    result.resolve({ ok: true, homeSessionId: "fresh-home" });
+    await waitFor(() => expect(currentRoute()).toBe("/s/fresh-home"));
+    expect(screen.queryByText("Chat deleted")).toBeNull();
   });
 });
 

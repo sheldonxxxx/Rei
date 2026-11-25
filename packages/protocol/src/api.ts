@@ -443,8 +443,7 @@ export interface ForkResponse {
 }
 
 /**
- * DELETE /api/sessions/:id, optionally `?withForks=1`. Answers OkResponse. Errors: "not_found", "home_chat" (a home
- * chat can't be deleted).
+ * DELETE /api/sessions/:id. Errors: "not_found", "home_chat" (deleting a home chat requires `clearHome=1`).
  * - Unfinished runs are cancelled first. The session disappears from every list and stream at once
  *   (`session.removed`), and its messages, runs, trace steps and payloads are removed.
  * - A session that shares its tree with other live sessions (forks) is only hidden until the last of them is deleted;
@@ -455,6 +454,13 @@ export interface ForkResponse {
  */
 export interface DeleteSessionQuery {
   withForks?: "1";
+  clearHome?: "1";
+}
+
+export interface DeleteSessionResponse {
+  ok: true;
+  /** The agent's fresh Home chat when the deleted session was its previous Home chat. */
+  homeSessionId?: string;
 }
 
 /**

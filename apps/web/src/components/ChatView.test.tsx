@@ -507,11 +507,12 @@ describe("ChatView", () => {
       return screen.findByRole("alertdialog");
     };
 
-    it("is not offered for a home chat", () => {
+    it("offers to clear a Home chat instead of deleting it", () => {
       const es = setup({}, { sessions: [] });
       open(es, session({ origin: "home" }));
       openMenu(screen.getByRole("button", { name: "Chat options" }));
       expect(screen.queryByRole("menuitem", { name: "Delete chat" })).toBeNull();
+      expect(screen.getByRole("menuitem", { name: "Clear Home chat" })).toBeTruthy();
       expect(screen.queryByRole("menuitem", { name: /Permissions/ })).toBeNull();
     });
 
