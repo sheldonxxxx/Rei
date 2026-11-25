@@ -30,9 +30,9 @@ const T = () => plane().triggers;
 const agent = () => plane().store.defaultAgentId()!;
 const home = () => plane().store.getAgent(agent())!.homeSessionId;
 let n = 0;
-const make = (over: Partial<TriggerFields> = {}): Trigger =>
+const make = (over: Partial<TriggerFields> = {}, agentId = agent()): Trigger =>
   T().store.create({
-    agentId: agent(),
+    agentId,
     createdBySessionId: null,
     fields: {
       name: `Trigger ${++n}`,
@@ -743,7 +743,7 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
     expect(plane().store.getAgent(agent())!.canCreateTriggersForOtherAgents).toBe(false);
     await say(server, id, delegated);
     await settled(server, id, 1);
-    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Create triggers for other agents/);
+    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Manage triggers for other agents/);
     expect(await pending(server)).toEqual([]);
     expect(T().store.list()).toEqual([]);
 
@@ -783,7 +783,7 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
     plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: false });
     await approve(server, id);
     expect(T().store.list()).toEqual([]);
-    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Create triggers for other agents/);
+    expect(toolResults(server, id).at(-1)!.text).toMatch(/Enable .*Manage triggers for other agents/);
   });
 
   it("an invalid draft is refused with the reason and no card", async () => {
@@ -858,17 +858,119 @@ describe("create_trigger, update_trigger and delete_trigger in a chat", () => {
     expect(toolResults(server, id).at(-1)!.text).toMatch(/report is not available/i);
   });
 
-  it("an agent cannot change another agent's trigger", async () => {
+  /** A second agent with one trigger of its own. */
+  const otherAgents = (over: Partial<TriggerFields> = {}) => {
+    const { agent: other } = plane().store.createAgent({ name: "Researcher", avatar: "R", instructions: "" });
+    return { other, theirs: make({ name: "Their check", ...over }, other.id) };
+  };
+  const permit = (on: boolean) => plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: on });
+
+  it("without the permission, another agent's trigger is neither listed nor changeable", async () => {
     server = await startSignedIn();
-    plane().store.updateAgentSettings(agent(), { canCreateTriggersForOtherAgents: true });
-    const made = make();
-    plane().store.db.run("PRAGMA foreign_keys = OFF");
-    plane().store.db.run("UPDATE triggers SET agent_id = 'agt_other' WHERE id = ?", made.id);
+    const { theirs } = otherAgents();
     const id = await chat(server);
-    await say(server, id, tool("delete_trigger", { id: made.id }));
-    await settled(server, id);
+    await say(server, id, tool("list_triggers"));
+    await settled(server, id, 1);
+    expect(toolResults(server, id).at(-1)!.text).not.toContain(theirs.id);
+
+    const calls = [
+      tool("update_trigger", { id: theirs.id, name: "Taken over" }),
+      tool("update_trigger", { id: theirs.id, paused: true }),
+      tool("delete_trigger", { id: theirs.id }),
+    ];
+    let runs = 1;
+    for (const call of calls) {
+      await say(server, id, call);
+      await settled(server, id, ++runs);
+      expect(toolResults(server, id).at(-1)).toMatchObject({ isError: true });
+      expect(toolResults(server, id).at(-1)!.text).toContain(`There is no trigger with id ${theirs.id}`);
+    }
     expect(await pending(server)).toEqual([]);
-    expect(T().store.get(made.id)).toBeDefined();
+    expect(T().store.get(theirs.id)).toMatchObject({ name: "Their check", status: "active" });
+  });
+
+  it("with the permission, lists, changes, pauses, resumes and deletes another agent's trigger", async () => {
+    server = await startSignedIn();
+    permit(true);
+    const { other, theirs } = otherAgents();
+    const id = await chat(server);
+    await say(server, id, tool("list_triggers"));
+    await settled(server, id, 1);
+    const listed = toolResults(server, id).at(-1)!.text;
+    expect(listed).toContain("You have no triggers.");
+    expect(listed).toContain(`- Researcher (${other.id}):\n  - ${theirs.id} "Their check"`);
+
+    await say(server, id, tool("update_trigger", { id: theirs.id, name: "New name" }));
+    const [change] = await waitPending(server, id, 1);
+    expect(change).toMatchObject({
+      summary: `Change the trigger ${theirs.id} for Researcher`,
+      actionClass: "configure",
+      preview: { op: "update", agentName: "Researcher", name: "New name", before: { name: "Their check" } },
+    });
+    await approve(server, id);
+    expect(T().store.get(theirs.id)).toMatchObject({ agentId: other.id, name: "New name" });
+
+    await say(server, id, tool("update_trigger", { id: theirs.id, paused: true }));
+    await settled(server, id, 3);
+    expect(T().store.get(theirs.id)).toMatchObject({ status: "paused", pausedReason: "agent" });
+    await say(server, id, tool("update_trigger", { id: theirs.id, paused: false }));
+    await settled(server, id, 4);
+    expect(await pending(server)).toEqual([]);
+    expect(T().store.get(theirs.id)).toMatchObject({ agentId: other.id, status: "active" });
+
+    await say(server, id, tool("delete_trigger", { id: theirs.id }));
+    const [removal] = await waitPending(server, id, 1);
+    expect(removal).toMatchObject({
+      summary: "Delete the trigger New name for Researcher",
+      preview: { op: "delete", agentName: "Researcher" },
+    });
+    await approve(server, id);
+    expect(T().store.list()).toEqual([]);
+  });
+
+  it("checks a changed skill action against the skills of the agent that runs the trigger", async () => {
+    server = await startSignedIn();
+    permit(true);
+    const { other, theirs } = otherAgents();
+    for (const [name, owner] of [
+      ["mine-only", agent()],
+      ["theirs-only", other.id],
+    ] as const) {
+      const files = [
+        { path: "SKILL.md", encoding: "text", content: `---\nname: ${name}\ndescription: A check.\n---\n\nDo it.\n` },
+      ];
+      const { skill } = plane().skills.save({ files, author: "user", note: "Add", log: false });
+      plane().skills.setAgents(skill.id, [owner]);
+    }
+    const id = await chat(server);
+
+    await say(server, id, tool("update_trigger", { id: theirs.id, action: { kind: "skill", skill: "mine-only" } }));
+    await settled(server, id, 1);
+    expect(toolResults(server, id).at(-1)!.text).toMatch(/Not done: .*mine-only/);
+    expect(await pending(server)).toEqual([]);
+
+    await say(server, id, tool("update_trigger", { id: theirs.id, action: { kind: "skill", skill: "theirs-only" } }));
+    await approve(server, id);
+    expect(T().store.get(theirs.id)).toMatchObject({
+      agentId: other.id,
+      action: { kind: "skill", skill: "theirs-only" },
+    });
+  });
+
+  it.each([
+    ["update_trigger", { name: "Taken over" }],
+    ["delete_trigger", {}],
+  ])("rechecks the permission when an approved %s resumes", async (name, args) => {
+    server = await startSignedIn();
+    permit(true);
+    const { theirs } = otherAgents();
+    const id = await chat(server);
+    await say(server, id, tool(name, { id: theirs.id, ...args }));
+    await waitPending(server, id, 1);
+    permit(false);
+    await approve(server, id);
+    expect(T().store.get(theirs.id)).toMatchObject({ name: "Their check" });
+    expect(toolResults(server, id).at(-1)!.text).toContain(`There is no trigger with id ${theirs.id}`);
   });
 });
 

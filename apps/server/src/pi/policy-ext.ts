@@ -54,7 +54,7 @@ export interface ToolPolicy {
   /** Who or where the call goes to, when it has a target. */
   destination?: (args: any, facts?: any) => string | null;
   /** One line for the approval card. */
-  summary: (args: any, facts?: any) => string;
+  summary(args: unknown, facts?: unknown, session?: SessionRow): string;
   /** Labels the session gains when this (read_external) tool runs. */
   taint?: readonly TaintLabel[] | ((args: any, facts?: any) => readonly TaintLabel[]);
   /** What the approval card's arguments preview shows instead of the raw arguments (an MCP call: connector name, tool, arguments). */
@@ -451,7 +451,7 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
         operation: tool.operation,
         actionClass,
         destination,
-        summary: clip(tool.summary(args, facts), 300),
+        summary: clip(tool.summary(args, facts, session), 300),
         argsPreview: argsPreview(tool.argsView ? safeView(tool, args, facts) : args),
         taint,
         lengths: ["once"],
@@ -662,7 +662,7 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
           const oneLine = (facts?: unknown): string | null => {
             if (!tool) return null;
             try {
-              return clip(tool.summary(policyArgs, facts), 300);
+              return clip(tool.summary(policyArgs, facts, session), 300);
             } catch {
               return call.name;
             }
