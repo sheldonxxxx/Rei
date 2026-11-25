@@ -1,5 +1,6 @@
 package dev.rei.android.ui.components.markdown
 
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -19,7 +20,14 @@ class ImageUrlPolicyTest {
     @Test
     fun plainHttpAndCredentialsAreRefused() {
         assertEquals(false, allowed("http://example.com/a.png"))
-        assertEquals(false, allowed("https://user:pass@example.com/a.png"))
+        val withCredentials = HttpUrl.Builder()
+            .scheme("https")
+            .username("user")
+            .password("pass")
+            .host("example.com")
+            .addPathSegment("a.png")
+            .build()
+        assertEquals(false, isPublicImageUrl(withCredentials))
     }
 
     @Test
