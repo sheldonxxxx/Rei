@@ -7,7 +7,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import dev.rei.android.R
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 
 /**
  * Asks before something that cannot be undone. [text] says what will be lost or what happens next in plain words
@@ -21,15 +24,16 @@ fun ConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     destructive: Boolean = false,
-    dismissLabel: String = "Cancel",
+    dismissLabel: String? = null,
 ) {
+    val resolvedDismiss = dismissLabel ?: stringResource(R.string.common_cancel)
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = ReiShapes.Dialog,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = ReiTheme.colors.card,
         title = { Text(title) },
         text = { Text(text) },
-        dismissButton = { TextButton(onDismiss) { Text(dismissLabel) } },
+        dismissButton = { TextButton(onDismiss) { Text(resolvedDismiss) } },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
@@ -45,6 +49,12 @@ fun ConfirmDialog(
 @ReiPreviews
 @Composable
 private fun ConfirmDialogPreview() = ReiPreviewSurface {
-    // AlertDialog is a window and does not render in a static preview; this guards the signature and the theme wiring.
-    Text("Delete this chat? Confirm dialog preview", color = MaterialTheme.colorScheme.error)
+    ConfirmDialog(
+        title = stringResource(R.string.settings_sign_out_confirm_title),
+        text = stringResource(R.string.settings_sign_out_confirm_body),
+        confirmLabel = stringResource(R.string.settings_sign_out_action),
+        onConfirm = {},
+        onDismiss = {},
+        destructive = true,
+    )
 }

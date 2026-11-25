@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +33,7 @@ fun ReiPortrait(modifier: Modifier = Modifier, size: Dp = 32.dp) {
 fun ReiWordmark(modifier: Modifier = Modifier, portraitSize: Dp = 32.dp, textSize: Int = 20) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         ReiPortrait(size = portraitSize)
-        Text("Rei", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge.copy(fontSize = textSize.sp, lineHeight = (textSize + 4).sp))
+        Text(stringResource(R.string.app_name), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge.copy(fontSize = textSize.sp, lineHeight = (textSize + 4).sp))
     }
 }
 

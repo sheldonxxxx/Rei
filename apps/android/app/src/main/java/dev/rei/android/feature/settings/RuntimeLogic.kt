@@ -1,5 +1,8 @@
 package dev.rei.android.feature.settings
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -11,16 +14,20 @@ import kotlinx.serialization.json.put
  * The Runtime page's fields, limits and request bodies, kept apart from the screen so they can be tested. The numbers and
  * wording mirror the web's Runtime page; the server validates every value again on save.
  */
-internal enum class RuntimeTab(val label: String) { Context("Context"), Runs("Runs"), Tools("Tools") }
+internal enum class RuntimeTab(@StringRes val labelRes: Int) {
+    Context(R.string.settings_runtime_tab_context),
+    Runs(R.string.settings_runtime_tab_runs),
+    Tools(R.string.settings_runtime_tab_tools),
+}
 
 internal enum class Flag { CompactionEnabled, InjectProfile, InjectRecent, NativeSearch }
 
 internal data class RuntimeField(
     /** `group.field`, the name the request uses for the value. */
     val key: String,
-    val label: String,
-    val help: String,
-    val defaultText: String,
+    val label: UiText,
+    val help: UiText,
+    val defaultText: UiText,
     val min: Long,
     val max: Long? = null,
     /** An empty box saves as null, which means the model's own limit. */
@@ -29,9 +36,9 @@ internal data class RuntimeField(
 
 internal data class RuntimeSection(
     val tab: RuntimeTab,
-    val title: String,
-    val blurb: String,
-    val switches: List<Pair<Flag, String>> = emptyList(),
+    val title: UiText,
+    val blurb: UiText,
+    val switches: List<Pair<Flag, UiText>> = emptyList(),
     val fields: List<RuntimeField> = emptyList(),
 )
 
@@ -41,16 +48,16 @@ internal val DefaultFlags = mapOf(Flag.CompactionEnabled to true, Flag.InjectPro
 internal val DefaultDeadlines = mapOf("firstEventMs" to 120_000L, "idleMs" to 500_000L, "totalMs" to 600_000L)
 
 private val TimeoutFields = listOf(
-    Triple("firstEventMs", "First response", "Maximum time before the model starts responding."),
-    Triple("idleMs", "Response pause", "Maximum time between response updates."),
-    Triple("totalMs", "Total call", "Maximum time for the complete model call."),
+    Triple("firstEventMs", R.string.settings_runtime_timeout_first, R.string.settings_runtime_timeout_first_help),
+    Triple("idleMs", R.string.settings_runtime_timeout_idle, R.string.settings_runtime_timeout_idle_help),
+    Triple("totalMs", R.string.settings_runtime_timeout_total, R.string.settings_runtime_timeout_total_help),
 )
 
 private fun JsonObject.sub(key: String): JsonObject = this[key] as? JsonObject ?: JsonObject(emptyMap())
 private fun JsonObject.number(key: String): Long? = (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.toLongOrNull()
 private fun JsonObject.flag(key: String, fallback: Boolean): Boolean = (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.let { it == "true" } ?: fallback
 
-private fun whole(value: Long?): String = value?.let(::grouped) ?: "none"
+private fun whole(value: Long?): UiText = value?.let { UiText.Literal(grouped(it)) } ?: UiText.Resource(R.string.settings_runtime_none)
 
 /** Every section of the page, in order, with the defaults and ceilings the server reported. */
 internal fun runtimeSections(context: JsonObject, behavior: JsonObject): List<RuntimeSection> {
@@ -64,69 +71,91 @@ internal fun runtimeSections(context: JsonObject, behavior: JsonObject): List<Ru
     val maxRetries = ceilings.number("maxRetries") ?: 10L
     return listOf(
         RuntimeSection(
-            RuntimeTab.Context, "Automatic summaries",
-            "When a chat outgrows its model's window, Rei summarizes its older messages. Off, such a chat fails instead of being summarized.",
-            switches = listOf(Flag.CompactionEnabled to "Summarize long chats automatically"),
+            RuntimeTab.Context,
+            UiText.Resource(R.string.settings_runtime_sec_auto_title),
+            UiText.Resource(R.string.settings_runtime_sec_auto_blurb),
+            switches = listOf(Flag.CompactionEnabled to UiText.Resource(R.string.settings_runtime_sw_compaction)),
             fields = listOf(
-                RuntimeField("compaction.reserveTokens", "Room kept for the answer (tokens)", "Rei summarizes once a chat is within this many tokens of the model's context window.", whole(compaction.number("reserveTokens")), 1),
-                RuntimeField("compaction.keepRecentTokens", "Recent context kept word for word (tokens)", "About how much of the newest conversation a summary leaves as it is.", whole(compaction.number("keepRecentTokens")), 1),
-                RuntimeField("compaction.backgroundTokens", "Start early in the background (tokens)", "Summarize this many tokens before the limit, while the chat keeps working. 0 turns early summaries off.", whole(compaction.number("backgroundTokens")), 0),
+                RuntimeField("compaction.reserveTokens", UiText.Resource(R.string.settings_runtime_f_reserve_label), UiText.Resource(R.string.settings_runtime_f_reserve_help), whole(compaction.number("reserveTokens")), 1),
+                RuntimeField("compaction.keepRecentTokens", UiText.Resource(R.string.settings_runtime_f_recent_label), UiText.Resource(R.string.settings_runtime_f_recent_help), whole(compaction.number("keepRecentTokens")), 1),
+                RuntimeField("compaction.backgroundTokens", UiText.Resource(R.string.settings_runtime_f_bg_label), UiText.Resource(R.string.settings_runtime_f_bg_help), whole(compaction.number("backgroundTokens")), 0),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Context, "Home chat",
-            "Rei summarizes older turns when the chat grows or has been quiet. The full transcript stays in the chat.",
+            RuntimeTab.Context,
+            UiText.Resource(R.string.settings_runtime_sec_home_title),
+            UiText.Resource(R.string.settings_runtime_sec_home_blurb),
             fields = listOf(
-                RuntimeField("home.idleGapMinutes", "Idle time before summarizing (minutes)", "After this much time without a message from you, Rei checks whether there is enough older context to summarize.", whole(home.number("idleGapMinutes")), 1),
-                RuntimeField("home.maxTokens", "Context budget (tokens)", "Working budget for Home chat. Rei starts summarizing before it reaches this limit.", whole(home.number("maxTokens")), 1),
+                RuntimeField("home.idleGapMinutes", UiText.Resource(R.string.settings_runtime_f_idle_label), UiText.Resource(R.string.settings_runtime_f_idle_help), whole(home.number("idleGapMinutes")), 1),
+                RuntimeField("home.maxTokens", UiText.Resource(R.string.settings_runtime_f_budget_label), UiText.Resource(R.string.settings_runtime_f_budget_help), whole(home.number("maxTokens")), 1),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Runs, "Run limits",
-            "Safety limits that stop a run that loops. They can't be turned off; the highest allowed is $maxCalls calls and $maxMinutes minutes.",
+            RuntimeTab.Runs,
+            UiText.Resource(R.string.settings_runtime_sec_limits_title),
+            UiText.Resource(R.string.settings_runtime_sec_limits_blurb, maxCalls, maxMinutes),
             fields = listOf(
-                RuntimeField("runLimits.maxModelCalls", "Model calls per run", "A run is stopped before its next call after this many.", default("runLimits", "maxModelCalls"), 1, maxCalls),
-                RuntimeField("runLimits.maxRunMinutes", "Longest run (minutes)", "A run over this time is stopped before its next model call.", default("runLimits", "maxRunMinutes"), 1, maxMinutes),
+                RuntimeField("runLimits.maxModelCalls", UiText.Resource(R.string.settings_runtime_f_calls_label), UiText.Resource(R.string.settings_runtime_f_calls_help), default("runLimits", "maxModelCalls"), 1, maxCalls),
+                RuntimeField("runLimits.maxRunMinutes", UiText.Resource(R.string.settings_runtime_f_minutes_label), UiText.Resource(R.string.settings_runtime_f_minutes_help), default("runLimits", "maxRunMinutes"), 1, maxMinutes),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Runs, "Agent chat timeouts", "Set how long Rei waits during a model call in an agent chat.",
-            fields = TimeoutFields.map { (field, label, help) ->
-                RuntimeField("timeout.$field", "$label (seconds)", help, whole(DefaultDeadlines.getValue(field) / 1000), 1, 7200)
+            RuntimeTab.Runs,
+            UiText.Resource(R.string.settings_runtime_sec_timeouts_title),
+            UiText.Resource(R.string.settings_runtime_sec_timeouts_blurb),
+            fields = TimeoutFields.map { (field, labelRes, helpRes) ->
+                RuntimeField(
+                    "timeout.$field",
+                    UiText.Resource(R.string.settings_runtime_timeout_label, UiText.Resource(labelRes)),
+                    UiText.Resource(helpRes),
+                    whole(DefaultDeadlines.getValue(field) / 1000),
+                    1,
+                    7200,
+                )
             },
         ),
         RuntimeSection(
-            RuntimeTab.Runs, "Retries",
-            "When a model call fails for a temporary reason. Only the model call is retried, never a tool's side effects.",
+            RuntimeTab.Runs,
+            UiText.Resource(R.string.settings_runtime_sec_retries_title),
+            UiText.Resource(R.string.settings_runtime_sec_retries_blurb),
             fields = listOf(
-                RuntimeField("retry.maxRetries", "Retries per failed call", "0 turns retries off.", default("retry", "maxRetries"), 0, maxRetries),
-                RuntimeField("retry.baseDelaySeconds", "Wait before the first retry (seconds)", "Later retries wait longer.", default("retry", "baseDelaySeconds"), 1, 60),
+                RuntimeField("retry.maxRetries", UiText.Resource(R.string.settings_runtime_f_retries_label), UiText.Resource(R.string.settings_runtime_f_retries_help), default("retry", "maxRetries"), 0, maxRetries),
+                RuntimeField("retry.baseDelaySeconds", UiText.Resource(R.string.settings_runtime_f_delay_label), UiText.Resource(R.string.settings_runtime_f_delay_help), default("retry", "baseDelaySeconds"), 1, 60),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Runs, "Output",
-            "Limits how long a single model reply may be. Leave empty to use each model's own limit; this never raises it.",
+            RuntimeTab.Runs,
+            UiText.Resource(R.string.settings_runtime_sec_output_title),
+            UiText.Resource(R.string.settings_runtime_sec_output_blurb),
             fields = listOf(
-                RuntimeField("generation.maxOutputTokens", "Reply length cap (tokens)", "Empty means no cap.", default("generation", "maxOutputTokens"), 1, 10_000_000, allowEmpty = true),
+                RuntimeField("generation.maxOutputTokens", UiText.Resource(R.string.settings_runtime_f_output_label), UiText.Resource(R.string.settings_runtime_f_output_help), default("generation", "maxOutputTokens"), 1, 10_000_000, allowEmpty = true),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Context, "Memory", "What agents see from memory at the start of each reply.",
-            switches = listOf(Flag.InjectProfile to "Put the profile and agent notes in context", Flag.InjectRecent to "Put recent chats in context"),
+            RuntimeTab.Context,
+            UiText.Resource(R.string.settings_page_memory),
+            UiText.Resource(R.string.settings_runtime_sec_memory_blurb),
+            switches = listOf(
+                Flag.InjectProfile to UiText.Resource(R.string.settings_runtime_sw_profile),
+                Flag.InjectRecent to UiText.Resource(R.string.settings_runtime_sw_recent),
+            ),
             fields = listOf(
-                RuntimeField("memory.historyHits", "Chat history results", "How many matches a history search returns.", default("memory", "historyHits"), 1, 20),
+                RuntimeField("memory.historyHits", UiText.Resource(R.string.settings_runtime_f_hits_label), UiText.Resource(R.string.settings_runtime_f_hits_help), default("memory", "historyHits"), 1, 20),
             ),
         ),
         RuntimeSection(
-            RuntimeTab.Tools, "Web search",
-            "OpenAI models can search with OpenAI's built-in tool instead of the web_search tool and the providers set up under Providers. Other models keep using web_search.",
-            switches = listOf(Flag.NativeSearch to "Use OpenAI's built-in search with OpenAI models"),
+            RuntimeTab.Tools,
+            UiText.Resource(R.string.settings_providers_section_search),
+            UiText.Resource(R.string.settings_runtime_sec_search_blurb),
+            switches = listOf(Flag.NativeSearch to UiText.Resource(R.string.settings_runtime_sw_native_search)),
         ),
         RuntimeSection(
-            RuntimeTab.Tools, "Capability search", "How much the search_capabilities tool loads for an agent at once.",
+            RuntimeTab.Tools,
+            UiText.Resource(R.string.settings_runtime_sec_cap_title),
+            UiText.Resource(R.string.settings_runtime_sec_cap_blurb),
             fields = listOf(
-                RuntimeField("discovery.maxConnectorTools", "Connector tools per search", "More tools make the model's list longer.", default("discovery", "maxConnectorTools"), 1, 20),
-                RuntimeField("discovery.maxSkills", "Skills per search", "0 stops search from suggesting skills.", default("discovery", "maxSkills"), 0, 10),
+                RuntimeField("discovery.maxConnectorTools", UiText.Resource(R.string.settings_runtime_f_tools_label), UiText.Resource(R.string.settings_runtime_f_tools_help), default("discovery", "maxConnectorTools"), 1, 20),
+                RuntimeField("discovery.maxSkills", UiText.Resource(R.string.settings_runtime_f_skills_label), UiText.Resource(R.string.settings_runtime_f_skills_help), default("discovery", "maxSkills"), 0, 10),
             ),
         ),
     )
@@ -168,7 +197,7 @@ internal fun runtimeDraft(context: JsonObject, behavior: JsonObject, standard: J
 
 /** The three requests a save makes, or the first field that is not valid and the tab it is on. */
 internal sealed interface RuntimeSave {
-    data class Invalid(val tab: RuntimeTab, val message: String) : RuntimeSave
+    data class Invalid(val tab: RuntimeTab, val message: UiText) : RuntimeSave
     data class Ready(val context: JsonObject, val behavior: JsonObject, val timeouts: JsonObject?) : RuntimeSave
 }
 

@@ -153,4 +153,46 @@ class MarkdownSyntaxTest {
         assertEquals(listOf("a"), parsed.citations.keys.toList())
         assertTrue(parseMarkdown(parsed.body).firstChild is Callout)
     }
+
+    @Test
+    fun strongEmphasisRendersBesideCjkAndPunctuation() {
+        val cases = listOf(
+            "**重点：**内容" to listOf("重点："),
+            "这是**（重点）**内容" to listOf("（重点）"),
+            "**Note:**text" to listOf("Note:"),
+            "**100%**done" to listOf("100%"),
+            "**第一个：**A 和 **第二个：**B" to listOf("第一个：", "第二个："),
+            "**重点 `code`：**内容" to listOf("重点 code："),
+            "`\\*` and **重点：**内容" to listOf("重点："),
+        )
+        cases.forEach { (input, expectedBold) ->
+            val root = parseMarkdown(input)
+            val bolds = all(root).filterIsInstance<StrongEmphasis>().map(::plain)
+            assertEquals(input, expectedBold, bolds)
+            assertFalse("$input should not leak **", plain(root).contains("**"))
+        }
+    }
+
+    @Test
+    fun escapedOrSpacedAsterisksAndSnakeCaseStayPlainText() {
+        listOf(
+            "\\*not em\\*",
+            "\\*\\*not bold\\*\\*",
+            "** not bold **",
+            "snake_case_name",
+        ).forEach { input ->
+            val root = parseMarkdown(input)
+            assertTrue(input, all(root).filterIsInstance<StrongEmphasis>().isEmpty())
+        }
+    }
+
+    @Test
+    fun calloutTitleAndLinksAlsoSupportPunctuationBold() {
+        val parsed = callout("> [!NOTE] **注意：**内容\n> Body")
+        assertEquals(listOf("注意："), all(parsed.title).filterIsInstance<StrongEmphasis>().map(::plain))
+
+        val linked = parseMarkdown("[**重要：**查看](https://example.com)")
+        val link = all(linked).filterIsInstance<Link>().single()
+        assertEquals(listOf("重要："), all(link).filterIsInstance<StrongEmphasis>().map(::plain))
+    }
 }

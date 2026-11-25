@@ -1,5 +1,10 @@
 package dev.rei.android.data
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
+import dev.rei.android.ui.ReiInputException
+import dev.rei.android.ui.ReiStateException
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -44,12 +49,16 @@ data class LibraryFile(
     val trashed get() = trashedAt != null
 }
 
-enum class LibraryTab(val label: String) { All("All files"), Favorites("Favorites"), Trash("Trash") }
+enum class LibraryTab(@StringRes val labelRes: Int) {
+    All(R.string.workspace_tab_all),
+    Favorites(R.string.workspace_tab_favorites),
+    Trash(R.string.workspace_tab_trash),
+}
 
-enum class LibrarySort(val query: String, val label: String) {
-    Recent("recent", "Recently updated"),
-    Oldest("oldest", "Oldest updated"),
-    Name("name", "Name"),
+enum class LibrarySort(val query: String, @StringRes val labelRes: Int) {
+    Recent("recent", R.string.workspace_sort_recent),
+    Oldest("oldest", R.string.workspace_sort_oldest),
+    Name("name", R.string.workspace_sort_name),
 }
 
 /** What the Library list asks the server for. */
@@ -129,12 +138,19 @@ suspend fun ReiApi.setFileTrashed(id: String, trashed: Boolean): LibraryFile =
     request("PATCH", listOf("api", "files", id), buildJsonObject { put("trashed", trashed) }).obj("file").libraryFile()
 
 /** The bytes of one version, capped; null body means the server answered with no content. */
-suspend fun ReiApi.downloadVersionTo(fileId: String, versionId: String, output: OutputStream) {
+suspend fun ReiApi.downloadVersionTo(
+    fileId: String,
+    versionId: String,
+    output: OutputStream,
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
+) {
     val request: Request = fileRequest(fileId, versionId)
-    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        client.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { "Download failed (HTTP ${response.code})." }
-            val content = checkNotNull(response.body) { "Download failed." }
+    with(ReiApi.Companion) {
+        client.executeStreaming(request, dispatcher) { response ->
+            if (!response.isSuccessful) {
+                throw ReiStateException(UiText.Resource(R.string.workspace_download_http_failed, response.code))
+            }
+            val content = response.body ?: throw ReiStateException(UiText.Resource(R.string.workspace_download_failed))
             content.byteStream().use { it.copyTo(output) }
         }
     }
@@ -290,10 +306,10 @@ suspend fun ReiApi.restoreKnowledgePage(id: String): KnowledgePageData =
 fun addTag(tags: List<String>, entry: String): Result<List<String>> {
     val label = entry.replace(Regex("\\s+"), " ").trim()
     if (label.isEmpty()) return Result.success(tags)
-    if (label.codePointCount(0, label.length) > 40) return Result.failure(IllegalArgumentException("Tags can be at most 40 characters."))
-    if (label.any { it.isISOControl() }) return Result.failure(IllegalArgumentException("Tags can’t contain control characters."))
+    if (label.codePointCount(0, label.length) > 40) return Result.failure(ReiInputException(UiText.Resource(R.string.workspace_tag_too_long)))
+    if (label.any { it.isISOControl() }) return Result.failure(ReiInputException(UiText.Resource(R.string.workspace_tag_control_chars)))
     val key = label.lowercase()
     if (tags.any { it.lowercase() == key }) return Result.success(tags)
-    if (tags.size >= 20) return Result.failure(IllegalArgumentException("Use at most 20 tags."))
+    if (tags.size >= 20) return Result.failure(ReiInputException(UiText.Resource(R.string.workspace_tag_limit)))
     return Result.success(tags + label)
 }

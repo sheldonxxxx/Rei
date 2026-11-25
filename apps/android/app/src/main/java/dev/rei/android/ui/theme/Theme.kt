@@ -1,6 +1,9 @@
 package dev.rei.android.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Color
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -8,14 +11,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 
-val LocalReiColors = compositionLocalOf { EngawaLightReiColors }
+val LocalReiColors = staticCompositionLocalOf { EngawaLightReiColors }
+
+/** API 28-compatible translucent dark scrim for light-mode system navigation bars when contrast protection is needed. */
+private val LightModeNavigationScrim = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
 
 /** Read the tokens Material 3 has no slot for: `ReiTheme.colors.attentionBorder`. */
 object ReiTheme {
@@ -39,10 +44,21 @@ fun ReiTheme(preference: ThemePreference = ThemePreference.System, content: @Com
     val view = LocalView.current
     if (!view.isInEditMode) {
         val activity = LocalContext.current.findActivity() as? ComponentActivity
-        SideEffect {
-            val transparent = android.graphics.Color.TRANSPARENT
-            val bars = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
-            activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        DisposableEffect(activity, dark) {
+            if (activity != null) {
+                val statusStyle = if (dark) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, LightModeNavigationScrim)
+                }
+                val navStyle = if (dark) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, LightModeNavigationScrim)
+                }
+                activity.enableEdgeToEdge(statusBarStyle = statusStyle, navigationBarStyle = navStyle)
+            }
+            onDispose {}
         }
     }
     CompositionLocalProvider(
@@ -53,8 +69,8 @@ fun ReiTheme(preference: ThemePreference = ThemePreference.System, content: @Com
     }
 }
 
-private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
-    is android.content.ContextWrapper -> baseContext.findActivity()
+    is ContextWrapper -> baseContext.findActivity()
     else -> null
 }

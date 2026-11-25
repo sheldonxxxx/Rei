@@ -1,18 +1,23 @@
 package dev.rei.android.ui.theme
 
+import android.content.Context
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.activity.BackEventCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOut
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -23,14 +28,20 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Constraints
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -44,7 +55,9 @@ import kotlin.math.roundToInt
  * | [Scale] | a surface taking the screen (dialogs, sheets) | 260ms, 0.98 scale + 6dp |
  *
  * Only alpha and translation move, never size where it would shift the transcript. Leaving is faster than arriving and
- * nothing exceeds [ReiMotion.CeilingMs]. The system animator scale is the one dial: 0 removes motion altogether.
+ * nothing exceeds [ReiMotion.CeilingMs]. Compose itself scales durations by the system animator duration scale, so
+ * callers only branch on `scale <= 0f` for reduced motion rather than multiplying durations by `scale` (which would
+ * double-scale as `scale²`).
  */
 enum class ReiEnter(val durationMs: Int, val travelDp: Float, val scaleFrom: Float) {
     Rise(180, 4f, 1f),
@@ -65,23 +78,45 @@ object ReiMotion {
     fun delayFor(index: Int): Int = (index * StepMs).coerceAtMost(StaggerCapMs)
 
     /** For `AnimatedVisibility` and `AnimatedContent`. Collapses to no motion when [scale] is 0. */
-    fun enter(kind: ReiEnter, scale: Float = 1f): EnterTransition {
+    fun enter(kind: ReiEnter, scale: Float = 1f, density: Float = 3f): EnterTransition {
         if (scale <= 0f) return EnterTransition.None
-        val duration = (kind.durationMs * scale).roundToInt().coerceAtMost(CeilingMs)
+        val duration = kind.durationMs.coerceAtMost(CeilingMs)
         val fade = fadeIn(tween(duration, easing = Easing))
         return when (kind) {
             ReiEnter.Fade -> fade
-            ReiEnter.Rise, ReiEnter.Card -> fade + slideInVertically(tween(duration, easing = Easing)) { (kind.travelDp * 3).roundToInt() }
+            ReiEnter.Rise, ReiEnter.Card -> fade + slideInVertically(tween(duration, easing = Easing)) {
+                (kind.travelDp * density).roundToInt()
+            }
             ReiEnter.Scale -> fade + scaleIn(tween(duration, easing = Easing), initialScale = kind.scaleFrom)
         }
     }
 
     fun exit(scale: Float = 1f): ExitTransition =
-        if (scale <= 0f) ExitTransition.None else fadeOut(tween((ExitMs * scale).roundToInt(), easing = Easing))
+        if (scale <= 0f) ExitTransition.None else fadeOut(tween(ExitMs, easing = Easing))
+
+    /** Linear cross-fade for gesture-scrubbed predictive back entry so progress tracks finger travel 1:1. */
+    fun predictivePopEnter(scale: Float = 1f): EnterTransition =
+        if (scale <= 0f) EnterTransition.None else fadeIn(tween(ReiEnter.Fade.durationMs, easing = LinearEasing))
+
+    /**
+     * Gesture-scrubbed predictive back exit matching [exit] + a gentle slide in the physical swipe direction
+     * instead of Navigation's default `scaleOut(0.7f)`.
+     */
+    fun predictivePopExit(swipeEdge: Int, scale: Float = 1f): ExitTransition {
+        if (scale <= 0f) return ExitTransition.None
+        val direction = when (swipeEdge) {
+            BackEventCompat.EDGE_LEFT -> 1
+            BackEventCompat.EDGE_RIGHT -> -1
+            else -> 0
+        }
+        val fade = fadeOut(tween(ExitMs, easing = LinearEasing))
+        if (direction == 0) return fade
+        return fade + slideOut(tween(ExitMs, easing = LinearEasing)) { size -> IntOffset(direction * (size.width / 5), 0) }
+    }
 }
 
 /** The system's animator duration scale (Settings → Developer options). 0 means reduced motion. */
-val LocalMotionScale = compositionLocalOf { 1f }
+val LocalMotionScale = staticCompositionLocalOf { 1f }
 
 /** True once a region has painted its first content, so only what arrives later animates. */
 val LocalMotionLive = compositionLocalOf { true }
@@ -103,7 +138,7 @@ fun rememberAnimatorScale(): Float {
     return scale
 }
 
-private fun readScale(context: android.content.Context): Float =
+private fun readScale(context: Context): Float =
     Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f).coerceAtLeast(0f)
 
 /**
@@ -127,24 +162,59 @@ fun MotionRegion(key: Any?, ready: Boolean = true, content: @Composable () -> Un
  * Arrival for the element that mounts. [index] staggers siblings. Items that mount while their [MotionRegion] is still
  * closed, and every arrival under an animator scale of 0, appear instantly.
  */
-fun Modifier.arrive(kind: ReiEnter, index: Int = 0): Modifier = composed {
-    val scale = LocalMotionScale.current
-    val live = LocalMotionLive.current
-    val animates = remember { live && scale > 0f }
-    if (!animates) return@composed this
-    val progress = remember { Animatable(0f) }
-    val density = LocalDensity.current
-    LaunchedEffect(Unit) {
-        val wait = (ReiMotion.delayFor(index) * scale).roundToInt()
-        if (wait > 0) delay(wait.toLong())
-        progress.animateTo(1f, tween((kind.durationMs * scale).roundToInt().coerceAtMost(ReiMotion.CeilingMs), easing = ReiMotion.Easing))
+fun Modifier.arrive(kind: ReiEnter, index: Int = 0): Modifier = this then ArriveElement(kind, index)
+
+private data class ArriveElement(val kind: ReiEnter, val index: Int) : ModifierNodeElement<ArriveNode>() {
+    override fun create() = ArriveNode(kind, index)
+    override fun update(node: ArriveNode) {
+        node.kind = kind
+        node.index = index
     }
-    this.graphicsLayer {
-        val p = progress.value
-        alpha = p
-        translationY = (1f - p) * kind.travelDp * density.density
-        val s = kind.scaleFrom + (1f - kind.scaleFrom) * p
-        scaleX = s
-        scaleY = s
+    override fun InspectorInfo.inspectableProperties() {
+        name = "arrive"
+        properties["kind"] = kind
+        properties["index"] = index
+    }
+}
+
+private class ArriveNode(var kind: ReiEnter, var index: Int) :
+    Modifier.Node(),
+    CompositionLocalConsumerModifierNode,
+    LayoutModifierNode {
+
+    private var progress = Animatable(1f)
+    private var started = false
+
+    override fun onReset() {
+        started = false
+    }
+
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+        val scale = currentValueOf(LocalMotionScale)
+        val live = currentValueOf(LocalMotionLive)
+        if (!started) {
+            started = true
+            if (live && scale > 0f) {
+                progress = Animatable(0f)
+                coroutineScope.launch {
+                    val wait = ReiMotion.delayFor(index)
+                    if (wait > 0) delay(wait.toLong())
+                    progress.animateTo(1f, tween(kind.durationMs.coerceAtMost(ReiMotion.CeilingMs), easing = ReiMotion.Easing))
+                }
+            } else {
+                progress = Animatable(1f)
+            }
+        }
+        val placeable = measurable.measure(constraints)
+        return layout(placeable.width, placeable.height) {
+            placeable.placeWithLayer(0, 0) {
+                val p = if (!live || scale <= 0f) 1f else progress.value
+                alpha = p
+                translationY = (1f - p) * kind.travelDp * density
+                val s = kind.scaleFrom + (1f - kind.scaleFrom) * p
+                scaleX = s
+                scaleY = s
+            }
+        }
     }
 }

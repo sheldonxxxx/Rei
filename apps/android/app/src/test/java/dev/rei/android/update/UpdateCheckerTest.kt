@@ -117,6 +117,67 @@ class UpdateCheckerTest {
     }
 
     @Test
+    fun loopbackHttpIsRefusedUnlessTheBuildAllowsIt() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(feedResponse(server, versionCode = 2))
+            val url = server.url("/android-update.json").toString()
+            val failure = runCatching { UpdateChecker(url, 1, 34, allowLoopbackHttp = false).check() }.exceptionOrNull()
+            assertTrue(failure is UpdateException)
+            assertEquals(0, server.requestCount)
+        }
+    }
+
+    @Test
+    fun redirectsBetweenHttpAndHttpsAreNotFollowed() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "https://example.test/rei.apk"))
+            val target = File(temp.root, "updates/rei-2.apk")
+            val failure = runCatching { checker(server).download(feed(server, apkSha), target) }.exceptionOrNull()
+            assertTrue(failure is UpdateException)
+            assertTrue(failure!!.message!!.contains("HTTP 302"))
+            assertFalse(target.exists())
+        }
+    }
+
+    @Test
+    fun redirectsOnTheSameSchemeAreFollowed() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", server.url("/real.apk").toString()))
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(apk)))
+            val target = File(temp.root, "rei.apk")
+            checker(server).download(feed(server, apkSha), target)
+            assertTrue(target.isFile)
+        }
+    }
+
+    @Test
+    fun downloadLargerThanTheCapIsRefusedByItsDeclaredLength() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(apk)))
+            val target = File(temp.root, "updates/rei-2.apk")
+            val small = UpdateChecker(server.url("/f.json").toString(), 1, 34, allowLoopbackHttp = true, maxApkBytes = 1_000)
+            val failure = runCatching { small.download(feed(server, apkSha), target) }.exceptionOrNull()
+            assertTrue(failure is UpdateException)
+            assertTrue(failure!!.message!!.contains("larger"))
+            assertFalse(target.exists())
+            assertEquals(emptyList<String>(), target.parentFile!!.list()!!.toList())
+        }
+    }
+
+    @Test
+    fun downloadThatOutgrowsTheCapWithoutADeclaredLengthIsStopped() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setChunkedBody(okio.Buffer().write(apk), 4096))
+            val target = File(temp.root, "updates/rei-2.apk")
+            val small = UpdateChecker(server.url("/f.json").toString(), 1, 34, allowLoopbackHttp = true, maxApkBytes = 50_000)
+            val failure = runCatching { small.download(feed(server, apkSha), target) }.exceptionOrNull()
+            assertTrue(failure is UpdateException)
+            assertTrue(failure!!.message!!.contains("larger"))
+            assertEquals(emptyList<String>(), target.parentFile!!.list()!!.toList())
+        }
+    }
+
+    @Test
     fun downloadStreamsAndKeepsAFileWhoseDigestMatches() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody(okio.Buffer().write(apk)))
@@ -166,7 +227,7 @@ class UpdateCheckerTest {
     }
 
     private fun checker(server: MockWebServer) =
-        UpdateChecker(server.url("/android-update.json").toString(), currentVersionCode = 1, sdkInt = 34)
+        UpdateChecker(server.url("/android-update.json").toString(), currentVersionCode = 1, sdkInt = 34, allowLoopbackHttp = true)
 
     private fun feed(server: MockWebServer, sha: String) =
         UpdateFeed(2, "0.2.0", server.url("/rei-0.2.0.apk").toString(), sha, 28, "")

@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
@@ -32,7 +34,7 @@ internal data class DeviceItem(val id: String, val label: String, val kind: Stri
 fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit) {
     val path = listOf("api", "devices")
     val writes = rememberWrites()
-    val devices = rememberResource(api) {
+    val devices = rememberResource("devices.list", api) {
         api.request("GET", path).objects("devices").map {
             DeviceItem(it.string("id"), it.string("label"), it.string("kind"), it.optionalString("current") == "true", it.optionalString("lastSeenAt")?.toLongOrNull())
         }
@@ -41,21 +43,21 @@ fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit)
     var renaming by remember { mutableStateOf<DeviceItem?>(null) }
     var revoking by remember { mutableStateOf<DeviceItem?>(null) }
 
-    SubScreen("Devices", onBack, busy = writes.busy || devices.loading, error = writes.error ?: devices.error, onRetry = devices::reload) {
+    SubScreen(stringResource(R.string.settings_page_devices), onBack, busy = writes.busy || devices.loading, error = writes.error ?: devices.error, onRetry = devices::reload) {
         val list = devices.value
         when {
             list == null -> Unit
-            list.isEmpty() -> EmptyState(ReiIcons.Keyboard, "No devices", body = "Devices you sign in on appear here.")
+            list.isEmpty() -> EmptyState(ReiIcons.Keyboard, stringResource(R.string.settings_devices_empty_title), body = stringResource(R.string.settings_devices_empty_body))
             else -> SettingsGroup {
                 list.forEachIndexed { index, device ->
                     SettingsRow(
                         title = device.label,
-                        icon = ReiIcons.Keyboard,
+                        icon = ReiIcons.Devices,
                         summary = listOfNotNull(device.kind, dateTime(device.lastSeenAt)).joinToString(" · "),
                         onClick = { sheet = device },
                         dividerBelow = index < list.lastIndex,
                         trailing = {
-                            if (device.current) Text("This device", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 4.dp))
+                            if (device.current) Text(stringResource(R.string.settings_devices_this_device), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 4.dp))
                             SettingsChevron()
                         },
                     )
@@ -65,13 +67,13 @@ fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit)
     }
     sheet?.let { device ->
         ReiSheet(onDismiss = { sheet = null }, title = device.label) {
-            SettingsRow("Rename", icon = ReiIcons.Edit, onClick = { sheet = null; renaming = device })
-            SettingsRow("Revoke", icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; revoking = device })
+            SettingsRow(stringResource(R.string.drawer_chat_rename), icon = ReiIcons.Edit, onClick = { sheet = null; renaming = device })
+            SettingsRow(stringResource(R.string.settings_devices_revoke), icon = ReiIcons.Trash, destructive = true, onClick = { sheet = null; revoking = device })
         }
     }
     renaming?.let { device ->
         TextEditDialog(
-            title = "Rename device", label = "Device name", initial = device.label, limit = 60,
+            title = stringResource(R.string.settings_devices_rename_title), label = stringResource(R.string.settings_devices_name_label), initial = device.label, limit = 60,
             onDismiss = { renaming = null },
             onSave = { value ->
                 renaming = null
@@ -81,10 +83,9 @@ fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit)
     }
     revoking?.let { device ->
         ConfirmDialog(
-            title = "Revoke ${device.label}?",
-            text = if (device.current) "This is the device you’re using. It’s signed out and its notification channels are removed."
-            else "${device.label} is signed out and its notification channels are removed. It can sign in again later.",
-            confirmLabel = "Revoke",
+            title = stringResource(R.string.settings_devices_revoke_title, device.label),
+            text = if (device.current) stringResource(R.string.settings_devices_revoke_current) else stringResource(R.string.settings_devices_revoke_other, device.label),
+            confirmLabel = stringResource(R.string.settings_devices_revoke),
             destructive = true,
             onConfirm = {
                 revoking = null

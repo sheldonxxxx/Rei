@@ -1,9 +1,12 @@
 package dev.rei.android.feature.activity
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -11,7 +14,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /** The three filters of Background Activity, in the order they sit in the segmented row. */
-enum class ActivitySegment(val label: String) { NeedsYou("Needs you"), Running("Running"), Done("Done") }
+enum class ActivitySegment(@StringRes val labelRes: Int) {
+    NeedsYou(R.string.activity_segment_needs_you),
+    Running(R.string.activity_segment_running),
+    Done(R.string.activity_segment_done),
+}
 
 /** A background job (today only Memory review) as `GET /api/background` lists it. */
 data class BackgroundJob(
@@ -67,14 +74,14 @@ data class ApprovalRow(val approval: ReiApproval) : ActivityRow {
     override val sessionId get() = approval.sessionId
 }
 
-data class TakeoverRow(override val sessionId: String, val title: String) : ActivityRow {
+data class TakeoverRow(override val sessionId: String, val title: UiText) : ActivityRow {
     override val key get() = "takeover:$sessionId"
 }
 
 data class FailureRow(
     override val key: String,
-    val title: String,
-    val detail: String,
+    val title: UiText,
+    val detail: UiText,
     override val sessionId: String?,
     val retry: RetryTarget?,
 ) : ActivityRow
@@ -84,8 +91,8 @@ data class WaitingRow(override val key: String, val title: String, override val 
 
 data class RunningRow(
     override val key: String,
-    val title: String,
-    val detail: String,
+    val title: UiText,
+    val detail: UiText,
     /** When the work began, for the elapsed time; null while it is only queued. */
     val startedAt: Long?,
     override val sessionId: String?,
@@ -126,7 +133,11 @@ const val FailureWindowMs = 7L * 24 * 60 * 60 * 1000
 const val DoneReviews = 10
 const val ReviewsWithChanges = 5
 
-fun kindLabel(kind: String) = if (kind == "memory.review") "Memory review" else kind.replace('.', ' ').replace('_', ' ').replaceFirstChar { it.uppercase() }
+fun kindLabel(kind: String): UiText = if (kind == "memory.review") {
+    UiText.Resource(R.string.activity_kind_memory_review)
+} else {
+    UiText.Literal(kind.replace('.', ' ').replace('_', ' ').replaceFirstChar { it.uppercase() })
+}
 
 /**
  * Sorts what the server and the live stream know into the three segments.
@@ -149,13 +160,16 @@ fun buildActivity(
     val recent = now - FailureWindowMs
     val needs = buildList {
         pending.forEach { add(ApprovalRow(it)) }
-        takeoverSessionIds.sorted().forEach { add(TakeoverRow(it, sessionTitles[it] ?: "Chat")) }
+        takeoverSessionIds.sorted().forEach {
+            val title = sessionTitles[it]?.let(UiText::Literal) ?: UiText.Resource(R.string.chat_title)
+            add(TakeoverRow(it, title))
+        }
         val failures = buildList<Pair<Long, ActivityRow>> {
             jobs.filter { it.status == "failed" && (it.finishedAt ?: it.createdAt) >= recent }.forEach { job ->
                 add((job.finishedAt ?: job.createdAt) to FailureRow(
                     key = "job:${job.id}",
                     title = kindLabel(job.kind),
-                    detail = job.diagnostic?.takeIf { it.isNotBlank() } ?: "Rei couldn’t finish this review.",
+                    detail = job.diagnostic?.takeIf { it.isNotBlank() }?.let(UiText::Literal) ?: UiText.Resource(R.string.activity_err_review_failed),
                     sessionId = job.sessionId,
                     retry = RetryTarget.Job(job.id),
                 ))
@@ -165,8 +179,8 @@ fun buildActivity(
                 val at = run.finishedAt ?: run.scheduledAt
                 if (run.status == "failed" && at >= recent) add(at to FailureRow(
                     key = "run:${run.id}",
-                    title = trigger.name,
-                    detail = run.reason?.takeIf { it.isNotBlank() } ?: "This run failed.",
+                    title = UiText.Literal(trigger.name),
+                    detail = run.reason?.takeIf { it.isNotBlank() }?.let(UiText::Literal) ?: UiText.Resource(R.string.activity_err_run_failed),
                     sessionId = run.sessionId,
                     retry = RetryTarget.Trigger(trigger.id).takeIf { trigger.status == "active" },
                 ))
@@ -182,10 +196,13 @@ fun buildActivity(
     }
     val running = buildList {
         jobs.filter { it.status == "running" || it.status == "queued" }.forEach { job ->
+            val detail = job.sessionTitle?.let(UiText::Literal) ?: UiText.Resource(
+                if (job.status == "queued") R.string.activity_status_queued else R.string.activity_status_working,
+            )
             add(RunningRow(
                 key = "job:${job.id}",
                 title = kindLabel(job.kind),
-                detail = job.sessionTitle ?: if (job.status == "queued") "Queued" else "Working",
+                detail = detail,
                 startedAt = job.createdAt.takeIf { job.status == "running" },
                 sessionId = job.sessionId,
             ))
@@ -194,8 +211,8 @@ fun buildActivity(
             val run = trigger.lastRun ?: return@forEach
             if (run.status == "running" || run.status == "queued") add(RunningRow(
                 key = "run:${run.id}",
-                title = trigger.name,
-                detail = if (run.status == "queued") "Queued" else "Trigger run",
+                title = UiText.Literal(trigger.name),
+                detail = UiText.Resource(if (run.status == "queued") R.string.activity_status_queued else R.string.activity_status_trigger_run),
                 startedAt = run.startedAt.takeIf { run.status == "running" },
                 sessionId = run.sessionId,
             ))

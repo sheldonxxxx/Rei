@@ -1,6 +1,9 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import java.text.NumberFormat
+import java.util.Locale
 
 /**
  * Pure rules the native settings forms share with the web's: how a typed number is read, how a list entry is checked, how a
@@ -16,11 +19,11 @@ internal fun parseWholeNumber(text: String, min: Long, max: Long? = null): Long?
 }
 
 /** The web's message for a number outside its range, so the two clients refuse the same input in the same words. */
-internal fun rangeMessage(label: String, min: Long, max: Long?): String =
-    if (max == null) "“$label” must be a whole number, ${grouped(min)} or more."
-    else "“$label” must be a whole number from ${grouped(min)} to ${grouped(max)}."
+internal fun rangeMessage(label: UiText, min: Long, max: Long?): UiText =
+    if (max == null) UiText.Resource(R.string.settings_range_min, label, grouped(min))
+    else UiText.Resource(R.string.settings_range_between, label, grouped(min), grouped(max))
 
-internal fun grouped(value: Long): String = NumberFormat.getIntegerInstance(java.util.Locale.US).format(value)
+internal fun grouped(value: Long): String = NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
 
 /** A model-limit override from the Models screen: empty clears it (null), a positive whole number sets it, anything else is invalid. */
 internal sealed interface LimitInput {
@@ -36,11 +39,11 @@ internal fun parseLimit(text: String): LimitInput {
 }
 
 /** Where a model limit came from, in the web's words. */
-internal fun limitSource(source: String?): String = when (source) {
-    "custom" -> "Set by you"
-    "detected" -> "Reported by the provider"
-    "built_in" -> "Built-in default"
-    else -> "Not reported. Enter a value if you know it."
+internal fun limitSource(source: String?): UiText = when (source) {
+    "custom" -> UiText.Resource(R.string.settings_limit_source_custom)
+    "detected" -> UiText.Resource(R.string.settings_limit_source_detected)
+    "built_in" -> UiText.Resource(R.string.settings_limit_source_built_in)
+    else -> UiText.Resource(R.string.settings_limit_source_unknown)
 }
 
 /** `connectionId/model` has a connection to scan; a bare OpenAI model id does not. */
@@ -52,7 +55,7 @@ internal fun connectionOf(model: String): String? = model.substringBefore('/', "
  */
 internal sealed interface AddEntry {
     data class Added(val entries: List<String>) : AddEntry
-    data class Refused(val reason: String) : AddEntry
+    data class Refused(val reason: UiText) : AddEntry
     data object Nothing : AddEntry
 }
 
@@ -61,8 +64,12 @@ internal const val MaxWhitelistEntries = 200
 internal fun addWhitelistEntry(entries: List<String>, draft: String): AddEntry {
     val text = draft.trim()
     if (text.isEmpty()) return AddEntry.Nothing
-    if (entries.any { it.equals(text, ignoreCase = true) }) return AddEntry.Refused("“$text” is already on the list.")
-    if (entries.size >= MaxWhitelistEntries) return AddEntry.Refused("The list holds at most $MaxWhitelistEntries entries.")
+    if (entries.any { it.equals(text, ignoreCase = true) }) {
+        return AddEntry.Refused(UiText.Resource(R.string.settings_whitelist_duplicate, text))
+    }
+    if (entries.size >= MaxWhitelistEntries) {
+        return AddEntry.Refused(UiText.Resource(R.string.settings_whitelist_cap, MaxWhitelistEntries))
+    }
     return AddEntry.Added(entries + text)
 }
 

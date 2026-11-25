@@ -28,11 +28,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.LibraryFile
 import dev.rei.android.data.ReiApi
 import dev.rei.android.feature.viewer.PreviewKind
@@ -42,12 +44,16 @@ import dev.rei.android.feature.viewer.typeLabel
 import dev.rei.android.ui.components.markdown.loadPicture
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 
 private val sourceExtensions = setOf(
     "sh", "bash", "zsh", "py", "js", "jsx", "ts", "tsx", "css", "scss", "sql", "c", "h", "cpp", "hpp", "java", "go", "rs", "rb",
     "php", "swift", "toml", "yaml", "yml", "json", "jsonl", "xml", "html", "htm",
 )
+
+private val SpreadsheetFilePattern = Regex(".*\\.(xls[xmb]?|xltx?|ods|csv|tsv)$")
+private val PresentationFilePattern = Regex(".*\\.(pptx?|ppsx?|odp)$")
 
 /**
  * The card's icon for a file: sheets, slides, pictures, source files (code), prose and plain text (file-text), everything
@@ -56,8 +62,8 @@ private val sourceExtensions = setOf(
 fun fileIcon(name: String, mediaType: String): ImageVector {
     val lower = name.lowercase()
     return when {
-        Regex(".*\\.(xls[xmb]?|xltx?|ods|csv|tsv)$").matches(lower) -> ReiIcons.Spreadsheet
-        Regex(".*\\.(pptx?|ppsx?|odp)$").matches(lower) -> ReiIcons.Presentation
+        SpreadsheetFilePattern.matches(lower) -> ReiIcons.Spreadsheet
+        PresentationFilePattern.matches(lower) -> ReiIcons.Presentation
         else -> when (previewKind(name, mediaType)) {
             PreviewKind.Image -> ReiIcons.Image
             PreviewKind.Html -> ReiIcons.Code
@@ -84,7 +90,7 @@ fun FileCard(file: LibraryFile, api: ReiApi?, onOpen: () -> Unit, modifier: Modi
         onClick = onOpen,
         modifier = modifier.fillMaxWidth().semantics { role = Role.Button },
         shape = ReiShapes.Card,
-        color = colors.surfaceContainerLowest,
+        color = ReiTheme.colors.card,
         border = BorderStroke(1.dp, colors.outlineVariant),
     ) {
         Column {
@@ -93,12 +99,12 @@ fun FileCard(file: LibraryFile, api: ReiApi?, onOpen: () -> Unit, modifier: Modi
                 if (file.favorite) {
                     Icon(
                         ReiIcons.Star,
-                        contentDescription = "Favorite",
+                        contentDescription = stringResource(R.string.library_file_favorite),
                         Modifier
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
                             .clip(ReiShapes.Pill)
-                            .background(colors.surfaceContainerLowest.copy(alpha = 0.9f))
+                            .background(ReiTheme.colors.card.copy(alpha = 0.9f))
                             .padding(5.dp)
                             .size(16.dp),
                         tint = colors.tertiary,
@@ -136,7 +142,7 @@ private fun FileThumbnail(file: LibraryFile, api: ReiApi?) {
     } else {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(fileIcon(file.name, file.current.mediaType), contentDescription = null, Modifier.size(36.dp), tint = colors.onSurfaceVariant)
-            Text(typeLabel(file.name), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            Text(typeLabel(file.name, stringResource(R.string.library_type_fallback)), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         }
     }
 }

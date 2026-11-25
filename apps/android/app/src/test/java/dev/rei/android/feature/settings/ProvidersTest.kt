@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -34,7 +36,7 @@ class ProvidersTest {
     @Test
     fun customEndpointBodyCarriesUrlApiModelsAndLimits() {
         val info = buildJsonObject { put("m1", buildJsonObject { put("contextWindow", 8000) }) }
-        val form = newProviderForm(KindCustom).copy(baseUrl = " https://x.test/v1 ", api = "responses", models = listOf("m1"), modelInfo = info)
+        val form = newProviderForm(KindCustom, "My endpoint").copy(baseUrl = " https://x.test/v1 ", api = "responses", models = listOf("m1"), modelInfo = info)
         val body = ready(providerSave(form))
         assertEquals(JsonPrimitive("https://x.test/v1"), body["baseUrl"])
         assertEquals(JsonPrimitive("responses"), body["api"])
@@ -51,8 +53,8 @@ class ProvidersTest {
         val form = newProviderForm(KindCustom).copy(baseUrl = "https://x.test", editingId = "p1")
         assertEquals(setOf("baseUrl", "id"), scanBody(form).keys)
         assertEquals(setOf("baseUrl", "id", "apiKey"), scanBody(form.copy(apiKey = "k")).keys)
-        assertEquals("No models found.", scanSummary(emptyList()))
-        assertEquals("Found 1 model. Review the IDs before saving.", scanSummary(listOf("a")))
+        assertEquals(UiText.Resource(R.string.settings_providers_scan_none), scanSummary(emptyList()))
+        assertEquals(UiText.Plural(R.plurals.settings_providers_scan_found, 1, 1), scanSummary(listOf("a")))
     }
 
     @Test
@@ -67,7 +69,7 @@ class ProvidersTest {
         val saved = buildJsonObject {
             put("replacedModels", buildJsonArray { add(buildJsonObject { put("from", "a/x"); put("to", "b/y") }) })
         }
-        assertEquals("a/x was removed from the list, so agents and defaults that used it now use b/y.", replacedNotice(saved))
+        assertEquals(UiText.Plural(R.plurals.settings_providers_replaced, 1, "a/x", "b/y"), replacedNotice(saved))
         assertNull(replacedNotice(buildJsonObject { }))
     }
 
@@ -77,9 +79,12 @@ class ProvidersTest {
             put("id", "p1"); put("name", "Local"); put("kind", KindCustom); put("auth", AuthApiKey); put("connected", true)
             put("baseUrl", "http://localhost:8080/v1"); put("models", buildJsonArray { add(JsonPrimitive("m")) })
         }.provider()
-        assertEquals("http://localhost:8080/v1", providerSubtitle(row))
+        assertEquals(UiText.Literal("http://localhost:8080/v1"), providerSubtitle(row))
         assertEquals("chat", row.api)
-        assertEquals("OpenAI · ChatGPT", providerSubtitle(row.copy(kind = KindOpenAi, auth = AuthOAuth)))
+        assertEquals(
+            UiText.Resource(R.string.settings_providers_subtitle_openai, UiText.Resource(R.string.settings_providers_auth_chatgpt)),
+            providerSubtitle(row.copy(kind = KindOpenAi, auth = AuthOAuth)),
+        )
         val status = oauthStatus(buildJsonObject { put("pending", true); put("authorizationUrl", "https://auth.test/x") })
         assertTrue(status.pending)
         assertNull(status.error)
@@ -160,8 +165,8 @@ class ProvidersTest {
         val statuses = listOf(SearchStatus("exa", true, 2_000, null), SearchStatus("brave", true, null, null))
         assertEquals("brave", firstReady(form, statuses, now = 1_000))
         assertEquals("exa", firstReady(form, statuses, now = 3_000))
-        assertEquals("Rate limited", searchState(true, statuses[0], 1_000))
-        assertEquals("Needs setup", searchState(false, null, 0))
-        assertEquals("Last attempt failed", searchState(true, SearchStatus("x", true, null, "boom"), 0))
+        assertEquals(UiText.Resource(R.string.settings_search_rate_limited), searchState(true, statuses[0], 1_000))
+        assertEquals(UiText.Resource(R.string.settings_providers_needs_setup), searchState(false, null, 0))
+        assertEquals(UiText.Resource(R.string.settings_search_last_failed), searchState(true, SearchStatus("x", true, null, "boom"), 0))
     }
 }

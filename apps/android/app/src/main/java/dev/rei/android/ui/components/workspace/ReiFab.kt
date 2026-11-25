@@ -6,17 +6,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
+import dev.rei.android.ui.components.LocalSnackbarClearance
 import dev.rei.android.ui.theme.ReiShapes
 
 /**
@@ -31,6 +35,11 @@ fun ReiFab(
     expanded: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val setClearance = LocalSnackbarClearance.current
+    DisposableEffect(Unit) {
+        setClearance(84.dp)
+        onDispose { setClearance(0.dp) }
+    }
     ExtendedFloatingActionButton(
         onClick = onClick,
         expanded = expanded,
@@ -53,17 +62,17 @@ fun LazyGridState.fabExpanded(): Boolean = rememberFabExpanded({ firstVisibleIte
 
 @Composable
 private fun rememberFabExpanded(index: () -> Int, offset: () -> Int): Boolean {
-    var lastIndex by remember { mutableIntStateOf(index()) }
-    var lastOffset by remember { mutableIntStateOf(offset()) }
-    return remember {
-        derivedStateOf {
-            val i = index()
-            val o = offset()
+    var expanded by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        var lastIndex = index()
+        var lastOffset = offset()
+        snapshotFlow { index() to offset() }.collect { (i, o) ->
             val up = if (lastIndex != i) lastIndex > i else lastOffset >= o
             val atTop = i == 0 && o == 0
             lastIndex = i
             lastOffset = o
-            atTop || up
+            expanded = atTop || up
         }
-    }.value
+    }
+    return expanded
 }

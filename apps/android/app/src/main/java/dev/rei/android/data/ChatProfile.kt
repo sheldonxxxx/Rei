@@ -1,5 +1,7 @@
 package dev.rei.android.data
 
+import androidx.annotation.StringRes
+import dev.rei.android.R
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -8,16 +10,10 @@ import kotlinx.serialization.json.put
  * the legacy `relaxed` and anything missing or unknown read as Standard, as in the web app. The labels and descriptions
  * are the web's (`PROFILE_LABEL` and `PROFILE_HELP` in `policy.ts`).
  */
-enum class ChatProfile(val wire: String, val label: String, val description: String) {
-    Strict("strict", "Strict", "Asks before web research and actions outside the sandbox."),
-    Standard(
-        "standard", "Standard",
-        "Researches, makes reversible edits, and updates memory automatically.",
-    ),
-    Yolo(
-        "yolo", "YOLO",
-        "Runs built-in actions automatically, including sends, trigger changes and irreversible actions. Logins still need you.",
-    ),
+enum class ChatProfile(val wire: String, @StringRes val labelRes: Int, @StringRes val descriptionRes: Int) {
+    Strict("strict", R.string.chat_profile_strict, R.string.chat_profile_strict_desc),
+    Standard("standard", R.string.chat_profile_standard, R.string.chat_profile_standard_desc),
+    Yolo("yolo", R.string.chat_profile_yolo, R.string.chat_profile_yolo_desc),
     ;
 
     companion object {

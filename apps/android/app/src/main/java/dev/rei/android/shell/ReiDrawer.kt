@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
@@ -45,10 +48,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.rei.android.BuildConfig
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
 import dev.rei.android.data.Session
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.AgentAvatar
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviews
+import dev.rei.android.ui.components.ReiScreenPreviewSurface
 import dev.rei.android.ui.components.ReiWordmark
 import dev.rei.android.ui.components.SectionHeader
 import dev.rei.android.ui.icons.ReiIcons
@@ -56,6 +63,7 @@ import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.tabular
 
 /** What the drawer can ask for. The shell wires these to navigation and to [ShellViewModel]. */
+@Stable
 class DrawerActions(
     val onSearch: () -> Unit,
     val onNewChat: () -> Unit,
@@ -82,58 +90,58 @@ fun ReiDrawerContent(
 ) {
     Column(modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)) {
-            item(key = "header") {
+            item(key = "header", contentType = "header") {
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     ReiWordmark(Modifier.weight(1f))
-                    ReiIconButton(ReiIcons.Search, "Search chats", actions.onSearch)
+                    ReiIconButton(ReiIcons.Search, stringResource(R.string.drawer_search_chats), actions.onSearch)
                 }
             }
-            item(key = "new-chat") {
+            item(key = "new-chat", contentType = "new-chat") {
                 FilledTonalButton(
                     onClick = actions.onNewChat,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(bottom = 4.dp),
                     shape = ReiShapes.Pill,
                 ) {
                     Icon(ReiIcons.Compose, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Text("New chat", Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.drawer_new_chat), Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.labelLarge)
                 }
             }
-            item(key = "nav") {
+            item(key = "nav", contentType = "nav") {
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    NavRow("Library", ReiIcons.Library, current == Destination.Library) { actions.onNavigate(Destination.Library) }
-                    NavRow("Knowledge", ReiIcons.Knowledge, current == Destination.Knowledge) { actions.onNavigate(Destination.Knowledge) }
-                    NavRow("Background Activity", ReiIcons.Activity, current == Destination.Activity, badge = state.attentionCount) {
+                    NavRow(stringResource(R.string.drawer_dest_library), ReiIcons.Library, current == Destination.Library) { actions.onNavigate(Destination.Library) }
+                    NavRow(stringResource(R.string.drawer_dest_knowledge), ReiIcons.Knowledge, current == Destination.Knowledge) { actions.onNavigate(Destination.Knowledge) }
+                    NavRow(stringResource(R.string.drawer_dest_activity), ReiIcons.Activity, current == Destination.Activity, badge = state.attentionCount) {
                         actions.onNavigate(Destination.Activity)
                     }
                 }
             }
             if (state.agents.isNotEmpty()) {
-                item(key = "agents-head") {
-                    SectionHeader("Agents", action = { ReiIconButton(ReiIcons.Plus, "New agent", actions.onNewAgent) })
+                item(key = "agents-head", contentType = "agents-head") {
+                    SectionHeader(stringResource(R.string.drawer_agents), action = { ReiIconButton(ReiIcons.Plus, stringResource(R.string.drawer_new_agent), actions.onNewAgent) })
                 }
-                items(state.agents, key = { "agent-${it.id}" }) { agent ->
+                items(state.agents, key = { "agent-${it.id}" }, contentType = { "agent" }) { agent ->
                     AgentRow(
                         agent = agent,
-                        selected = agent.id == state.selectedAgentId,
+                        selected = current == Destination.Chat && agent.id == state.selectedAgentId,
                         attention = state.attentionSessionIds.contains(agent.homeSessionId),
                         onClick = { actions.onSelectAgent(agent) },
                     )
                 }
             }
-            item(key = "chats-head") {
+            item(key = "chats-head", contentType = "chats-head") {
                 var menu by remember { mutableStateOf(false) }
                 SectionHeader(
-                    "Chats",
+                    stringResource(R.string.drawer_chats),
                     Modifier.padding(top = 4.dp),
                     action = {
                         Box {
-                            ReiIconButton(ReiIcons.Filter, "Filter chats", { menu = true }, toggled = if (state.showTriggers) true else null)
+                            ReiIconButton(ReiIcons.Filter, stringResource(R.string.drawer_filter_chats), { menu = true }, toggled = if (state.showTriggers) true else null)
                             DropdownMenu(menu, { menu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text(if (state.showTriggers) "Hide trigger sessions" else "Show trigger sessions") },
+                                    text = { Text(stringResource(if (state.showTriggers) R.string.drawer_hide_triggers else R.string.drawer_show_triggers)) },
                                     leadingIcon = { Icon(ReiIcons.Clock, contentDescription = null) },
                                     onClick = { menu = false; actions.onShowTriggers(!state.showTriggers) },
                                 )
@@ -143,9 +151,9 @@ fun ReiDrawerContent(
                 )
             }
             if (state.loaded && state.groups.isEmpty()) {
-                item(key = "empty") {
+                item(key = "empty", contentType = "empty") {
                     Text(
-                        "No chats yet. Start a chat to begin.",
+                        stringResource(R.string.drawer_no_chats),
                         Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -153,8 +161,8 @@ fun ReiDrawerContent(
                 }
             }
             state.groups.forEach { group ->
-                item(key = "group-${group.label}") { SectionHeader(group.label) }
-                items(group.sessions, key = { "chat-${it.id}" }) { session ->
+                item(key = "group-${group.key}", contentType = "group-header") { SectionHeader(group.label.asString()) }
+                items(group.sessions, key = { "chat-${it.id}" }, contentType = { "chat" }) { session ->
                     ChatRow(
                         session = session,
                         selected = session.id == state.openSessionId && current == Destination.Chat,
@@ -165,7 +173,7 @@ fun ReiDrawerContent(
                 }
             }
             if (state.hasMore) {
-                item(key = "more") {
+                item(key = "more", contentType = "more") {
                     LaunchedEffect(state.groups.sumOf { it.sessions.size }) { actions.onLoadMore() }
                     Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -175,9 +183,9 @@ fun ReiDrawerContent(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            NavRow("Settings", ReiIcons.Settings, current == Destination.Settings) { actions.onNavigate(Destination.Settings) }
+            NavRow(stringResource(R.string.drawer_dest_settings), ReiIcons.Settings, current == Destination.Settings) { actions.onNavigate(Destination.Settings) }
             Text(
-                "Rei ${BuildConfig.VERSION_NAME}",
+                stringResource(R.string.drawer_version, BuildConfig.VERSION_NAME),
                 Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
                 style = MaterialTheme.typography.bodySmall.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -192,10 +200,11 @@ private fun NavRow(label: String, icon: ImageVector, selected: Boolean, badge: I
         Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (badge > 0) {
+            val badgeDesc = pluralStringResource(R.plurals.drawer_badge_needs_you, badge, badge)
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.onTertiaryContainer, contentColor = MaterialTheme.colorScheme.background) {
                 Text(
                     badge.toString(),
-                    Modifier.heightIn(min = 20.dp).padding(horizontal = 7.dp).semantics { contentDescription = if (badge == 1) "1 needs you" else "$badge need you" },
+                    Modifier.heightIn(min = 20.dp).padding(horizontal = 7.dp).semantics { contentDescription = badgeDesc },
                     style = MaterialTheme.typography.labelMedium.tabular().copy(fontWeight = FontWeight.Bold),
                 )
             }
@@ -214,7 +223,7 @@ private fun AgentRow(agent: ChatAgent, selected: Boolean, attention: Boolean, on
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (attention) AttentionDot()
+        if (attention) AttentionDot(stringResource(R.string.drawer_needs_attention))
     }
 }
 
@@ -223,18 +232,17 @@ private fun AgentRow(agent: ChatAgent, selected: Boolean, attention: Boolean, on
 private fun ChatRow(session: Session, selected: Boolean, attention: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val unread = session.unread > 0 && !selected
-    val title = session.title.ifBlank { "Untitled chat" }
+    val title = session.title.ifBlank { stringResource(R.string.drawer_untitled_chat) }
+    val status = listOfNotNull(
+        if (attention) stringResource(R.string.drawer_state_approval) else null,
+        if (unread) stringResource(R.string.drawer_state_unread) else null,
+        if (session.pinned) stringResource(R.string.drawer_state_pinned) else null,
+    ).joinToString(", ")
     SelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .semantics {
-                stateDescription = listOfNotNull(
-                    if (attention) "Approval needed" else null,
-                    if (unread) "Unread" else null,
-                ).joinToString(", ")
-            },
+        modifier = Modifier.heightIn(min = 48.dp),
+        stateDescriptionText = status.ifEmpty { null },
         onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
     ) {
         Text(
@@ -245,17 +253,21 @@ private fun ChatRow(session: Session, selected: Boolean, attention: Boolean, onC
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        if (session.pinned) Icon(ReiIcons.Pin, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (unread) Dot(MaterialTheme.colorScheme.primary)
         if (attention) AttentionDot()
     }
 }
 
 @Composable
-private fun AttentionDot() = Dot(MaterialTheme.colorScheme.tertiary)
+private fun AttentionDot(description: String? = null) = Dot(
+    MaterialTheme.colorScheme.tertiary,
+    if (description != null) Modifier.semantics { contentDescription = description } else Modifier,
+)
 
 @Composable
-private fun Dot(color: androidx.compose.ui.graphics.Color) {
-    Box(Modifier.size(8.dp).background(color, CircleShape))
+private fun Dot(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(8.dp).background(color, CircleShape))
 }
 
 /** A drawer row: the selected one gets the selected background and a visible outline. */
@@ -265,11 +277,12 @@ private fun SelectableRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    stateDescriptionText: String? = null,
     onLongClick: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth().semantics { this.selected = selected },
+        modifier = modifier.fillMaxWidth(),
         shape = ReiShapes.Pill,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -278,10 +291,50 @@ private fun SelectableRow(
         Row(
             Modifier
                 .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
+                .semantics(mergeDescendants = true) {
+                    this.selected = selected
+                    if (stateDescriptionText != null) stateDescription = stateDescriptionText
+                }
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
     }
+}
+
+@ReiPreviews
+@Composable
+private fun ReiDrawerPreview() = ReiScreenPreviewSurface {
+    val agents = listOf(
+        ChatAgent(id = "a1", name = "Rei", homeSessionId = "s0"),
+        ChatAgent(id = "a2", name = "Researcher", homeSessionId = "s2"),
+    )
+    val sessions = listOf(
+        Session(id = "s1", agentId = "a1", title = "Weekly briefing", preview = "", origin = "chat", status = "idle", unread = 0, pinned = true),
+        Session(id = "s3", agentId = "a1", title = "Q3 release checklist", preview = "", origin = "chat", status = "working", unread = 1),
+    )
+    ReiDrawerContent(
+        state = DrawerUiState(
+            agents = agents,
+            selectedAgentId = "a1",
+            openSessionId = "s1",
+            groups = listOf(ChatGroup("today", UiText.Resource(R.string.drawer_group_today), sessions)),
+            attentionCount = 2,
+            attentionSessionIds = setOf("s3"),
+            loaded = true,
+        ),
+        current = Destination.Chat,
+        actions = DrawerActions(
+            onSearch = {},
+            onNewChat = {},
+            onNavigate = {},
+            onSelectAgent = {},
+            onNewAgent = {},
+            onOpenChat = {},
+            onChatActions = {},
+            onShowTriggers = {},
+            onLoadMore = {},
+        ),
+    )
 }

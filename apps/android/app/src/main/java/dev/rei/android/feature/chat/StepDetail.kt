@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.runtime.produceState
@@ -30,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -45,7 +47,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -53,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.rei.android.R
 import dev.rei.android.data.ContextMessage
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.TraceStep
@@ -90,7 +100,14 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class LlmTab(val label: String) { Context("Context"), Response("Response"), Raw("Raw"), Stats("Stats") }
+private val WhitespaceRegex = Regex("\\s+")
+
+private enum class LlmTab(@StringRes val labelRes: Int) {
+    Context(R.string.chat_step_tab_context),
+    Response(R.string.chat_step_tab_response),
+    Raw(R.string.chat_step_tab_raw),
+    Stats(R.string.chat_step_tab_stats),
+}
 
 private fun JsonElement?.obj() = this as? JsonObject
 private fun JsonElement?.text(): String? = (this as? JsonPrimitive)?.contentOrNull
@@ -109,6 +126,7 @@ fun StepDetail(
     /** Scrolls the chat to this approval's message; null when that message is not loaded. */
     onOpenApproval: (() -> Unit)? = null,
 ) {
+    val resources = LocalResources.current
     var payload by remember(step.id) { mutableStateOf<JsonObject?>(null) }
     var error by remember(step.id) { mutableStateOf<String?>(null) }
     var tab by rememberSaveable(step.id) { mutableStateOf(LlmTab.Context) }
@@ -118,7 +136,7 @@ fun StepDetail(
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: Exception) {
-            error = failure.message ?: "Couldn’t load this step."
+            error = failure.message ?: resources.getString(R.string.chat_step_load_failed)
         }
     }
     val data = payload
@@ -126,10 +144,10 @@ fun StepDetail(
     val truncated = data?.get("truncated").flag()
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            ReiIconButton(ReiIcons.Back, "Back to steps", onBack, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            ReiIconButton(ReiIcons.Back, stringResource(R.string.chat_step_back), onBack, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Icon(activityIcon(step), null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                activityLabel(step),
+                activityLabel(step).asString(),
                 Modifier.padding(start = 4.dp),
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 3,
@@ -145,15 +163,30 @@ fun StepDetail(
         }
         when {
             step.type == "llm.call" -> {
-                PrimaryTabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
+                val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
+                val tabsContent: @Composable () -> Unit = {
                     LlmTab.entries.forEach { entry ->
                         Tab(
                             selected = tab == entry,
                             onClick = { tab = entry },
-                            text = { Text(entry.label, style = MaterialTheme.typography.labelLarge) },
+                            text = { Text(stringResource(entry.labelRes), style = MaterialTheme.typography.labelLarge, maxLines = 1) },
                             modifier = Modifier.heightIn(min = 48.dp),
                         )
                     }
+                }
+                if (largeFont) {
+                    PrimaryScrollableTabRow(
+                        selectedTabIndex = tab.ordinal,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        edgePadding = 0.dp,
+                        tabs = tabsContent,
+                    )
+                } else {
+                    PrimaryTabRow(
+                        selectedTabIndex = tab.ordinal,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        tabs = tabsContent,
+                    )
                 }
                 when {
                     tab == LlmTab.Stats -> Stats(step, data)
@@ -164,8 +197,8 @@ fun StepDetail(
                     }
                     tab == LlmTab.Response -> ResponseView(llm["response"])
                     else -> {
-                        if (truncated) Note("Some long text was cut to 200,000 characters.")
-                        JsonView("Raw", llm)
+                        if (truncated) Note(stringResource(R.string.chat_step_truncated_note))
+                        JsonView(stringResource(R.string.chat_step_raw_label), llm)
                     }
                 }
             }
@@ -179,37 +212,48 @@ fun StepDetail(
 
 @Composable
 private fun ContextView(request: JsonElement?, truncated: Boolean) {
-    val view = describeRequest(request)
+    val view = remember(request) { describeRequest(request) }
     if (!view.recognised) {
-        Quiet("This request has a shape the inspector can’t lay out. The Raw tab shows it as recorded.")
+        Quiet(stringResource(R.string.chat_step_context_unrecognised))
         return
     }
     val sections = view.system?.let(::systemSections).orEmpty()
     val updates = view.messages.count { it.update }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (truncated) Note("Some long text was cut to 200,000 characters.")
+        if (truncated) Note(stringResource(R.string.chat_step_truncated_note))
         view.system?.let { system ->
             Column {
-                SectionLabel("System prompt" + if (sections.size > 1) " · ${sections.size} sections" else "")
+                SectionLabel(
+                    if (sections.size > 1) {
+                        stringResource(R.string.chat_step_system_prompt_sections, sections.size)
+                    } else {
+                        stringResource(R.string.chat_step_system_prompt)
+                    },
+                )
                 if (sections.size > 1) {
                     sections.forEach { s ->
-                        Collapsible({ Text(s.title?.let(::promptSectionLabel) ?: sectionOpening(s.body), fontWeight = FontWeight.Medium) }) { LongText(s.body) }
+                        Collapsible({ Text(s.title?.let(::promptSectionLabel) ?: sectionOpening(s.body).asString(), fontWeight = FontWeight.Medium) }) { LongText(s.body) }
                     }
                 } else {
-                    Collapsible({ Text("System prompt", fontWeight = FontWeight.Medium) }, initiallyOpen = true) { LongText(system) }
+                    Collapsible({ Text(stringResource(R.string.chat_step_system_prompt), fontWeight = FontWeight.Medium) }, initiallyOpen = true) { LongText(system) }
                 }
             }
         }
         Column {
+            val baseMessages = stringResource(R.string.chat_step_messages_header, view.messages.size)
             SectionLabel(
-                "Messages · ${view.messages.size}" +
-                    if (updates > 0) " ($updates prompt update${if (updates == 1) "" else "s"}, in the order sent)" else "",
+                if (updates > 0) {
+                    val updatesText = pluralStringResource(R.plurals.chat_step_prompt_updates, updates, updates)
+                    stringResource(R.string.chat_step_messages_header_updates, view.messages.size, updatesText)
+                } else {
+                    baseMessages
+                },
             )
             view.messages.forEach { MessageItem(it) }
         }
         if (view.tools.isNotEmpty()) {
             Column {
-                SectionLabel("Tools · ${view.tools.size}")
+                SectionLabel(stringResource(R.string.chat_step_tools_header, view.tools.size))
                 view.tools.forEach { t ->
                     Collapsible({ Text(t.name, style = MaterialTheme.typography.bodyMedium.mono(), maxLines = 1, overflow = TextOverflow.Ellipsis) }) {
                         if (t.description.isNotEmpty()) LongText(t.description)
@@ -223,47 +267,64 @@ private fun ContextView(request: JsonElement?, truncated: Boolean) {
 
 @Composable
 private fun MessageItem(m: ContextMessage) {
+    val resources = LocalResources.current
     if (m.update) {
         val changes = sectionChanges(m.text)
-        val peek = changes.joinToString(" · ") { if (it.name.isNotEmpty()) "${if (it.removed) "removed" else "updated"} ${it.name}" else "system message" }
-        Collapsible({ RolePill("prompt update"); Peek(peek) }) {
+        val peek = changes.joinToString(" · ") {
+            when {
+                it.name.isEmpty() -> resources.getString(R.string.chat_step_system_message)
+                it.removed -> resources.getString(R.string.chat_step_prompt_update_removed, it.name)
+                else -> resources.getString(R.string.chat_step_prompt_update_updated, it.name)
+            }
+        }
+        Collapsible({ RolePill(stringResource(R.string.chat_step_prompt_update_pill)); Peek(peek) }) {
             changes.forEach { c ->
-                if (c.name.isNotEmpty()) Note(if (c.removed) "Section “${c.name}” was taken out of the prompt." else "Section “${c.name}” replaced by:")
+                if (c.name.isNotEmpty()) {
+                    Note(
+                        stringResource(
+                            if (c.removed) R.string.chat_step_section_removed else R.string.chat_step_section_replaced,
+                            c.name,
+                        ),
+                    )
+                }
                 if (c.body.isNotEmpty()) LongText(c.body)
             }
         }
         return
     }
-    val peek = m.text.ifEmpty { m.calls.firstOrNull() ?: if (m.other > 0) "${m.other} attachment${if (m.other == 1) "" else "s"}" else "" }
-    Collapsible({ RolePill(m.role); Peek(peek.replace(Regex("\\s+"), " ").take(90)) }) {
+    val attachmentCountText = if (m.other > 0) pluralStringResource(R.plurals.chat_step_attachments, m.other, m.other) else ""
+    val encryptedNote = if (m.encryptedReasoning) stringResource(R.string.chat_step_encrypted_reasoning) else ""
+    val displayText = m.text.ifEmpty { encryptedNote }
+    val peek = displayText.ifEmpty { m.calls.firstOrNull() ?: attachmentCountText }
+    Collapsible({ RolePill(m.role); Peek(peek.replace(WhitespaceRegex, " ").take(90)) }) {
         if (m.reasoning.isNotEmpty()) {
-            Note("Reasoning")
+            Note(stringResource(R.string.chat_step_reasoning))
             LongText(m.reasoning)
         }
-        if (m.text.isNotEmpty()) LongText(m.text)
+        if (displayText.isNotEmpty()) LongText(displayText)
         m.calls.forEach { LongText("→ $it", mono = true) }
-        if (m.other > 0) Note("${m.other} attachment${if (m.other == 1) "" else "s"} not shown here (see Raw).")
+        if (m.other > 0) Note(stringResource(R.string.chat_step_attachments_hidden_note, attachmentCountText))
     }
 }
 
 @Composable
 private fun ResponseView(response: JsonElement?) {
-    val view = describeResponse(response)
+    val view = remember(response) { describeResponse(response) }
     if (!view.recognised) {
-        Quiet("No readable answer was recorded. The Raw tab shows what was.")
+        Quiet(stringResource(R.string.chat_step_no_response))
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (view.reasoning.isNotEmpty()) {
             Column {
-                SectionLabel("Reasoning")
+                SectionLabel(stringResource(R.string.chat_step_reasoning))
                 LongText(view.reasoning)
             }
         }
         if (view.text.isNotEmpty()) LongText(view.text)
         if (view.calls.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionLabel("Tool calls")
+                SectionLabel(stringResource(R.string.chat_step_tool_calls))
                 view.calls.forEach { LongText(it, mono = true) }
             }
         }
@@ -272,27 +333,37 @@ private fun ResponseView(response: JsonElement?) {
 
 @Composable
 private fun Stats(step: TraceStep, data: JsonObject?) {
+    val resources = LocalResources.current
     val summary = data?.get("step").obj()
     val tokens = summary?.get("tokens").obj()
     fun num(key: String) = tokens?.get(key).number()?.let(::groupedNumber) ?: "–"
     val prefix = summary?.get("prefix").obj()
     val rows = buildList {
-        add("Model" to (summary?.get("model").text() ?: step.model ?: "–"))
-        add("Provider" to (summary?.get("providerName").text() ?: "–"))
-        add("Status" to activityStatus(step) + (step.errorCode?.let { " ($it)" } ?: ""))
-        add("Started" to formatWhen(step.startedAt))
-        add("Input tokens" to num("input"))
-        add("Output tokens" to num("output"))
-        add("Cached tokens" to num("cached"))
+        add(resources.getString(R.string.chat_step_stat_model) to (summary?.get("model").text() ?: step.model ?: "–"))
+        add(resources.getString(R.string.chat_step_stat_provider) to (summary?.get("providerName").text() ?: "–"))
+        add(resources.getString(R.string.chat_inspect_status) to activityStatus(step).asString(resources) + (step.errorCode?.let { " ($it)" } ?: ""))
+        add(resources.getString(R.string.chat_step_stat_started) to formatWhen(step.startedAt))
+        add(resources.getString(R.string.chat_step_stat_input_tokens) to num("input"))
+        add(resources.getString(R.string.chat_step_stat_output_tokens) to num("output"))
+        add(resources.getString(R.string.chat_step_stat_cached_tokens) to num("cached"))
         if (prefix != null) {
             val matched = prefix["matched"].number()
-            add("Same start as last call" to if (matched == null) "First call" else "$matched of ${prefix["items"].number() ?: 0} items")
+            add(
+                resources.getString(R.string.chat_step_stat_prefix) to if (matched == null) {
+                    resources.getString(R.string.chat_step_stat_prefix_first)
+                } else {
+                    resources.getString(R.string.chat_step_stat_prefix_matched, matched, prefix["items"].number() ?: 0)
+                },
+            )
         }
-        add("Reasoning tokens" to num("reasoning"))
-        add("Total tokens" to num("total"))
-        add("First byte" to (summary?.get("firstByteMs").number()?.let { duration(it) } ?: "–"))
-        add("Latency" to duration(step.latencyMs))
-        data?.get("payloadBytes").number()?.let { add("Recorded size" to "${groupedNumber(it)} bytes" + if (data?.get("truncated").flag()) " (cut)" else "") }
+        add(resources.getString(R.string.chat_step_stat_reasoning_tokens) to num("reasoning"))
+        add(resources.getString(R.string.chat_step_stat_total_tokens) to num("total"))
+        add(resources.getString(R.string.chat_step_stat_first_byte) to (summary?.get("firstByteMs").number()?.let { duration(it).asString(resources) } ?: "–"))
+        add(resources.getString(R.string.chat_step_stat_latency) to duration(step.latencyMs).asString(resources))
+        data?.get("payloadBytes").number()?.let {
+            val resId = if (data?.get("truncated").flag()) R.string.chat_step_bytes_cut else R.string.chat_step_bytes
+            add(resources.getString(R.string.chat_step_stat_recorded_size) to resources.getString(resId, groupedNumber(it)))
+        }
     }
     Facts(rows)
 }
@@ -300,14 +371,15 @@ private fun Stats(step: TraceStep, data: JsonObject?) {
 /** The tools a model call was offered and what changed since the previous call. */
 @Composable
 private fun OfferedTools(tools: JsonObject, onOpenStep: (String) -> Unit) {
+    val resources = LocalResources.current
     val offered = tools["offered"].strings()
     val added = (tools["added"] as? JsonArray).orEmpty().mapNotNull { it.obj() }
     val removed = tools["removed"].strings()
     Column {
-        SectionLabel("Offered tools · ${offered.size}")
+        SectionLabel(stringResource(R.string.chat_step_offered_tools, offered.size))
         when {
-            tools["previousStepId"].text() == null -> Note("The first model call of this chat: its core tools.")
-            added.isEmpty() && removed.isEmpty() -> Note("The same tools as the previous model call.")
+            tools["previousStepId"].text() == null -> Note(stringResource(R.string.chat_step_offered_first))
+            added.isEmpty() && removed.isEmpty() -> Note(stringResource(R.string.chat_step_offered_same))
             else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 added.forEach { a ->
                     val loadedBy = a["loadedBy"].text()
@@ -316,15 +388,19 @@ private fun OfferedTools(tools: JsonObject, onOpenStep: (String) -> Unit) {
                         Column {
                             Text(a["name"].text().orEmpty(), style = MaterialTheme.typography.bodySmall.mono())
                             if (loadedBy != null) {
-                                val why = a["reason"].text()?.let(::loadReason)?.let { r -> " ($r${a["group"].text()?.let { g -> ": $g" } ?: ""})" }.orEmpty()
-                                Text(
-                                    "loaded by a search$why",
-                                    Modifier.clickable(role = Role.Button) { onOpenStep(loadedBy) },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
+                                val why = a["reason"].text()?.let { loadReason(resources, it) }?.let { r -> " ($r${a["group"].text()?.let { g -> ": $g" } ?: ""})" }.orEmpty()
+                                Box(
+                                    Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { onOpenStep(loadedBy) },
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    Text(
+                                        stringResource(R.string.chat_step_loaded_search, why),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                             } else {
-                                Text("offered again or added by a capability change", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.chat_step_offered_again), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -334,22 +410,22 @@ private fun OfferedTools(tools: JsonObject, onOpenStep: (String) -> Unit) {
                         Text("−", style = MaterialTheme.typography.bodyMedium)
                         Column {
                             Text(name, style = MaterialTheme.typography.bodySmall.mono())
-                            Text("no longer offered", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.chat_step_no_longer_offered), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
         }
-        Collapsible({ Text("All offered tools", fontWeight = FontWeight.Medium) }) {
+        Collapsible({ Text(stringResource(R.string.chat_step_all_offered_tools), fontWeight = FontWeight.Medium) }) {
             Text(offered.joinToString(", "), Modifier.padding(10.dp), style = MaterialTheme.typography.bodySmall.mono())
         }
     }
 }
 
-private fun loadReason(reason: String) = when (reason) {
-    "group" -> "its group matched"
-    "ranked" -> "ranked for the query"
-    "load" -> "named in load"
+private fun loadReason(resources: Resources, reason: String) = when (reason) {
+    "group" -> resources.getString(R.string.chat_step_reason_group)
+    "ranked" -> resources.getString(R.string.chat_step_reason_ranked)
+    "load" -> resources.getString(R.string.chat_step_reason_load)
     else -> reason
 }
 
@@ -357,105 +433,141 @@ private fun loadReason(reason: String) = when (reason) {
 
 @Composable
 private fun ToolDetail(api: ReiApi, step: TraceStep, data: JsonObject?, onOpenApproval: (() -> Unit)?) {
+    val resources = LocalResources.current
     val summary = data?.get("step").obj()
     val tool = data?.get("tool").obj()
     val actionClass = summary?.get("actionClass").text()
-    val decision = step.decision?.let(::decisionLabel) ?: "–"
+    val decision = step.decision?.let { decisionLabel(it).asString(resources) } ?: "–"
+    val decisionLabelKey = resources.getString(R.string.chat_step_decision_label)
     Facts(
         buildList {
-            add("Tool" to (step.toolName ?: "–"))
-            add("Class" to actionClassLabel(actionClass).ifEmpty { "–" })
-            add("Decision" to decision + if (step.approvalId != null && onOpenApproval == null) " · approval" else "")
-            add("Status" to activityStatus(step))
-            step.summary?.let { add("Summary" to it) }
-            add("Started" to formatWhen(step.startedAt))
-            add("Time" to duration(step.latencyMs))
-            if (step.sideEffect) add("Effect" to "Acted outside the box")
+            add(resources.getString(R.string.chat_step_tool_label) to (step.toolName ?: "–"))
+            add(resources.getString(R.string.chat_step_class_label) to (actionClassLabel(actionClass).asString(resources)))
+            add(
+                decisionLabelKey to if (step.approvalId != null && onOpenApproval == null) {
+                    resources.getString(R.string.chat_step_decision_approval, decision)
+                } else {
+                    decision
+                },
+            )
+            add(resources.getString(R.string.chat_inspect_status) to activityStatus(step).asString(resources))
+            step.summary?.let { add(resources.getString(R.string.chat_step_summary_label) to it) }
+            add(resources.getString(R.string.chat_step_stat_started) to formatWhen(step.startedAt))
+            add(resources.getString(R.string.chat_step_time_label) to duration(step.latencyMs).asString(resources))
+            if (step.sideEffect) add(resources.getString(R.string.chat_step_effect_label) to resources.getString(R.string.chat_step_effect_outside))
         },
-        links = if (step.approvalId != null && onOpenApproval != null) mapOf("Decision" to FactLink("See the approval", onOpenApproval)) else emptyMap(),
+        links = if (step.approvalId != null && onOpenApproval != null) mapOf(decisionLabelKey to FactLink(resources.getString(R.string.chat_step_see_approval), onOpenApproval)) else emptyMap(),
     )
     if (tool == null) return
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (data?.get("truncated").flag()) Note("Some long text was cut to 200,000 characters.")
-        if (tool["isError"].flag()) Note("The tool reported an error.", error = true)
+        if (data?.get("truncated").flag()) Note(stringResource(R.string.chat_step_truncated_note))
+        if (tool["isError"].flag()) Note(stringResource(R.string.chat_step_tool_error), error = true)
         tool["discovery"].obj()?.let { Discovery(it) }
         tool["fetch"].obj()?.let { WebFetch(it) }
-        JsonView("Input", tool["input"])
+        JsonView(stringResource(R.string.chat_step_input_label), tool["input"])
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SectionLabel("Output")
+            SectionLabel(stringResource(R.string.chat_step_output_label))
             val output = (tool["output"] as? JsonArray).orEmpty().mapNotNull { it.obj() }
-            if (output.isEmpty()) Quiet("No output.")
+            if (output.isEmpty()) Quiet(stringResource(R.string.chat_step_no_output))
             output.forEach { part ->
-                if (part["type"].text() == "text") LongText(part["text"].text().orEmpty())
-                else StepImage(api, step.id, (part["index"].number() ?: 0).toInt(), "Image ${(part["index"].number() ?: 0) + 1} from ${step.toolName ?: "the tool"}")
+                if (part["type"].text() == "text") {
+                    LongText(part["text"].text().orEmpty())
+                } else {
+                    val imageIndex = (part["index"].number() ?: 0).toInt()
+                    val toolName = step.toolName ?: stringResource(R.string.chat_step_tool_noun)
+                    StepImage(api, step.id, imageIndex, stringResource(R.string.chat_step_tool_image, imageIndex + 1, toolName))
+                }
             }
         }
     }
 }
 
-private val CacheLabel = mapOf("hit" to "Stored copy (no network)", "miss" to "Fetched (nothing stored)", "refresh" to "Fetched again (refresh)")
-private val ModeLabel = mapOf(
-    "overview" to "Outline and opening",
-    "whole" to "Whole page",
-    "query" to "Passages matching the query",
-    "section" to "One section",
-    "offset" to "Text from an offset",
+private val CacheLabelRes = mapOf(
+    "hit" to R.string.chat_step_cache_hit,
+    "miss" to R.string.chat_step_cache_miss,
+    "refresh" to R.string.chat_step_cache_refresh,
+)
+private val ModeLabelRes = mapOf(
+    "overview" to R.string.chat_step_mode_overview,
+    "whole" to R.string.chat_step_mode_whole,
+    "query" to R.string.chat_step_mode_query,
+    "section" to R.string.chat_step_mode_section,
+    "offset" to R.string.chat_step_mode_offset,
 )
 
-private fun renderSummary(r: JsonObject): String {
+private fun renderSummary(resources: Resources, r: JsonObject): String {
     when (r["skipped"].text()) {
-        "off" -> return "Not rendered: disabled by the reader request"
-        "unavailable" -> return "Not rendered: the page reader has no browser"
+        "off" -> return resources.getString(R.string.chat_step_render_off)
+        "unavailable" -> return resources.getString(R.string.chat_step_render_unavailable)
     }
-    if (r["failed"].flag()) return "The render failed; the page as fetched was used"
+    if (r["failed"].flag()) return resources.getString(R.string.chat_step_render_failed)
     val parts = mutableListOf(
         when (r["reason"].text()) {
-            "forced" -> "Forced (dev diagnostic)"
-            "low_quality" -> "Only the page’s summary could be read without JavaScript"
-            else -> "Page needs JavaScript"
+            "forced" -> resources.getString(R.string.chat_step_render_forced)
+            "low_quality" -> resources.getString(R.string.chat_step_render_low_quality)
+            else -> resources.getString(R.string.chat_step_render_js)
         },
     )
-    r["ended"].text()?.let { parts += if (it == "stable") "read once the text settled" else "read at the deadline" }
-    if (r["truncated"].flag()) parts += "HTML cut at 5 MiB"
+    r["ended"].text()?.let {
+        parts += resources.getString(if (it == "stable") R.string.chat_step_render_settled else R.string.chat_step_render_deadline)
+    }
+    if (r["truncated"].flag()) parts += resources.getString(R.string.chat_step_render_html_cut)
     return parts.joinToString(", ")
 }
 
 /** How a web_fetch got its page and what it showed the model. */
 @Composable
 private fun WebFetch(d: JsonObject) {
+    val resources = LocalResources.current
     fun num(key: String) = d[key].number()?.let(::groupedNumber)
     val render = d["render"].obj()
     Column {
-        SectionLabel("Fetch")
+        SectionLabel(stringResource(R.string.chat_step_fetch_header))
         Facts(
             buildList {
-                add("Host" to d["host"].text().orEmpty())
-                d["title"].text()?.let { add("Title" to it) }
-                add("Source" to (CacheLabel[d["cache"].text()] ?: "–"))
-                add("Method" to if (d["method"].text() == "render") "Rendered in the browser" else "HTTP")
+                add(resources.getString(R.string.chat_step_fetch_host) to d["host"].text().orEmpty())
+                d["title"].text()?.let { add(resources.getString(R.string.chat_step_fetch_title) to it) }
+                add(resources.getString(R.string.chat_step_fetch_source) to (CacheLabelRes[d["cache"].text()]?.let(resources::getString) ?: "–"))
+                add(
+                    resources.getString(R.string.chat_step_fetch_method) to resources.getString(
+                        if (d["method"].text() == "render") R.string.chat_step_fetch_method_render else R.string.chat_step_fetch_method_http,
+                    ),
+                )
                 render?.let { r ->
-                    add("Rendering" to renderSummary(r))
-                    r["queueMs"].number()?.takeIf { it > 0 }?.let { add("Waited for the browser" to duration(it)) }
+                    add(resources.getString(R.string.chat_step_fetch_rendering) to renderSummary(resources, r))
+                    r["queueMs"].number()?.takeIf { it > 0 }?.let { add(resources.getString(R.string.chat_step_fetch_waited) to duration(it).asString(resources)) }
                     r["engine"].text()?.let { engine ->
                         val version = r["engineVersion"].text()?.let { " $it" }.orEmpty()
-                        val fallback = r["fallback"].obj()?.let { " (fallback after ${it["from"].text()}: ${it["reason"].text()})" }.orEmpty()
-                        add("Render engine" to "$engine$version$fallback")
+                        val fallback = r["fallback"].obj()?.let {
+                            resources.getString(R.string.chat_step_fetch_engine_fallback, it["from"].text().orEmpty(), it["reason"].text().orEmpty())
+                        }.orEmpty()
+                        add(resources.getString(R.string.chat_step_fetch_engine) to "$engine$version$fallback")
                     }
-                    r["renderMs"].number()?.let { add("Render time" to duration(it)) }
-                    r["connections"].number()?.let { c -> add("Render connections" to groupedNumber(c) + (r["refused"].number()?.takeIf { it > 0 }?.let { ", ${groupedNumber(it)} refused" } ?: "")) }
-                    r["blockedMedia"].number()?.takeIf { it > 0 }?.let { add("Media not loaded" to groupedNumber(it)) }
+                    r["renderMs"].number()?.let { add(resources.getString(R.string.chat_step_fetch_render_time) to duration(it).asString(resources)) }
+                    r["connections"].number()?.let { c ->
+                        val refused = r["refused"].number()?.takeIf { it > 0 }
+                        val value = if (refused != null) {
+                            resources.getString(R.string.chat_step_fetch_connections_refused, groupedNumber(c), groupedNumber(refused))
+                        } else {
+                            groupedNumber(c)
+                        }
+                        add(resources.getString(R.string.chat_step_fetch_connections) to value)
+                    }
+                    r["blockedMedia"].number()?.takeIf { it > 0 }?.let { add(resources.getString(R.string.chat_step_fetch_blocked_media) to groupedNumber(it)) }
                 }
-                d["mode"].text()?.let { add("Shown" to (ModeLabel[it] ?: it)) }
-                d["sections"].strings().takeIf { it.isNotEmpty() }?.let { add("Sections" to it.joinToString(", ")) }
-                d["status"].number()?.let { add("HTTP status" to it.toString()) }
-                d["redirects"].number()?.let { add("Redirects" to it.toString()) }
-                d["mediaType"].text()?.let { add("Media type" to it) }
-                num("bytes")?.let { add("Downloaded" to "$it bytes") }
-                d["extractor"].text()?.let { add("Extractor" to it) }
-                d["quality"].text()?.let { add("Quality" to it) }
-                num("tokensReturned")?.let { add("Tokens returned" to it) }
-                num("pageTokens")?.let { add("Tokens on the page" to it) }
-                add("Duration" to duration(d["durationMs"].number()))
+                d["mode"].text()?.let { mode ->
+                    add(resources.getString(R.string.chat_step_fetch_shown) to (ModeLabelRes[mode]?.let(resources::getString) ?: mode))
+                }
+                d["sections"].strings().takeIf { it.isNotEmpty() }?.let { add(resources.getString(R.string.chat_step_fetch_sections) to it.joinToString(", ")) }
+                d["status"].number()?.let { add(resources.getString(R.string.chat_step_fetch_http_status) to it.toString()) }
+                d["redirects"].number()?.let { add(resources.getString(R.string.chat_step_fetch_redirects) to it.toString()) }
+                d["mediaType"].text()?.let { add(resources.getString(R.string.chat_step_fetch_media_type) to it) }
+                num("bytes")?.let { add(resources.getString(R.string.chat_step_fetch_downloaded) to resources.getString(R.string.chat_step_bytes, it)) }
+                d["extractor"].text()?.let { add(resources.getString(R.string.chat_step_fetch_extractor) to it) }
+                d["quality"].text()?.let { add(resources.getString(R.string.chat_step_fetch_quality) to it) }
+                num("tokensReturned")?.let { add(resources.getString(R.string.chat_step_fetch_tokens_returned) to it) }
+                num("pageTokens")?.let { add(resources.getString(R.string.chat_step_fetch_page_tokens) to it) }
+                add(resources.getString(R.string.chat_inspect_duration) to duration(d["durationMs"].number()).asString(resources))
             },
         )
     }
@@ -464,38 +576,54 @@ private fun WebFetch(d: JsonObject) {
 /** What a search_capabilities call searched, ranked, loaded and suggested. */
 @Composable
 private fun Discovery(d: JsonObject) {
+    val resources = LocalResources.current
     val loaded = (d["loaded"] as? JsonArray).orEmpty().mapNotNull { it.obj() }
     val candidates = (d["candidates"] as? JsonArray).orEmpty().mapNotNull { it.obj() }
     val directory = d["directory"].obj()
     Column {
-        SectionLabel("Discovery")
+        SectionLabel(stringResource(R.string.chat_step_discovery_header))
         Facts(
             buildList {
-                d["query"].text()?.takeIf { it.isNotEmpty() }?.let { add("Query" to "“$it”") }
+                d["query"].text()?.takeIf { it.isNotEmpty() }?.let { add(resources.getString(R.string.chat_step_discovery_query) to "“$it”") }
                 directory?.let {
-                    val tools = it["tools"].number() ?: 0
-                    add("Directory" to "${it["connectorName"].text()}: $tools tool${if (tools == 1L) "" else "s"} listed, none loaded")
+                    val tools = (it["tools"].number() ?: 0).toInt()
+                    val toolsText = resources.getQuantityString(R.plurals.chat_step_tools_listed, tools, tools)
+                    add(
+                        resources.getString(R.string.chat_step_discovery_directory) to resources.getString(
+                            R.string.chat_step_discovery_directory_value,
+                            it["connectorName"].text().orEmpty(),
+                            toolsText,
+                        ),
+                    )
                 }
                 add(
-                    "Loaded" to if (loaded.isEmpty()) "Nothing" else loaded.joinToString("\n") { l ->
-                        l["name"].text().orEmpty() + " · " + loadReason(l["reason"].text().orEmpty()) + (l["group"].text()?.let { " ($it)" } ?: "")
+                    resources.getString(R.string.chat_step_discovery_loaded) to if (loaded.isEmpty()) {
+                        resources.getString(R.string.chat_step_discovery_nothing)
+                    } else {
+                        loaded.joinToString("\n") { l ->
+                            l["name"].text().orEmpty() + " · " + loadReason(resources, l["reason"].text().orEmpty()) + (l["group"].text()?.let { " ($it)" } ?: "")
+                        }
                     },
                 )
-                names("Already loaded", d["alreadyLoaded"].strings())?.let(::add)
-                names("Also relevant", d["alsoRelevant"].strings())?.let(::add)
-                names("Skills", d["skills"].strings())?.let(::add)
-                names("Not found", d["notFound"].strings())?.let(::add)
+                names(resources.getString(R.string.chat_step_discovery_already_loaded), d["alreadyLoaded"].strings())?.let(::add)
+                names(resources.getString(R.string.chat_step_discovery_also_relevant), d["alsoRelevant"].strings())?.let(::add)
+                names(resources.getString(R.string.chat_step_discovery_skills), d["skills"].strings())?.let(::add)
+                names(resources.getString(R.string.chat_step_discovery_not_found), d["notFound"].strings())?.let(::add)
             },
         )
         if (candidates.isNotEmpty()) {
-            Collapsible({ Text("Ranked candidates · ${candidates.size}", fontWeight = FontWeight.Medium) }) {
+            Collapsible({ Text(stringResource(R.string.chat_step_discovery_candidates, candidates.size), fontWeight = FontWeight.Medium) }) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     candidates.forEach { c ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                             Text(c["name"].text().orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall.mono())
                             Text(c["kind"].text().orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                "${Math.round((c["coverage"].text()?.toDoubleOrNull() ?: 0.0) * 100)}% · ${c["score"].text().orEmpty()}",
+                                stringResource(
+                                    R.string.chat_step_candidate_score,
+                                    Math.round((c["coverage"].text()?.toDoubleOrNull() ?: 0.0) * 100),
+                                    c["score"].text().orEmpty(),
+                                ),
                                 style = MaterialTheme.typography.bodySmall.tabular(),
                             )
                         }
@@ -513,16 +641,16 @@ private fun names(label: String, names: List<String>): Pair<String, String>? = i
 private fun ChangeDetail(step: TraceStep, change: JsonObject?) {
     Facts(
         buildList {
-            change?.let { add("Connectors" to it["connectors"].strings().joinToString(", ")) }
-            add("Seen" to formatWhen(step.startedAt))
+            change?.let { add(stringResource(R.string.chat_step_change_connectors) to it["connectors"].strings().joinToString(", ")) }
+            add(stringResource(R.string.chat_step_change_seen) to formatWhen(step.startedAt))
         },
     )
     if (change != null) {
         Facts(
             listOfNotNull(
-                names("Added", change["added"].strings()),
-                names("Removed", change["removed"].strings()),
-                names("Changed", change["changed"].strings()),
+                names(stringResource(R.string.chat_step_change_added), change["added"].strings()),
+                names(stringResource(R.string.chat_step_change_removed), change["removed"].strings()),
+                names(stringResource(R.string.chat_step_change_changed), change["changed"].strings()),
             ),
         )
     }
@@ -547,10 +675,10 @@ private fun StepImage(api: ReiApi, stepId: String, index: Int, description: Stri
                 .fillMaxWidth()
                 .clip(ReiShapes.Inset)
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, ReiShapes.Inset)
-                .clickable(onClickLabel = "View full screen", role = Role.Button) { viewing = true },
+                .clickable(onClickLabel = stringResource(R.string.chat_step_image_view), role = Role.Button) { viewing = true },
             contentScale = ContentScale.FillWidth,
         )
-        loaded.first -> Note("$description can’t be shown.")
+        loaded.first -> Note(stringResource(R.string.chat_step_image_failed, description))
         else -> Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
     }
     if (viewing) ImageViewer(description, onDismiss = { viewing = false }, key = stepId to index) { loadStepImage(api, stepId, index, 2400) }
@@ -560,14 +688,14 @@ private fun StepImage(api: ReiApi, stepId: String, index: Int, description: Stri
 @Composable
 internal fun Facts(rows: List<Pair<String, String>>, modifier: Modifier = Modifier, links: Map<String, FactLink> = emptyMap()) {
     if (rows.isEmpty()) return
+    val stacked = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f
     SelectionContainer {
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (stacked) 10.dp else 6.dp)) {
             rows.forEach { (label, value) ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(label, Modifier.width(112.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val link = links[label]
+                val link = links[label]
+                val valueContent: @Composable (Modifier) -> Unit = { valueMod ->
                     if (link == null) {
-                        Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.tabular())
+                        Text(value, valueMod, style = MaterialTheme.typography.bodyMedium.tabular())
                     } else {
                         val linkStyle = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
                         Text(
@@ -575,9 +703,20 @@ internal fun Facts(rows: List<Pair<String, String>>, modifier: Modifier = Modifi
                                 append("$value · ")
                                 withLink(LinkAnnotation.Clickable("fact", linkStyle) { link.onClick() }) { append(link.text) }
                             },
-                            Modifier.weight(1f),
+                            valueMod,
                             style = MaterialTheme.typography.bodyMedium.tabular(),
                         )
+                    }
+                }
+                if (stacked) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        valueContent(Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(label, Modifier.width(112.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        valueContent(Modifier.weight(1f))
                     }
                 }
             }
@@ -649,22 +788,25 @@ private fun Collapsible(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
+        val clickLabel = stringResource(if (open) R.string.common_collapse else R.string.common_expand)
+        val toggleState = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
         Column {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 44.dp)
-                    .clickable(onClickLabel = if (open) "Collapse" else "Expand", role = Role.Button) { open = !open }
-                    .semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+                    .heightIn(min = 48.dp)
+                    .clickable(onClickLabel = clickLabel, role = Role.Button) { open = !open }
+                    .semantics { stateDescription = toggleState }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = summary)
+                val collapsedRotation = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 90f else -90f
                 Icon(
-                    ReiIcons.Down,
+                    ReiIcons.Chevron,
                     null,
-                    Modifier.size(16.dp).rotate(if (open) 0f else -90f),
+                    Modifier.size(16.dp).rotate(if (open) 0f else collapsedRotation),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -694,7 +836,8 @@ private fun LongText(text: String, mono: Boolean = false) {
         if (text.length > LongTextLimit) {
             TextButton(onClick = { all = !all }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(
-                    if (all) "Show less" else "Show more (${groupedNumber((text.length - LongTextLimit).toLong())} more characters)",
+                    if (all) stringResource(R.string.chat_step_long_show_less)
+                    else stringResource(R.string.chat_step_long_show_more, groupedNumber((text.length - LongTextLimit).toLong())),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -711,7 +854,7 @@ private fun JsonView(label: String, value: JsonElement?) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            ReiIconButton(ReiIcons.Copy, "Copy ${label.lowercase(Locale.ROOT)}", { copyToClipboard(context, label, text) }, tint = MaterialTheme.colorScheme.onSurfaceVariant, iconSize = 16.dp)
+            ReiIconButton(ReiIcons.Copy, stringResource(R.string.chat_step_copy_item, label.lowercase(Locale.ROOT)), { copyToClipboard(context, label, text) }, tint = MaterialTheme.colorScheme.onSurfaceVariant, iconSize = 16.dp)
         }
         LongText(text, mono = true)
     }
@@ -725,6 +868,8 @@ internal fun formatWhen(ts: Long, now: Long = System.currentTimeMillis()): Strin
     calendar.timeInMillis = ts
     val today = java.util.Calendar.getInstance().apply { timeInMillis = now }
     if (calendar.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) && calendar.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR)) return time
-    val pattern = if (calendar.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR)) "MMM d" else "MMM d, yyyy"
+    val skeleton = if (calendar.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR)) "MMMd" else "yMMMd"
+    val pattern = runCatching { android.text.format.DateFormat.getBestDateTimePattern(locale, skeleton) }
+        .getOrElse { if (skeleton == "MMMd") "MMM d" else "MMM d, yyyy" }
     return java.text.SimpleDateFormat(pattern, locale).format(Date(ts)) + ", " + time
 }

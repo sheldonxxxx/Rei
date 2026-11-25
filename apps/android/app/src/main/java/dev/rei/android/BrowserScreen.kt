@@ -26,318 +26,64 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.di.AppContainer
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.icons.ReiIcons
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import dev.rei.android.data.ReiApi
-import dev.rei.android.data.ReiApiException
-import dev.rei.android.data.objects
-import dev.rei.android.data.optionalString
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
+import dev.rei.android.ui.theme.ReiShapes
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
-import okio.ByteString
-
-private data class LiveTakeover(val id: String, val status: String, val reason: String?)
-private data class PickOption(val label: String, val value: String, val selected: Boolean)
-private sealed interface BrowserPrompt {
-    data class Select(val options: List<PickOption>, val multiple: Boolean) : BrowserPrompt
-    data class Dialog(val kind: String, val message: String, val defaultPrompt: String?) : BrowserPrompt
-}
-private sealed interface SocketEvent {
-    data class Text(val raw: String) : SocketEvent
-    data class End(val code: Int) : SocketEvent
-}
-
-private class BrowserState {
-    var frame by mutableStateOf<Bitmap?>(null)
-    var viewport by mutableStateOf(PointF())
-    var url by mutableStateOf("")
-    var title by mutableStateOf("")
-    var control by mutableStateOf(false)
-    var ready by mutableStateOf(false)
-    var takeover by mutableStateOf<LiveTakeover?>(null)
-    var prompt by mutableStateOf<BrowserPrompt?>(null)
-    var status by mutableStateOf("Connecting…")
-    var socket: WebSocket? = null
-
-    fun disconnected() {
-        control = false
-        ready = false
-        frame = null
-        prompt = null
-    }
-
-    fun send(type: String, fields: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) {
-        if (!control || !ready) return
-        socket?.send(buildJsonObject {
-            put("type", type)
-            fields()
-        }.toString())
-    }
-
-    fun applyTakeover(data: JsonObject) {
-        val current = data["takeover"] as? JsonObject
-        takeover = current?.let {
-            LiveTakeover(it.optionalString("id").orEmpty(), it.optionalString("status").orEmpty(), it.optionalString("reason"))
-        }
-    }
-
-    fun text(raw: String): String? {
-        val message = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
-        fun updatePage() {
-            url = message.optionalString("url").orEmpty()
-            title = message.optionalString("title").orEmpty()
-        }
-        fun updateViewport(data: JsonObject) {
-            val w = data.optionalString("width")?.toFloatOrNull() ?: return
-            val h = data.optionalString("height")?.toFloatOrNull() ?: return
-            if (w > 0 && h > 0) viewport = PointF(w, h)
-        }
-        when (message.optionalString("type")) {
-            "hello" -> {
-                updatePage()
-                (message["viewport"] as? JsonObject)?.let(::updateViewport)
-                control = message.optionalString("control") == "true"
-                ready = true
-                status = ""
-            }
-            "page" -> updatePage()
-            "viewport" -> updateViewport(message)
-            "control" -> {
-                control = message.optionalString("control") == "true"
-                if (!control) prompt = null
-            }
-            "select" -> if (control) {
-                prompt = BrowserPrompt.Select(
-                    message.objects("options").map {
-                        PickOption(
-                            it.optionalString("label").orEmpty(),
-                            it.optionalString("value").orEmpty(),
-                            it.optionalString("selected") == "true",
-                        )
-                    },
-                    message.optionalString("multiple") == "true",
-                )
-            }
-            "dialog" -> if (control) {
-                prompt = BrowserPrompt.Dialog(
-                    message.optionalString("kind").orEmpty(), message.optionalString("message").orEmpty(),
-                    message.optionalString("defaultPrompt"),
-                )
-            }
-            "closed" -> return message.optionalString("reason") ?: "closed"
-        }
-        return null
-    }
-}
-
-private suspend fun BrowserState.collectLive(api: ReiApi, path: List<String>, refresh: suspend () -> Unit) {
-    var retryMs = 500L
-    while (true) {
-        disconnected()
-        status = if (retryMs == 500L) "Connecting…" else "Reconnecting…"
-        val events = Channel<SocketEvent>(32)
-        val frames = Channel<ByteString>(Channel.CONFLATED)
-        val connection = api.websocket(path + "live", object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                if (events.trySend(SocketEvent.Text(text)).isFailure) {
-                    events.close()
-                    webSocket.cancel()
-                }
-            }
-
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                frames.trySend(bytes)
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                events.trySend(SocketEvent.End(code))
-                events.close()
-                webSocket.close(code.takeIf { it != 1005 } ?: 1000, null)
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                events.trySend(SocketEvent.End(response?.code ?: 0))
-                events.close()
-            }
-        })
-        socket = connection
-        var retry = true
-        try {
-            coroutineScope {
-                var refreshJob: Job? = null
-                val frameReader = launch {
-                    for (bytes in frames) {
-                        val image = withContext(Dispatchers.Default) {
-                            val raw = bytes.toByteArray()
-                            BitmapFactory.decodeByteArray(raw, 0, raw.size)
-                        }
-                        if (image != null) frame = image
-                    }
-                }
-                try {
-                    for (event in events) {
-                        when (event) {
-                            is SocketEvent.Text -> {
-                                val wasReady = ready
-                                val previousControl = control
-                                val closed = runCatching { text(event.raw) }.getOrNull()
-                                if (closed != null) {
-                                    retry = closed == "restarted" || closed == "crashed"
-                                    status = if (closed == "no_window") "This chat has no browser window." else "The browser window closed."
-                                    break
-                                }
-                                if (ready && (!wasReady || control != previousControl)) {
-                                    retryMs = 500L
-                                    refreshJob?.cancel()
-                                    refreshJob = launch { refresh() }
-                                }
-                            }
-                            is SocketEvent.End -> {
-                                if (event.code in setOf(401, 403, 404, 426, 4401)) {
-                                    retry = false
-                                    status = if (event.code == 426) "Update Rei to open the live browser."
-                                    else "Rei denied access to this browser window."
-                                }
-                                break
-                            }
-                        }
-                    }
-                } finally {
-                    frameReader.cancel()
-                    refreshJob?.cancel()
-                }
-            }
-        } finally {
-            socket = null
-            connection.cancel()
-            events.cancel()
-            frames.cancel()
-            disconnected()
-        }
-        if (!retry) return
-        status = "Reconnecting…"
-        delay(retryMs)
-        retryMs = (retryMs * 2).coerceAtMost(8_000)
-    }
-}
 
 @Composable
-fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
-    val state = remember(api, sessionId) { BrowserState() }
-    val path = remember(sessionId) { listOf("api", "sessions", sessionId, "browser") }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+fun BrowserScreen(container: AppContainer, sessionId: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val vm: BrowserViewModel = viewModel(factory = BrowserViewModel.factory(sessionId, container))
+    val state = vm.state
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var liveView by remember { mutableStateOf<RemoteViewport?>(null) }
-    var retry by remember { mutableStateOf(0) }
-    var busy by remember(api, sessionId) { mutableStateOf(false) }
-    var error by remember(api, sessionId) { mutableStateOf<String?>(null) }
-    var dragging by remember { mutableStateOf(false) }
-    var editAddress by remember { mutableStateOf(false) }
-    var ending by remember { mutableStateOf(false) }
+    var dragging by rememberSaveable { mutableStateOf(false) }
+    var editAddress by rememberSaveable { mutableStateOf(false) }
 
-    suspend fun refresh() {
-        try {
-            state.applyTakeover(api.request("GET", path))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            // The live connection reports availability. Failed refreshes can be retried from the toolbar.
-        }
-    }
-
-    LaunchedEffect(api, sessionId, retry, lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            state.collectLive(api, path, ::refresh)
-        }
-    }
-
-    fun act(action: suspend () -> Unit) {
-        if (busy) return
-        scope.launch {
-            busy = true
-            error = null
-            try {
-                action()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ReiApiException) {
-                error = e.message
-                refresh()
-            } catch (_: Exception) {
-                error = "The browser action failed."
-            } finally {
-                busy = false
-            }
-        }
-    }
-
-    fun end(action: String, note: String) {
-        val takeover = state.takeover ?: return
-        act {
-            api.request("POST", listOf("api", "takeovers", takeover.id, "end"), buildJsonObject {
-                put("action", action)
-                if (note.isNotBlank()) put("note", note.trim().take(500))
-            })
-            state.takeover = null
-            ending = false
-        }
-    }
-
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
+    Column(modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ReiIconButton(ReiIcons.Back, "Close browser", onBack)
+            ReiIconButton(ReiIcons.Close, stringResource(R.string.browser_close), onBack)
             Column(Modifier.weight(1f)) {
-                Text(state.title.ifBlank { "Browser" }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(state.title.ifBlank { stringResource(R.string.browser_title) }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (state.url.isNotBlank()) {
                     Text(
                         state.url,
@@ -348,37 +94,27 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
                     )
                 }
             }
-            if (state.control) {
-                ReiIconButton(ReiIcons.Back, "Page back", { state.send("nav") { put("action", "back") } })
-                ReiIconButton(ReiIcons.Forward, "Page forward", { state.send("nav") { put("action", "forward") } })
-                ReiIconButton(ReiIcons.Reload, "Reload page", { state.send("nav") { put("action", "reload") } })
-            }
             when {
                 state.control -> Button(
-                    onClick = { if (state.takeover == null) act { refresh(); ending = state.takeover != null } else ending = true },
-                    enabled = !busy,
+                    onClick = vm::requestReturnControl,
+                    enabled = !vm.busy,
                     modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp),
-                ) { Text("Return control") }
-                state.ready -> Button(onClick = {
-                    act {
-                        try {
-                            state.applyTakeover(api.request("POST", path + "takeover"))
-                        } catch (e: ReiApiException) {
-                            if (e.code != "already_active") throw e
-                            refresh()
-                        }
-                    }
-                }, enabled = !busy, modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp)) { Text("Take over") }
+                ) { Text(stringResource(R.string.browser_return_control)) }
+                state.ready -> Button(
+                    onClick = vm::takeOver,
+                    enabled = !vm.busy,
+                    modifier = Modifier.padding(start = 4.dp, end = 8.dp).heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.browser_take_over)) }
             }
         }
 
         state.takeover?.takeIf { state.ready && it.status == "pending" }?.let { request ->
             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(request.reason ?: "The agent requested browser takeover.", Modifier.weight(1f))
-                TextButton(onClick = { ending = true }, enabled = !busy) { Text("Decline") }
+                Text(request.reason ?: stringResource(R.string.browser_takeover_requested), Modifier.weight(1f))
+                TextButton(onClick = { vm.ending = true }, enabled = !vm.busy) { Text(stringResource(R.string.browser_decline)) }
             }
         }
-        error?.let { Text(it, Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
+        vm.error?.let { Text(it.asString(), Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
 
         if (state.control) {
             Row(
@@ -386,18 +122,18 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { editAddress = true }) { Text("Address") }
-                TextButton(onClick = { liveView?.showKeyboard() }) { Text("Keyboard") }
-                TextButton(onClick = { liveView?.press("Tab") }) { Text("Tab") }
-                TextButton(onClick = { liveView?.press("Escape") }) { Text("Escape") }
+                TextButton(onClick = { editAddress = true }) { Text(stringResource(R.string.browser_address)) }
+                TextButton(onClick = { liveView?.showKeyboard() }) { Text(stringResource(R.string.browser_keyboard)) }
+                TextButton(onClick = { liveView?.press("Tab") }) { Text(stringResource(R.string.browser_tab)) }
+                TextButton(onClick = { liveView?.press("Escape") }) { Text(stringResource(R.string.browser_escape)) }
                 val clipboard = context.getSystemService(ClipboardManager::class.java)
                 TextButton(onClick = {
                     if (clipboard?.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
                         clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.let { liveView?.sendText(it) }
                     }
-                }) { Text("Paste") }
-                FilterChip(selected = dragging, onClick = { dragging = !dragging }, label = { Text("Drag") })
-                TextButton(onClick = { liveView?.resetZoom() }) { Text("Reset zoom") }
+                }) { Text(stringResource(R.string.browser_paste)) }
+                FilterChip(selected = dragging, onClick = { dragging = !dragging }, label = { Text(stringResource(R.string.browser_drag)) })
+                TextButton(onClick = { liveView?.resetZoom() }) { Text(stringResource(R.string.browser_reset_zoom)) }
             }
         }
 
@@ -412,46 +148,70 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
                 },
             )
             if (!state.ready || state.frame == null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(state.status.ifBlank { "Waiting for a browser frame…" }, color = androidx.compose.ui.graphics.Color.White)
-                    if (!state.ready) TextButton(onClick = { retry++ }) { Text("Reconnect") }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(state.status?.asString() ?: stringResource(R.string.browser_waiting_frame), color = androidx.compose.ui.graphics.Color.White)
+                    if (!state.ready) {
+                        TextButton(
+                            onClick = vm::reconnect,
+                            colors = ButtonDefaults.textButtonColors(contentColor = androidx.compose.ui.graphics.Color.White),
+                        ) { Text(stringResource(R.string.browser_reconnect)) }
+                    }
+                }
+            }
+        }
+
+        if (state.control) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ReiIconButton(ReiIcons.Back, stringResource(R.string.browser_page_back), { state.send("nav") { put("action", "back") } })
+                    ReiIconButton(ReiIcons.Forward, stringResource(R.string.browser_page_forward), { state.send("nav") { put("action", "forward") } })
+                    ReiIconButton(ReiIcons.Reload, stringResource(R.string.browser_page_reload), { state.send("nav") { put("action", "reload") } })
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
     }
 
     if (editAddress && state.control) {
-        var address by remember { mutableStateOf(state.url) }
+        var address by rememberSaveable(state.url) { mutableStateOf(state.url) }
         AlertDialog(
             onDismissRequest = { editAddress = false },
-            title = { Text("Open address") },
-            text = { OutlinedTextField(address, { address = it }, singleLine = true, label = { Text("Address") }) },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            title = { Text(stringResource(R.string.browser_open_address)) },
+            text = { ReiTextField(address, { address = it }, stringResource(R.string.browser_address)) },
             confirmButton = {
                 TextButton(onClick = {
                     state.send("goto") { put("url", address.trim()) }
                     editAddress = false
-                }, enabled = address.isNotBlank() && address.length <= 2_000) { Text("Open") }
+                }, enabled = address.isNotBlank() && address.length <= 2_000) { Text(stringResource(R.string.browser_open)) }
             },
-            dismissButton = { TextButton(onClick = { editAddress = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { editAddress = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
-    if (ending && state.takeover != null) {
-        var note by remember { mutableStateOf("") }
+    if (vm.ending && state.takeover != null) {
+        var note by rememberSaveable { mutableStateOf("") }
         val pending = state.takeover?.status == "pending"
         AlertDialog(
-            onDismissRequest = { if (!busy) ending = false },
-            title = { Text(if (pending) "Decline takeover" else "Return control") },
-            text = { OutlinedTextField(note, { note = it.take(500) }, label = { Text("Note to agent (optional)") }) },
+            onDismissRequest = { if (!vm.busy) vm.ending = false },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            title = { Text(stringResource(if (pending) R.string.browser_decline_takeover else R.string.browser_return_control)) },
+            text = { ReiTextField(note, { note = it.take(500) }, stringResource(R.string.browser_note_optional), singleLine = false, minLines = 2) },
             confirmButton = {
-                Button(onClick = { end(if (pending) "cancel" else "done", note) }, enabled = !busy) {
-                    Text(if (pending) "Decline" else "Done")
+                Button(onClick = { vm.endTakeover(if (pending) "cancel" else "done", note) }, enabled = !vm.busy) {
+                    Text(stringResource(if (pending) R.string.browser_decline else R.string.common_done))
                 }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { ending = false }, enabled = !busy) { Text("Keep open") }
-                    if (!pending) TextButton(onClick = { end("cancel", note) }, enabled = !busy) { Text("Cancel takeover") }
+                    TextButton(onClick = { vm.ending = false }, enabled = !vm.busy) { Text(stringResource(R.string.browser_keep_open)) }
+                    if (!pending) TextButton(onClick = { vm.endTakeover("cancel", note) }, enabled = !vm.busy) { Text(stringResource(R.string.browser_cancel_takeover)) }
                 }
             },
         )
@@ -474,20 +234,30 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
         }
         AlertDialog(
             onDismissRequest = { respond(dialog?.kind == "alert") },
-            title = { Text(if (select != null) "Select options" else "Browser dialog") },
+            shape = ReiShapes.Dialog,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            title = { Text(stringResource(if (select != null) R.string.browser_select_options else R.string.browser_dialog_title)) },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     dialog?.let {
                         Text(it.message)
-                        if (it.kind == "prompt") OutlinedTextField(answer, { answer = it }, label = { Text("Answer") })
+                        if (it.kind == "prompt") ReiTextField(answer, { answer = it }, stringResource(R.string.browser_answer))
                     }
                     select?.options?.forEach { option ->
                         if (select.multiple) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(option.value in selected, {
-                                    selected = if (it) selected + option.value else selected - option.value
-                                })
-                                Text(option.label)
+                            val checked = option.value in selected
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .toggleable(value = checked, role = Role.Checkbox) {
+                                        selected = if (it) selected + option.value else selected - option.value
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(checked, onCheckedChange = null, modifier = Modifier.clearAndSetSemantics {})
+                                Text(option.label, Modifier.padding(start = 8.dp))
                             }
                         } else {
                             TextButton(onClick = {
@@ -499,10 +269,10 @@ fun BrowserScreen(api: ReiApi, sessionId: String, onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                if (select?.multiple != false) TextButton(onClick = { respond(true) }) { Text("OK") }
+                if (select?.multiple != false) TextButton(onClick = { respond(true) }) { Text(stringResource(R.string.common_ok)) }
             },
             dismissButton = {
-                if (dialog?.kind != "alert") TextButton(onClick = { respond(false) }) { Text("Cancel") }
+                if (dialog?.kind != "alert") TextButton(onClick = { respond(false) }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -527,7 +297,7 @@ private class RemoteViewport(context: Context) : View(context) {
 
     init {
         isFocusableInTouchMode = true
-        contentDescription = "Live browser page"
+        contentDescription = context.getString(R.string.browser_viewport_description)
     }
 
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -658,6 +428,7 @@ private class RemoteViewport(context: Context) : View(context) {
             lastCenter = null
         }
         if (controlling && !multiTouch && bitmap != null) gestures.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP && !multiTouch) performClick()
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) releaseDrag()
         return true
     }

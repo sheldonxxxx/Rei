@@ -1,5 +1,6 @@
 package dev.rei.android.feature.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,19 +17,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.layout.AnimatedPane
+import androidx.compose.material3.adaptive.layout.SupportingPaneScaffold
+import androidx.compose.material3.adaptive.layout.SupportingPaneScaffoldRole
+import androidx.compose.material3.adaptive.navigation.rememberSupportingPaneScaffoldNavigator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -44,7 +48,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -55,6 +67,8 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowSizeClass
+import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.Message
 import dev.rei.android.data.ReiApi
@@ -62,9 +76,15 @@ import dev.rei.android.feature.settings.SettingsPage
 import dev.rei.android.shell.LocalShell
 import dev.rei.android.shell.ReiTopBar
 import dev.rei.android.ui.components.AgentAvatar
+import dev.rei.android.ui.components.ConfirmDialog
 import dev.rei.android.ui.components.EmptyState
+import dev.rei.android.ui.components.LocalNotices
+import dev.rei.android.ui.components.LocalSnackbarClearance
 import dev.rei.android.ui.components.LocalWorkspaceOpener
 import dev.rei.android.ui.components.ReiIconButton
+import dev.rei.android.ui.components.ReiPreviews
+import dev.rei.android.ui.components.ReiScreenPreviewSurface
+import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.components.copyToClipboard
@@ -94,7 +114,10 @@ import dev.rei.android.ui.components.chat.effortLabel
 import dev.rei.android.ui.components.markdown.LocalPictureOpener
 import dev.rei.android.ui.components.markdown.PictureSource
 import dev.rei.android.ui.icons.ReiIcons
+import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.MotionRegion
+import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -117,19 +140,14 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     if (sessionId == null) {
-        Column(modifier.fillMaxSize()) {
-            ReiTopBar("Chat")
-            EmptyState(
-                icon = ReiIcons.Compose,
-                title = if (historyLoaded) "No chat open" else "Loading chats",
-                body = if (historyLoaded) "Start a new chat from the menu to talk with Rei." else null,
-            )
-        }
+        val shell = LocalShell.current
+        ChatEmptyContent(historyLoaded = historyLoaded, onNewChat = shell::newChat, modifier = modifier)
         return
     }
     key(sessionId) { Conversation(api, sessionId, chat, active, onOpenBrowser, modifier.fillMaxSize()) }
 }
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 private fun Conversation(
     api: ReiApi,
@@ -144,9 +162,13 @@ private fun Conversation(
     val shell = LocalShell.current
     val opener = LocalWorkspaceOpener.current
     val listState = rememberLazyListState()
-    val snackbar = remember { SnackbarHostState() }
-    val agentName = state.agent?.name ?: "Rei"
-    val pickers = rememberAttachmentPickers(api, sessionId, chat)
+    val notices = LocalNotices.current
+    val setClearance = LocalSnackbarClearance.current
+    val density = LocalDensity.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val motionScale = LocalMotionScale.current
+    val agentName = state.agent?.name ?: stringResource(R.string.app_name)
+    val pickers = rememberAttachmentPickers(sessionId, chat)
 
     LaunchedEffect(active) { chat.setVisible(active) }
     DisposableEffect(Unit) { onDispose { chat.setVisible(false) } }
@@ -170,6 +192,8 @@ private fun Conversation(
     var modelSheet by remember { mutableStateOf(false) }
     var effortSheet by remember { mutableStateOf(false) }
     var permissionsSheet by remember { mutableStateOf(false) }
+    var confirmRetry by remember { mutableStateOf<Message?>(null) }
+    var confirmFork by remember { mutableStateOf<Message?>(null) }
 
     // ---- scrolling -----------------------------------------------------------------------------------------------
     val atBottom by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= 48 } }
@@ -186,11 +210,14 @@ private fun Conversation(
         if (atBottom) newBelow = false
     }
     val latest = items.lastOrNull()
-    LaunchedEffect(latest?.key) {
+    val latestStepCount = (latest as? TranscriptItem.Activity)?.run?.steps?.size ?: 0
+    val streamingChars = state.detail?.generation?.length ?: 0
+    LaunchedEffect(latest?.key, latestStepCount, streamingChars) {
         val last = latest ?: return@LaunchedEffect
         val mine = last is TranscriptItem.Pending || last is TranscriptItem.User
         if (pinned || mine) {
-            listState.scrollToItem(0)
+            if (streamingChars > 0 || motionScale == 0f) listState.scrollToItem(0)
+            else listState.animateScrollToItem(0)
             pinned = true
         } else {
             newBelow = true
@@ -214,127 +241,204 @@ private fun Conversation(
         chat.consumeFocus(target)
     }
     LaunchedEffect(state.notice) {
-        val message = state.notice ?: return@LaunchedEffect
-        snackbar.showSnackbar(message)
+        val message = state.notice?.asString(context) ?: return@LaunchedEffect
+        notices?.show(message)
         chat.consumeNotice()
     }
+    val dismissKeyboardOnDrag = remember(keyboard) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    keyboard?.hide()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    DisposableEffect(Unit) { onDispose { setClearance(0.dp) } }
 
-    fun copy(text: String) = copyToClipboard(context, "Message", text)
+    val clipboardLabel = stringResource(R.string.chat_clipboard_label)
+    fun copy(text: String) = copyToClipboard(context, clipboardLabel, text)
 
-    Column(modifier) {
-        ChatTopBar(
-            state = state,
-            scrolled = scrolled,
-            chat = chat,
-            onInspect = { inspect = InspectTarget() },
-            onOpenBrowser = onOpenBrowser,
-        )
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            Box(Modifier.widthIn(max = ReadingColumn).fillMaxSize()) {
-                MotionRegion(key = sessionId, ready = state.ready) {
-                    CompositionLocalProvider(LocalPictureOpener provides { image = it }) {
-                        LazyColumn(
-                            state = listState,
-                            reverseLayout = true,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(display, key = { it.key }, contentType = { it::class }) { item ->
-                                TranscriptRow(
-                                    item = item,
-                                    state = state,
-                                    api = api,
-                                    sessionId = sessionId,
-                                    agentName = agentName,
-                                    outcomes = outcomes,
-                                    chat = chat,
-                                    onLongPress = { messageSheet = it.id },
-                                    onInspectRun = { inspect = InspectTarget(runId = it) },
-                                    onInspectStep = { run, step -> inspect = InspectTarget(runId = run, stepId = step) },
-                                    onCopy = ::copy,
-                                    onOpenBrowser = onOpenBrowser,
-                                                            onOpenPage = { opener?.openPage(it) },
-                                )
-                            }
-                            if (state.loadingOlder) item(key = "older") {
-                                Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+    val expanded = currentWindowAdaptiveInfo().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
+    val approvalMessages = remember(state.messages) { state.messages.mapNotNull { m -> m.approval?.let { a -> a.id to m.id } }.toMap() }
+
+    val chatContent: @Composable (Modifier) -> Unit = { paneModifier ->
+        Column(paneModifier) {
+            ChatTopBar(
+                state = state,
+                scrolled = scrolled,
+                chat = chat,
+                onInspect = { inspect = InspectTarget() },
+                onOpenBrowser = onOpenBrowser,
+            )
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.widthIn(max = ReadingColumn).fillMaxSize()) {
+                    MotionRegion(key = sessionId, ready = state.ready) {
+                        CompositionLocalProvider(LocalPictureOpener provides { image = it }) {
+                            LazyColumn(
+                                state = listState,
+                                reverseLayout = true,
+                                modifier = Modifier.fillMaxSize().nestedScroll(dismissKeyboardOnDrag),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                items(display, key = { it.key }, contentType = { it::class }) { item ->
+                                    TranscriptRow(
+                                        item = item,
+                                        state = state,
+                                        api = api,
+                                        sessionId = sessionId,
+                                        agentName = agentName,
+                                        outcomes = outcomes,
+                                        chat = chat,
+                                        onLongPress = { messageSheet = it.id },
+                                        onInspectRun = { inspect = InspectTarget(runId = it) },
+                                        onInspectStep = { run, step -> inspect = InspectTarget(runId = run, stepId = step) },
+                                        onCopy = ::copy,
+                                        onOpenBrowser = onOpenBrowser,
+                                        onOpenPage = { opener?.openPage(it) },
+                                    )
+                                }
+                                if (state.loadingOlder) item(key = "older") {
+                                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                when {
-                    !state.ready && state.streamError == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(28.dp))
+                    when {
+                        !state.ready && state.streamError == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(28.dp))
+                        }
+                        state.ready && display.isEmpty() -> EmptyChat(state)
                     }
-                    state.ready && display.isEmpty() -> EmptyChat(state)
-                }
-                Column(Modifier.align(Alignment.TopCenter).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.reconnecting) {
-                        StatusBanner("Reconnecting to Rei…", actionLabel = "Retry", onAction = chat::retryStream)
-                    } else if (state.streamError != null) {
-                        StatusBanner(state.streamError.orEmpty(), kind = StatusKind.Error, actionLabel = "Retry", onAction = chat::retryStream)
+                    Column(Modifier.align(Alignment.TopCenter).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (state.reconnecting) {
+                            StatusBanner(
+                                stringResource(R.string.chat_reconnecting),
+                                actionLabel = stringResource(R.string.common_retry),
+                                onAction = chat::retryStream,
+                            )
+                        } else if (state.streamError != null) {
+                            StatusBanner(
+                                state.streamError?.asString().orEmpty(),
+                                kind = StatusKind.Error,
+                                actionLabel = stringResource(R.string.common_retry),
+                                onAction = chat::retryStream,
+                            )
+                        }
+                    }
+                    val scope = rememberCoroutineScope()
+                    if (!atBottom) {
+                        JumpToLatest(
+                            newContent = newBelow,
+                            onClick = {
+                                pinned = true
+                                newBelow = false
+                                scope.launch { listState.animateScrollToItem(0) }
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                        )
                     }
                 }
-                val scope = rememberCoroutineScope()
-                if (!atBottom) {
-                    JumpToLatest(
-                        newContent = newBelow,
-                        onClick = {
-                            pinned = true
-                            newBelow = false
-                            scope.launch { listState.animateScrollToItem(0) }
-                        },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-                    )
-                }
-                SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(12.dp)) { Snackbar(it) }
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { setClearance(with(density) { it.height.toDp() }) },
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                val catalog = state.models
+                val agentModel = state.agent?.model
+                Composer(
+                    state = ComposerState(
+                        draft = state.draft,
+                        draftEpoch = state.draftEpoch,
+                        attachments = state.attachments,
+                        skills = state.skills,
+                        uploading = state.uploading,
+                        running = state.busy,
+                        stopping = state.stopping,
+                        sending = state.pending != null,
+                        waitingForAnswer = state.waitingForAnswer,
+                        agentName = agentName.takeIf { state.agent != null }.orEmpty(),
+                        modelLabel = catalog?.label(agentModel) ?: agentModel?.substringAfterLast('/'),
+                        effortLabel = state.agent?.let { effortLabel(it.thinkingLevel) },
+                        profile = state.profile,
+                        contextPercent = state.usage?.percent,
+                        enabled = state.ready,
+                    ),
+                    onDraftChange = chat::editDraft,
+                    onSend = chat::send,
+                    onStop = chat::stop,
+                    onAttach = { attach = true },
+                    onRemoveAttachment = chat::removeAttachment,
+                    onModel = { modelSheet = true },
+                    onEffort = { effortSheet = true },
+                    onPermissions = { chat.clearProfileError(); permissionsSheet = true },
+                    modifier = Modifier.widthIn(max = ReadingColumn),
+                    onRemoveSkill = chat::removeSkill,
+                    selectedSkills = state.selectedSkills,
+                    onSelectSkill = chat::selectSkill,
+                    onLoadSkills = chat::loadSkills,
+                    onJumpToApproval = {
+                        val pendingId = state.messages.firstOrNull { it.approval?.status == "pending" }?.id
+                        if (pendingId != null) chat.focusMessage(pendingId)
+                    },
+                )
             }
         }
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-            val catalog = state.models
-            val agentModel = state.agent?.model
-            Composer(
-                state = ComposerState(
-                    draft = state.draft,
-                    draftEpoch = state.draftEpoch,
-                    attachments = state.attachments,
-                    skills = state.skills,
-                    uploading = state.uploading,
-                    running = state.busy,
-                    stopping = state.stopping,
-                    sending = state.pending != null,
-                    waitingForAnswer = state.waitingForAnswer,
-                    agentName = agentName.takeIf { state.agent != null }.orEmpty(),
-                    modelLabel = catalog?.label(agentModel) ?: agentModel?.substringAfterLast('/'),
-                    effortLabel = state.agent?.let { effortLabel(it.thinkingLevel) },
-                    profile = state.profile,
-                    contextPercent = state.usage?.percent,
-                    enabled = state.ready,
-                ),
-                onDraftChange = chat::editDraft,
-                onSend = chat::send,
-                onStop = chat::stop,
-                onAttach = { attach = true },
-                onRemoveAttachment = chat::removeAttachment,
-                onModel = { modelSheet = true },
-                onEffort = { effortSheet = true },
-                onPermissions = { chat.clearProfileError(); permissionsSheet = true },
-                modifier = Modifier.widthIn(max = ReadingColumn),
-                onRemoveSkill = chat::removeSkill,
-                selectedSkills = state.selectedSkills,
-            )
+    }
+
+    if (expanded) {
+        val navigator = rememberSupportingPaneScaffoldNavigator()
+        LaunchedEffect(inspect) {
+            if (inspect != null) navigator.navigateTo(SupportingPaneScaffoldRole.Supporting)
+            else if (navigator.canNavigateBack()) navigator.navigateBack()
         }
+        BackHandler(enabled = inspect != null) { inspect = null }
+        SupportingPaneScaffold(
+            directive = navigator.scaffoldDirective,
+            value = navigator.scaffoldValue,
+            modifier = modifier,
+            mainPane = {
+                AnimatedPane {
+                    chatContent(Modifier.fillMaxSize())
+                }
+            },
+            supportingPane = {
+                AnimatedPane {
+                    inspect?.let { target ->
+                        InspectPane(
+                            api = api,
+                            runs = state.runs,
+                            target = target,
+                            onDismiss = { inspect = null },
+                            approvalMessages = approvalMessages,
+                            onOpenApproval = chat::focusMessage,
+                        )
+                    }
+                }
+            },
+        )
+    } else {
+        chatContent(modifier)
+    }
+
+    LaunchedEffect(messageSheet, state.messages) {
+        val id = messageSheet ?: return@LaunchedEffect
+        if (state.messages.none { it.id == id }) messageSheet = null
+    }
+    LaunchedEffect(modelSheet, state.models) {
+        if (modelSheet && state.models == null) modelSheet = false
     }
 
     // ---- sheets --------------------------------------------------------------------------------------------------
     messageSheet?.let { id ->
         val message = state.messages.firstOrNull { it.id == id }
-        if (message == null) {
-            messageSheet = null
-        } else {
+        if (message != null) {
             val user = message.role == "user"
             val retryTarget = if (user) message else items.filterIsInstance<TranscriptItem.Reply>().firstOrNull { it.message.id == id }?.retryOf
             val canRewrite = retryTarget?.editable == true && !state.busy
@@ -344,27 +448,47 @@ private fun Conversation(
                     onCopy = { copy(message.text); messageSheet = null },
                     onSelectText = { selecting = message.text; messageSheet = null },
                     onEdit = if (user && canRewrite) ({ editing = message; messageSheet = null }) else null,
-                    onRetry = if (canRewrite) ({ chat.retry(retryTarget!!); messageSheet = null }) else null,
-                    onFork = if (message.forkable) ({ chat.fork(message); messageSheet = null }) else null,
+                    onRetry = if (canRewrite) ({ confirmRetry = retryTarget; messageSheet = null }) else null,
+                    onFork = if (message.forkable) ({ confirmFork = message; messageSheet = null }) else null,
                     onSwitchVersion = if (user && (message.versions?.count ?: 0) > 1 && !state.busy) ({ next -> chat.switchVersion(message, next) }) else null,
                 ),
                 onDismiss = { messageSheet = null },
             )
         }
     }
+    confirmRetry?.let { target ->
+        ConfirmDialog(
+            title = stringResource(R.string.chat_retry_title),
+            text = stringResource(R.string.chat_retry_body),
+            confirmLabel = stringResource(R.string.common_retry),
+            onConfirm = { chat.retry(target); confirmRetry = null },
+            onDismiss = { confirmRetry = null },
+        )
+    }
+    confirmFork?.let { target ->
+        ConfirmDialog(
+            title = stringResource(R.string.chat_fork_title),
+            text = stringResource(R.string.chat_fork_body),
+            confirmLabel = stringResource(R.string.chat_fork_action),
+            onConfirm = { chat.fork(target); confirmFork = null },
+            onDismiss = { confirmFork = null },
+        )
+    }
     selecting?.let { SelectTextSheet(it) { selecting = null } }
     editing?.let { message ->
         EditMessageSheet(message.text, onDismiss = { editing = null }, onSend = { chat.edit(message, it); editing = null })
     }
-    inspect?.let {
-        InspectSheet(
-            api,
-            state.runs,
-            it,
-            onDismiss = { inspect = null },
-            approvalMessages = state.messages.mapNotNull { m -> m.approval?.let { a -> a.id to m.id } }.toMap(),
-            onOpenApproval = chat::focusMessage,
-        )
+    if (!expanded) {
+        inspect?.let {
+            InspectSheet(
+                api,
+                state.runs,
+                it,
+                onDismiss = { inspect = null },
+                approvalMessages = approvalMessages,
+                onOpenApproval = chat::focusMessage,
+            )
+        }
     }
     image?.let { ImageViewer(api, it) { image = null } }
     if (attach) {
@@ -374,20 +498,22 @@ private fun Conversation(
             onPhotos = { attach = false; pickers.photos() },
             onLibrary = { attach = false; library = true },
             onSlashCommands = { attach = false; skills = true; chat.loadSkills() },
+            attachmentsFull = state.attachments.size >= AttachmentRef.MaxCount,
         )
     }
     if (library) LibraryAttachmentSheet(api, onDismiss = { library = false }, onSelect = { chat.addAttachment(it); library = false })
     if (skills) SkillSheet(state.skills, loaded = state.skillsLoaded, onDismiss = { skills = false }, onSelect = { chat.selectSkill(it); skills = false })
     if (modelSheet) {
         val catalog = state.models
-        if (catalog == null) modelSheet = false
-        else ModelSheet(catalog, state.agent?.model, onDismiss = { modelSheet = false }, onSelect = { chat.setModel(it); modelSheet = false })
+        if (catalog != null) {
+            ModelSheet(catalog, state.agent?.model, onDismiss = { modelSheet = false }, onSelect = { chat.setModel(it); modelSheet = false })
+        }
     }
     if (permissionsSheet) {
         PermissionsSheet(
             current = state.profile,
             saving = state.savingProfile,
-            error = state.profileError,
+            error = state.profileError?.asString(),
             onDismiss = { permissionsSheet = false; chat.clearProfileError() },
             onSelect = { level -> chat.setProfile(level) { permissionsSheet = false } },
             onOpenSettings = { permissionsSheet = false; shell.openSettings(SettingsPage.Permissions) },
@@ -437,11 +563,10 @@ private fun TranscriptRow(
                 highlighted = state.focus == message.id,
                 actions = if (message.status == "failed") null else ReplyActions(
                     onCopy = { onCopy(message.text) },
-                    onFork = if (message.forkable) ({ chat.fork(message) }) else null,
                     onInspect = message.runId?.let { run -> { onInspectRun(run) } },
-                    onRetry = item.retryOf?.takeIf { item.isLast && it.editable && !state.busy }?.let { user -> { chat.retry(user) } },
                 ),
                 onContinue = if (message.status == "failed" && !state.busy) chat::continueRun else null,
+                showDetails = state.showDetails,
             )
         }
         is TranscriptItem.Activity -> ToolActivityRow(
@@ -456,12 +581,12 @@ private fun TranscriptRow(
             ApprovalCard(approval = approval, onDecide = { approve, length, hours -> chat.decide(approval, approve, length, hours) }, agentName = agentName)
         }
         is TranscriptItem.Takeover -> item.message.takeover?.let { TakeoverCard(it, agentName, onOpen = onOpenBrowser) }
-        is TranscriptItem.Notice -> NoticeLine(item.text)
+        is TranscriptItem.Notice -> NoticeLine(item.text.asString())
         is TranscriptItem.Pending -> PendingBubble(
             text = item.send.text,
             attachments = item.send.attachments,
             failed = item.send.failed,
-            error = item.send.error,
+            error = item.send.error?.asString(),
             onRetry = chat::retrySend,
             onDiscard = chat::discardPending,
         )
@@ -494,51 +619,52 @@ private fun ChatTopBar(
     // The agent's home chat is the agent itself: it cannot be renamed, pinned or deleted.
     val manageable = session != null && session.origin != "home"
     ReiTopBar(
-        title = state.title.ifBlank { "Chat" },
+        title = state.title.ifBlank { stringResource(R.string.chat_title) },
         subtitle = state.agent?.name?.takeUnless { it.equals(state.title, ignoreCase = true) },
         scrolled = scrolled,
         leading = state.agent?.let { agent -> { AgentAvatar(agent.avatar, size = 36.dp, working = state.busy) } },
         actions = {
-            ReiIconButton(ReiIcons.MoreVertical, "Chat options", { menu = true })
+            ReiIconButton(ReiIcons.MoreVertical, stringResource(R.string.chat_options), { menu = true })
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (manageable && session != null) {
                     DropdownMenuItem(
-                        text = { Text("Rename") },
+                        text = { Text(stringResource(R.string.drawer_chat_rename)) },
                         leadingIcon = { Icon(ReiIcons.Edit, null) },
                         onClick = { menu = false; title = session.title; renaming = true },
                     )
                     DropdownMenuItem(
-                        text = { Text(if (session.pinned) "Unpin" else "Pin") },
+                        text = { Text(stringResource(if (session.pinned) R.string.drawer_chat_unpin else R.string.drawer_chat_pin)) },
                         leadingIcon = { Icon(ReiIcons.Pin, null) },
                         onClick = { menu = false; chat.pin(!session.pinned) },
                     )
                 }
+                val showDetailsDesc = stringResource(if (state.showDetails) R.string.chat_switch_on else R.string.chat_switch_off)
                 DropdownMenuItem(
-                    text = { Text("Show details") },
+                    text = { Text(stringResource(R.string.chat_show_details)) },
                     leadingIcon = { Icon(ReiIcons.Sliders, null) },
                     trailingIcon = { Switch(checked = state.showDetails, onCheckedChange = null) },
                     modifier = Modifier.semantics {
                         role = Role.Switch
                         toggleableState = ToggleableState(state.showDetails)
-                        stateDescription = if (state.showDetails) "On" else "Off"
+                        stateDescription = showDetailsDesc
                     },
                     onClick = { chat.setShowDetails(!state.showDetails) },
                 )
                 DropdownMenuItem(
-                    text = { Text("Inspect") },
+                    text = { Text(stringResource(R.string.chat_inspect_title)) },
                     leadingIcon = { Icon(ReiIcons.Eye, null) },
                     onClick = { menu = false; onInspect() },
                 )
                 if (session?.hasBrowser == true) {
                     DropdownMenuItem(
-                        text = { Text("Live browser") },
+                        text = { Text(stringResource(R.string.chat_live_browser)) },
                         leadingIcon = { Icon(ReiIcons.Globe, null) },
                         onClick = { menu = false; onOpenBrowser() },
                     )
                 }
                 if (manageable) {
                     DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
                         leadingIcon = { Icon(ReiIcons.Trash, null, tint = MaterialTheme.colorScheme.error) },
                         onClick = { menu = false; deleting = true },
                     )
@@ -549,19 +675,22 @@ private fun ChatTopBar(
     if (renaming) {
         AlertDialog(
             onDismissRequest = { renaming = false },
-            title = { Text("Rename chat") },
-            text = { OutlinedTextField(title, { title = it }, label = { Text("Chat title") }, singleLine = true) },
-            dismissButton = { TextButton({ renaming = false }) { Text("Cancel") } },
-            confirmButton = { TextButton({ chat.rename(title.trim()); renaming = false }, enabled = title.isNotBlank()) { Text("Save") } },
+            shape = ReiShapes.Dialog,
+            containerColor = ReiTheme.colors.card,
+            title = { Text(stringResource(R.string.drawer_chat_rename_title)) },
+            text = { ReiTextField(title, { title = it }, label = stringResource(R.string.drawer_chat_title_label), singleLine = true) },
+            dismissButton = { TextButton({ renaming = false }) { Text(stringResource(R.string.common_cancel)) } },
+            confirmButton = { TextButton({ chat.rename(title.trim()); renaming = false }, enabled = title.isNotBlank()) { Text(stringResource(R.string.common_save)) } },
         )
     }
     if (deleting) {
-        AlertDialog(
-            onDismissRequest = { deleting = false },
-            title = { Text("Delete this chat?") },
-            text = { Text("This removes the conversation and its searchable history.") },
-            dismissButton = { TextButton({ deleting = false }) { Text("Cancel") } },
-            confirmButton = { TextButton({ chat.delete(); deleting = false }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+        ConfirmDialog(
+            title = stringResource(R.string.drawer_chat_delete_title),
+            text = stringResource(R.string.chat_delete_body),
+            confirmLabel = stringResource(R.string.common_delete),
+            onConfirm = { chat.delete(); deleting = false },
+            onDismiss = { deleting = false },
+            destructive = true,
         )
     }
 }
@@ -577,13 +706,13 @@ private fun EmptyChat(state: ChatUiState) {
     ) {
         if (agent != null) AgentAvatar(agent.avatar, size = 72.dp, name = agent.name)
         Text(
-            agent?.name ?: "Rei",
+            agent?.name ?: stringResource(R.string.app_name),
             Modifier.padding(top = 16.dp),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
         Text(
-            "Ask anything, or attach a file to start.",
+            stringResource(R.string.chat_empty_subtitle),
             Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -595,6 +724,7 @@ private fun EmptyChat(state: ChatUiState) {
 @Composable
 private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
+    val jumpLabel = stringResource(if (newContent) R.string.chat_jump_latest_new else R.string.chat_jump_latest)
     Box(modifier) {
         Surface(
             onClick = onClick,
@@ -603,7 +733,7 @@ private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Mod
             contentColor = colors.onSurface,
             border = BorderStroke(1.dp, colors.outlineVariant),
             shadowElevation = 2.dp,
-            modifier = Modifier.size(48.dp).semantics { contentDescription = if (newContent) "Jump to latest, new messages" else "Jump to latest" },
+            modifier = Modifier.size(48.dp).semantics { contentDescription = jumpLabel },
         ) {
             Box(contentAlignment = Alignment.Center) { Icon(ReiIcons.Down, null) }
         }
@@ -611,4 +741,25 @@ private fun JumpToLatest(newContent: Boolean, onClick: () -> Unit, modifier: Mod
             Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(10.dp).background(colors.primary, CircleShape))
         }
     }
+}
+
+@Composable
+internal fun ChatEmptyContent(historyLoaded: Boolean, onNewChat: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxSize()) {
+        ReiTopBar(stringResource(R.string.chat_title))
+        EmptyState(
+            icon = ReiIcons.Compose,
+            title = stringResource(if (historyLoaded) R.string.chat_empty_none_title else R.string.chat_empty_loading_title),
+            body = if (historyLoaded) stringResource(R.string.chat_empty_none_body) else null,
+            action = if (historyLoaded) {
+                { Button(onClick = onNewChat, shape = ReiShapes.Pill) { Text(stringResource(R.string.drawer_new_chat)) } }
+            } else null,
+        )
+    }
+}
+
+@ReiPreviews
+@Composable
+private fun ChatEmptyPreview() = ReiScreenPreviewSurface {
+    ChatEmptyContent(historyLoaded = true, onNewChat = {})
 }

@@ -48,7 +48,21 @@ class ModelsTest {
     fun limitPatchNamesTheBadField() {
         val (patch, message) = limitPatch("Model", "12", "abc")
         assertNull(patch)
-        assertEquals("Max output tokens for Model must be a whole number above 0.", message)
-        assertEquals("Context window for Model must be a whole number above 0.", limitPatch("Model", "0", "").second)
+        assertEquals(
+            dev.rei.android.ui.UiText.Resource(
+                dev.rei.android.R.string.settings_models_limit_error,
+                dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_models_max_output),
+                "Model",
+            ),
+            message,
+        )
+        assertEquals(
+            dev.rei.android.ui.UiText.Resource(
+                dev.rei.android.R.string.settings_models_limit_error,
+                dev.rei.android.ui.UiText.Resource(dev.rei.android.R.string.settings_models_context_window),
+                "Model",
+            ),
+            limitPatch("Model", "0", "").second,
+        )
     }
 }

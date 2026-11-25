@@ -1,6 +1,7 @@
 package dev.rei.android.feature.chat
 
 import dev.rei.android.data.ChatProfile
+import dev.rei.android.ui.UiText
 
 /**
  * The chat's permission level while it is being changed. The new level shows at once; if Rei refuses or cannot be
@@ -19,5 +20,8 @@ internal fun ChatUiState.finishProfileChange(saved: ChatProfile): ChatUiState = 
 )
 
 /** Rei did not save it: back to what it was, with a plain-language reason. */
-internal fun ChatUiState.failProfileChange(message: String): ChatUiState =
+internal fun ChatUiState.failProfileChange(message: UiText): ChatUiState =
     copy(profileChoice = null, savingProfile = false, profileError = message)
+
+internal fun ChatUiState.failProfileChange(message: String): ChatUiState =
+    failProfileChange(UiText.Literal(message))

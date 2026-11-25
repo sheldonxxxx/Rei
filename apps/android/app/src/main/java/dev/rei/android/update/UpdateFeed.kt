@@ -1,5 +1,7 @@
 package dev.rei.android.update
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import java.io.IOException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -26,12 +28,12 @@ data class UpdateFeed(
             val feed = try {
                 json.decodeFromString(serializer(), raw)
             } catch (_: SerializationException) {
-                throw UpdateException("The update feed could not be read.")
+                throw UpdateException(UiText.Resource(R.string.update_err_feed_unreadable), "The update feed could not be read.")
             } catch (_: IllegalArgumentException) {
-                throw UpdateException("The update feed could not be read.")
+                throw UpdateException(UiText.Resource(R.string.update_err_feed_unreadable), "The update feed could not be read.")
             }
             if (feed.versionCode <= 0 || feed.versionName.isBlank() || feed.apkUrl.isBlank() || !feed.sha256.isSha256()) {
-                throw UpdateException("The update feed is incomplete.")
+                throw UpdateException(UiText.Resource(R.string.update_err_feed_incomplete), "The update feed is incomplete.")
             }
             return feed
         }
@@ -41,4 +43,6 @@ data class UpdateFeed(
 }
 
 /** Why an update check or download failed, in words a person can read. */
-class UpdateException(message: String) : IOException(message)
+class UpdateException(val uiText: UiText, message: String) : IOException(message) {
+    constructor(message: String) : this(UiText.Literal(message), message)
+}

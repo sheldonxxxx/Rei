@@ -1,6 +1,8 @@
 package dev.rei.android.feature.activity
 
+import dev.rei.android.R
 import dev.rei.android.data.ReiApproval
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -43,7 +45,7 @@ class BackgroundActivityTest {
         assertEquals(listOf("approval:a1", "takeover:s1", "run:r1", "job:j1"), result.needs.map { it.key })
         assertEquals(4, result.needsCount)
         val job = result.needs.last() as FailureRow
-        assertEquals("Model unavailable", job.detail)
+        assertEquals(UiText.Literal("Model unavailable"), job.detail)
         assertEquals(RetryTarget.Job("j1"), job.retry)
         assertEquals(RetryTarget.Trigger("t1"), (result.needs[2] as FailureRow).retry)
     }
@@ -101,6 +103,6 @@ class BackgroundActivityTest {
         assertEquals(2L, triggers.single().lastRun?.startedAt)
         val changes = parseMemoryChanges(Json.parseToJsonElement("""{"c":[{"id":"c","op":"remove","before":"b","after":null,"undoable":true,"undoneAt":null}]}""").jsonObject["c"]!!.let { (it as kotlinx.serialization.json.JsonArray).map { e -> e.jsonObject } })
         assertEquals(MemoryChange("c", "remove", "b", null, undoable = true, undone = false), changes.single())
-        assertEquals("Removed: b", changeText(changes.single()))
+        assertEquals(UiText.Resource(R.string.activity_change_remove, "b"), changeText(changes.single()))
     }
 }

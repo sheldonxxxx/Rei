@@ -3,6 +3,7 @@ package dev.rei.android.feature.activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -12,9 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -36,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -44,21 +50,27 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.rei.android.R
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.feature.knowledge.relative
 import dev.rei.android.shell.ReiTopBar
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.ApprovalCard
 import dev.rei.android.ui.components.EmptyState
 import dev.rei.android.ui.components.LocalNotices
+import dev.rei.android.ui.components.ReiPreviews
+import dev.rei.android.ui.components.ReiScreenPreviewSurface
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.components.StatusKind
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiShapes
+import dev.rei.android.ui.theme.ReiTheme
 import dev.rei.android.ui.theme.tabular
 import kotlinx.coroutines.delay
 
 /** What the screen asks of its host: the live data, and how to decide an approval and open a chat. */
+@Stable
 class ActivityActions(
     val onRefresh: () -> Unit,
     val onRetry: (FailureRow) -> Unit,
@@ -74,11 +86,13 @@ fun ActivityScreen(
     store: ActivityStore,
     onDecide: suspend (ReiApproval, Boolean, String, Int?) -> ReiApproval,
     onOpenChat: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val state by store.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val notices = LocalNotices.current
     LaunchedEffect(state.notice) {
-        val notice = state.notice ?: return@LaunchedEffect
+        val notice = state.notice?.asString(context) ?: return@LaunchedEffect
         notices?.show(notice)
         store.consumeNotice()
     }
@@ -92,6 +106,7 @@ fun ActivityScreen(
             onOpenChat = onOpenChat,
             onDismissError = store::dismissError,
         ),
+        modifier = modifier,
     )
 }
 
@@ -104,30 +119,32 @@ fun ActivityContent(state: ActivityUiState, actions: ActivityActions, modifier: 
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     val rows = state.feed.rows(segment)
     Column(modifier.fillMaxSize()) {
-        ReiTopBar("", scrolled = scrolled)
+        ReiTopBar("", scrolledTitle = stringResource(R.string.activity_title), scrolled = scrolled)
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = actions.onRefresh, modifier = Modifier.weight(1f)) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item(key = "header") {
+            Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.widthIn(max = 760.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                item(key = "header", contentType = "header") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
-                            "Background Activity",
+                            stringResource(R.string.activity_title),
                             Modifier.fillMaxWidth().semantics { heading() },
                             style = MaterialTheme.typography.headlineMedium,
                         )
                         Segments(segment, { segment = it }, state.feed)
-                        state.error?.let { StatusBanner(it, kind = StatusKind.Error, actionLabel = "Retry", onAction = actions.onRefresh) }
+                        state.error?.asString()?.let { StatusBanner(it, kind = StatusKind.Error, actionLabel = stringResource(R.string.common_retry), onAction = actions.onRefresh) }
                     }
                 }
                 if (rows.isEmpty()) {
-                    item(key = "empty") { if (state.loaded) EmptySegment(segment) else LoadingLine() }
+                    item(key = "empty", contentType = "empty") { if (state.loaded) EmptySegment(segment) else LoadingLine() }
                 } else {
-                    items(rows, key = { it.key }) { row -> ActivityRowView(row, state, actions) }
+                    items(rows, key = { it.key }, contentType = { it::class }) { row -> ActivityRowView(row, state, actions) }
                 }
+            }
             }
         }
     }
@@ -141,7 +158,8 @@ private fun Segments(selected: ActivitySegment, onSelect: (ActivitySegment) -> U
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         ActivitySegment.entries.forEachIndexed { index, item ->
             val count = feed.rows(item).size
-            val description = if (count > 0) "${item.label}, $count" else item.label
+            val label = stringResource(item.labelRes)
+            val description = if (count > 0) stringResource(R.string.activity_segment_cd_count, label, count) else label
             SegmentedButton(
                 selected = selected == item,
                 onClick = { onSelect(item) },
@@ -150,10 +168,15 @@ private fun Segments(selected: ActivitySegment, onSelect: (ActivitySegment) -> U
                 icon = { if (!large) SegmentedButtonDefaults.Icon(selected == item) },
                 label = {
                     if (large) {
-                        Text(if (count > 0) "${item.label} $count" else item.label, maxLines = 3, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge.tabular())
+                        Text(
+                            if (count > 0) stringResource(R.string.activity_segment_label_count, label, count) else label,
+                            maxLines = 3,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelLarge.tabular(),
+                        )
                     } else {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(item.label, maxLines = 1)
+                            Text(label, maxLines = 1)
                             if (count > 0) Text("$count", style = MaterialTheme.typography.labelLarge.tabular())
                         }
                     }
@@ -166,15 +189,17 @@ private fun Segments(selected: ActivitySegment, onSelect: (ActivitySegment) -> U
 @Composable
 private fun EmptySegment(segment: ActivitySegment) {
     when (segment) {
-        ActivitySegment.NeedsYou -> EmptyState(ReiIcons.Check, "Nothing needs you", body = "Approvals and failed work that need an answer appear here.")
-        ActivitySegment.Running -> EmptyState(ReiIcons.Clock, "Nothing running", body = "Reviews and trigger runs in progress appear here.")
-        ActivitySegment.Done -> EmptyState(ReiIcons.Activity, "Nothing finished yet", body = "Trigger reports and memory changes appear here once work finishes.")
+        ActivitySegment.NeedsYou -> EmptyState(ReiIcons.Check, stringResource(R.string.activity_empty_needs_title), body = stringResource(R.string.activity_empty_needs_body))
+        ActivitySegment.Running -> EmptyState(ReiIcons.Clock, stringResource(R.string.activity_empty_running_title), body = stringResource(R.string.activity_empty_running_body))
+        ActivitySegment.Done -> EmptyState(ReiIcons.Activity, stringResource(R.string.activity_empty_done_title), body = stringResource(R.string.activity_empty_done_body))
     }
 }
 
 @Composable
 private fun LoadingLine() {
-    Text("Loading activity…", Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+    }
 }
 
 @Composable
@@ -185,39 +210,49 @@ private fun ActivityRowView(row: ActivityRow, state: ActivityUiState, actions: A
             onDecide = { approve, length, hours -> actions.onDecide(row.approval, approve, length, hours) },
             agentName = state.agentNames[row.approval.agentId],
         )
-        is TakeoverRow -> RowCard(onOpen = { actions.onOpenChat(row.sessionId) }, openLabel = "Open ${row.title}") {
-            Text("Rei wants you to take over the browser", style = MaterialTheme.typography.titleSmall)
-            Supporting(row.title)
-        }
-        is FailureRow -> RowCard(
-            onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } },
-            openLabel = "Open chat for ${row.title}",
-            footer = row.retry?.let {
-                {
-                    OutlinedButton(
-                        onClick = { actions.onRetry(row) },
-                        enabled = row.key !in state.busy,
-                        modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = "Retry ${row.title}" },
-                    ) { Text("Retry") }
-                }
-            },
-        ) {
-            Text(row.title, style = MaterialTheme.typography.titleSmall)
-            Text(row.detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-        }
-        is WaitingRow -> RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = "Open chat for ${row.title}") {
-            Text(row.title, style = MaterialTheme.typography.titleSmall)
-            Supporting("Waiting for your answer")
-        }
-        is RunningRow -> RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = "Open chat for ${row.title}") {
-            Text(row.title, style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Supporting(row.detail, Modifier.weight(1f, fill = false))
-                if (row.startedAt != null) Elapsed(row.startedAt)
+        is TakeoverRow -> {
+            val rowTitle = row.title.asString()
+            RowCard(onOpen = { actions.onOpenChat(row.sessionId) }, openLabel = stringResource(R.string.activity_open_item, rowTitle), attention = true) {
+                Text(stringResource(R.string.activity_takeover_title), style = MaterialTheme.typography.titleSmall)
+                Supporting(rowTitle)
             }
-            Progress()
         }
-        is ReportRow -> RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = "Open chat for ${row.title}") {
+        is FailureRow -> {
+            val rowTitle = row.title.asString()
+            val retryCd = stringResource(R.string.activity_retry_item, rowTitle)
+            RowCard(
+                onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } },
+                openLabel = stringResource(R.string.activity_open_chat_for, rowTitle),
+                footer = row.retry?.let {
+                    {
+                        OutlinedButton(
+                            onClick = { actions.onRetry(row) },
+                            enabled = row.key !in state.busy,
+                            modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = retryCd },
+                        ) { Text(stringResource(R.string.common_retry)) }
+                    }
+                },
+            ) {
+                Text(rowTitle, style = MaterialTheme.typography.titleSmall)
+                Text(row.detail.asString(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        is WaitingRow -> RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = stringResource(R.string.activity_open_chat_for, row.title)) {
+            Text(row.title, style = MaterialTheme.typography.titleSmall)
+            Supporting(stringResource(R.string.activity_waiting_answer))
+        }
+        is RunningRow -> {
+            val rowTitle = row.title.asString()
+            RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = stringResource(R.string.activity_open_chat_for, rowTitle)) {
+                Text(rowTitle, style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Supporting(row.detail.asString(), Modifier.weight(1f, fill = false))
+                    if (row.startedAt != null) Elapsed(row.startedAt)
+                }
+                Progress()
+            }
+        }
+        is ReportRow -> RowCard(onOpen = row.sessionId?.let { id -> { actions.onOpenChat(id) } }, openLabel = stringResource(R.string.activity_open_chat_for, row.title)) {
             val context = LocalContext.current
             Text(row.title, style = MaterialTheme.typography.titleSmall)
             Text(row.report, style = MaterialTheme.typography.bodyMedium, maxLines = 5, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -231,39 +266,42 @@ private fun ActivityRowView(row: ActivityRow, state: ActivityUiState, actions: A
 private fun MemoryReviewCard(row: MemoryReviewRow, state: ActivityUiState, actions: ActivityActions) {
     val context = LocalContext.current
     val job = row.job
+    val title = kindLabel(job.kind).asString()
     RowCard(
         onOpen = job.sessionId?.let { id -> { actions.onOpenChat(id) } },
-        openLabel = "Open chat for ${kindLabel(job.kind)}",
+        openLabel = stringResource(R.string.activity_open_chat_for, title),
         footer = if (row.changes.isEmpty()) null else {
             {
                 row.changes.forEach { change ->
+                    val changeSummary = changeText(change).asString()
+                    val undoCd = stringResource(R.string.activity_undo_item, changeSummary)
                     Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text(changeText(change), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Text(changeSummary, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         when {
-                            change.undone -> Supporting("Undone", Modifier.padding(end = 8.dp))
+                            change.undone -> Supporting(stringResource(R.string.activity_undone), Modifier.padding(end = 8.dp))
                             change.undoable -> TextButton(
                                 onClick = { actions.onUndo(change) },
                                 enabled = "change:${change.id}" !in state.busy,
-                                modifier = Modifier.semantics { contentDescription = "Undo ${changeText(change)}" },
-                            ) { Text("Undo") }
+                                modifier = Modifier.semantics { contentDescription = undoCd },
+                            ) { Text(stringResource(R.string.activity_undo)) }
                         }
                     }
                 }
             }
         },
     ) {
-        Text(kindLabel(job.kind), style = MaterialTheme.typography.titleSmall)
+        Text(title, style = MaterialTheme.typography.titleSmall)
         Supporting(listOfNotNull(job.sessionTitle, job.agentName, relative(context, job.finishedAt ?: job.createdAt)).joinToString(" · "))
-        if (job.status == "no_changes") Supporting("No changes")
+        if (job.status == "no_changes") Supporting(stringResource(R.string.activity_no_changes))
     }
 }
 
 /** What a memory change did, in one line: the new text, or the removed one. */
-internal fun changeText(change: MemoryChange): String = when (change.op) {
-    "add" -> "Added: ${change.after.orEmpty()}"
-    "remove" -> "Removed: ${change.before.orEmpty()}"
-    "replace" -> "Changed to: ${change.after.orEmpty()}"
-    else -> "Confirmed: ${(change.after ?: change.before).orEmpty()}"
+internal fun changeText(change: MemoryChange): UiText = when (change.op) {
+    "add" -> UiText.Resource(R.string.activity_change_add, change.after.orEmpty())
+    "remove" -> UiText.Resource(R.string.activity_change_remove, change.before.orEmpty())
+    "replace" -> UiText.Resource(R.string.activity_change_replace, change.after.orEmpty())
+    else -> UiText.Resource(R.string.activity_change_confirm, (change.after ?: change.before).orEmpty())
 }
 
 /**
@@ -271,13 +309,19 @@ internal fun changeText(change: MemoryChange): String = when (change.op) {
  * actions stay separate controls for TalkBack.
  */
 @Composable
-private fun RowCard(onOpen: (() -> Unit)?, openLabel: String, footer: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+private fun RowCard(
+    onOpen: (() -> Unit)?,
+    openLabel: String,
+    attention: Boolean = false,
+    footer: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     Surface(
         shape = ReiShapes.Card,
-        color = colors.surfaceContainerLowest,
-        contentColor = colors.onSurface,
-        border = BorderStroke(1.dp, colors.outlineVariant),
+        color = if (attention) colors.tertiaryContainer else ReiTheme.colors.card,
+        contentColor = if (attention) colors.onTertiaryContainer else colors.onSurface,
+        border = BorderStroke(1.dp, if (attention) ReiTheme.colors.attentionBorder else colors.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column {
@@ -304,11 +348,12 @@ private fun Elapsed(startedAt: Long) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
     val text = elapsedText(startedAt, now)
+    val runningCd = stringResource(R.string.activity_running_for, text)
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium.tabular(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.semantics { contentDescription = "Running for $text" },
+        modifier = Modifier.semantics { contentDescription = runningCd },
     )
 }
 
@@ -318,4 +363,55 @@ private fun Progress() {
     val modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
     if (LocalMotionScale.current == 0f) LinearProgressIndicator(progress = { 0.35f }, modifier = modifier)
     else LinearProgressIndicator(modifier = modifier)
+}
+
+@ReiPreviews
+@Composable
+private fun ActivityContentPreview() = ReiScreenPreviewSurface {
+    val sampleApproval = ReiApproval(
+        id = "a1",
+        number = 1,
+        sessionId = "s1",
+        sessionTitle = "Weekly review",
+        tool = "bash",
+        connector = "",
+        operation = "run",
+        actionClass = "execute",
+        destination = null,
+        summary = "Run cleanup script",
+        argsPreview = "{}",
+        lengths = listOf("once", "always"),
+        status = "pending",
+        taint = emptyList(),
+        expiresAt = 0L,
+        grantLength = null,
+        grantExpiresAt = null,
+        resumesTool = true,
+        execution = null,
+    )
+    ActivityContent(
+        state = ActivityUiState(
+            loaded = true,
+            feed = ActivityFeed(
+                needs = listOf(
+                    TakeoverRow(sessionId = "s1", title = UiText.Literal("Browser sign-in paused")),
+                    FailureRow(
+                        key = "fail:1",
+                        title = UiText.Literal("Daily digest failed"),
+                        detail = UiText.Literal("Upstream timeout after 30 s"),
+                        sessionId = "s2",
+                        retry = null,
+                    ),
+                ),
+            ),
+        ),
+        actions = ActivityActions(
+            onRefresh = {},
+            onRetry = {},
+            onUndo = {},
+            onDecide = { _, _, _, _ -> sampleApproval },
+            onOpenChat = {},
+            onDismissError = {},
+        ),
+    )
 }

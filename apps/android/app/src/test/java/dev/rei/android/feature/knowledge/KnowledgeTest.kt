@@ -72,4 +72,11 @@ class KnowledgeTest {
         assertFalse(fresh.canSave)
         assertTrue(fresh.copy(draft = PageDraft(title = "Hello")).canSave)
     }
+
+    @Test
+    fun stateRowsCacheMatchesKnowledgeRowsHelper() {
+        val state = KnowledgeUiState(tab = KnowledgeTab.All, tree = tree, expanded = setOf("a"))
+        assertEquals(listOf("a", "a1", "a2", "b"), state.rows.map { it.node.id })
+        assertTrue(state.rows === state.rows)
+    }
 }

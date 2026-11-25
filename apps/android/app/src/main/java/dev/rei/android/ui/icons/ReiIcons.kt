@@ -34,6 +34,7 @@ object ReiIcons {
         icon(
             "Back",
             "m15 18-6-6 6-6",
+            autoMirror = true,
         )
     }
     /** lucide `bell`. */
@@ -168,6 +169,16 @@ object ReiIcons {
             "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
         )
     }
+    /** lucide `monitor-smartphone`. */
+    val Devices: ImageVector by lazy {
+        icon(
+            "Devices",
+            "M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8",
+            "M10 19v-3.96 3.15",
+            "M7 19h5",
+            "M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2Z",
+        )
+    }
     /** lucide `arrow-down`. */
     val Down: ImageVector by lazy {
         icon(
@@ -209,6 +220,7 @@ object ReiIcons {
             "External",
             "M7 7h10v10",
             "M7 17 17 7",
+            autoMirror = true,
         )
     }
     /** lucide `eye`. */
@@ -265,6 +277,7 @@ object ReiIcons {
         icon(
             "Forward",
             "m9 18 6-6-6-6",
+            autoMirror = true,
         )
     }
     /** lucide `globe`. */
@@ -391,6 +404,7 @@ object ReiIcons {
             "M8 5h13",
             "M8 12h13",
             "M8 19h13",
+            autoMirror = true,
         )
     }
     /** lucide `lock`. */
@@ -408,6 +422,7 @@ object ReiIcons {
             "m16 17 5-5-5-5",
             "M21 12H9",
             "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4",
+            autoMirror = true,
         )
     }
     /** lucide `map-pin`. */
@@ -584,6 +599,7 @@ object ReiIcons {
             "Sidebar",
             "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2Z",
             "M9 3v18",
+            autoMirror = true,
         )
     }
     /** lucide `sliders-horizontal`. */
@@ -617,6 +633,7 @@ object ReiIcons {
             "Spawned",
             "m15 10 5 5-5 5",
             "M4 4v7a4 4 0 0 0 4 4h12",
+            autoMirror = true,
         )
     }
     /** lucide `file-spreadsheet`. */
@@ -691,6 +708,7 @@ object ReiIcons {
             "Undo",
             "M9 14 4 9l5-5",
             "M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11",
+            autoMirror = true,
         )
     }
     /** lucide `arrow-up`. */
@@ -728,8 +746,8 @@ object ReiIcons {
     }
 }
 
-private fun icon(name: String, vararg paths: String, filled: Boolean = false): ImageVector =
-    ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+private fun icon(name: String, vararg paths: String, filled: Boolean = false, autoMirror: Boolean = false): ImageVector =
+    ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f, autoMirror = autoMirror)
         .apply {
             paths.forEach { d ->
                 addPath(

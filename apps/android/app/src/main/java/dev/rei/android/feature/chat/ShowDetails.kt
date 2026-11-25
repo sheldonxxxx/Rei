@@ -1,6 +1,7 @@
 package dev.rei.android.feature.chat
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +16,7 @@ class ShowDetailsStore private constructor(private val prefs: android.content.Sh
     val enabled: StateFlow<Boolean> = state.asStateFlow()
 
     fun set(value: Boolean) {
-        prefs.edit().putBoolean(Key, value).apply()
+        prefs.edit { putBoolean(Key, value) }
         state.value = value
     }
 

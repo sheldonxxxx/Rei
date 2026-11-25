@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
@@ -30,7 +31,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +41,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +63,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -78,6 +83,8 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.optionalString
 import dev.rei.android.ui.components.ReiIconButton
@@ -207,7 +214,7 @@ internal fun parseReference(url: String): Reference? {
  * Text is not selectable here: a long press belongs to the message sheet, whose "Select text" opens the whole message.
  */
 @Composable
-fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret: Boolean = false) {
+fun ReiMarkdown(text: String, api: ReiApi?, modifier: Modifier = Modifier, caret: Boolean = false) {
     val context = LocalContext.current
     val opener = LocalWorkspaceOpener.current
     val document = remember(text) { markdownWithCitations(text) }
@@ -229,7 +236,8 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
         if (unused.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 unused.forEach { label ->
-                    ReferenceChip(ReiIcons.Book, "Source ${citationNumbers[label]}", onClick = { note = label })
+                    val number = citationNumbers[label] ?: 0
+                    ReferenceChip(ReiIcons.Book, stringResource(R.string.markdown_source_label, number), onClick = { note = label })
                 }
             }
         }
@@ -237,7 +245,8 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
     note?.let { label ->
         val noteBody = document.citations[label].orEmpty()
         val noteRoot = remember(noteBody) { parseMarkdown(noteBody) }
-        ReiSheet(onDismiss = { note = null }, title = "Source ${citationNumbers[label]}") {
+        val number = citationNumbers[label] ?: 0
+        ReiSheet(onDismiss = { note = null }, title = stringResource(R.string.markdown_source_label, number)) {
             Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
                 MarkdownBlocks(noteRoot, MarkdownEnv(api, emptyMap(), ::open, {}, null))
             }
@@ -246,7 +255,7 @@ fun ReiMarkdown(text: String, api: ReiApi, modifier: Modifier = Modifier, caret:
 }
 
 private data class MarkdownEnv(
-    val api: ReiApi,
+    val api: ReiApi?,
     val citations: Map<String, Int>,
     val open: (String) -> Unit,
     val cite: (String) -> Unit,
@@ -276,9 +285,9 @@ internal fun linkTarget(url: String): LinkTarget = when (val reference = parseRe
 /** Opens an outside address (https or mailto) in a Custom Tab; says so when nothing can open it. */
 internal fun openExternalLink(context: android.content.Context, address: String) {
     try {
-        androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, Uri.parse(address))
+        androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, address.toUri())
     } catch (_: android.content.ActivityNotFoundException) {
-        android.widget.Toast.makeText(context, "No app can open this link.", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, R.string.common_no_link_app, android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -299,7 +308,7 @@ private fun MarkdownBlocks(parent: Node, env: MarkdownEnv, skip: Node? = null) {
                     InlineMarkdown(node, env)
                 }
                 children(node).filterIsInstance<MarkdownImage>().filter { fileLink.matches(it.destination) }.forEach { image ->
-                    MarkdownPicture(env.api, image.destination, inlinePlain(image))
+                    env.api?.let { MarkdownPicture(it, image.destination, inlinePlain(image)) }
                 }
             }
             is Heading -> InlineMarkdown(node, env, heading = node.level)
@@ -315,8 +324,8 @@ private fun MarkdownBlocks(parent: Node, env: MarkdownEnv, skip: Node? = null) {
                     }
                 }
             }
-            is BlockQuote -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.width(3.dp).background(MaterialTheme.colorScheme.outlineVariant, ReiShapes.Pill).heightIn(min = 24.dp))
+            is BlockQuote -> Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.width(3.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant, ReiShapes.Pill))
                 Box(Modifier.weight(1f)) { MarkdownBlocks(node, env) }
             }
             is Callout -> CalloutBlock(node, env)
@@ -336,11 +345,12 @@ private fun TaskItem(item: Node, task: TaskListItemMarker, env: MarkdownEnv) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // A 24dp box, the height of the first line of body text.
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            val taskDesc = if (label.isEmpty()) stringResource(R.string.markdown_task) else stringResource(R.string.markdown_task_label, label)
             Checkbox(
                 checked = task.isChecked,
                 onCheckedChange = null,
                 modifier = Modifier.semantics {
-                    contentDescription = if (label.isEmpty()) "Task" else "Task: $label"
+                    contentDescription = taskDesc
                     toggleableState = ToggleableState(task.isChecked)
                     role = Role.Checkbox
                 },
@@ -381,11 +391,13 @@ private fun CalloutBlock(callout: Callout, env: MarkdownEnv) {
             .border(BorderStroke(1.dp, tint.copy(alpha = 0.45f).compositeOver(colors.outlineVariant)), ReiShapes.Inset)
             .background(tint.copy(alpha = 0.07f).compositeOver(colors.surfaceContainerLowest)),
     ) {
+        val clickLabel = stringResource(if (open) R.string.common_collapse else R.string.common_expand)
+        val toggleState = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
         val header = if (foldable) {
             Modifier
-                .clickable(onClickLabel = if (open) "Collapse" else "Expand", role = Role.Button) { open = !open }
+                .clickable(onClickLabel = clickLabel, role = Role.Button) { open = !open }
                 .semantics {
-                    stateDescription = if (open) "Expanded" else "Collapsed"
+                    stateDescription = toggleState
                     if (open) collapse { open = false; true } else expand { open = true; true }
                 }
                 .heightIn(min = 48.dp)
@@ -398,7 +410,7 @@ private fun CalloutBlock(callout: Callout, env: MarkdownEnv) {
             Icon(icon, contentDescription = null, Modifier.size(16.dp), tint = tint)
             Box(Modifier.weight(1f)) {
                 if (callout.title.firstChild != null) InlineMarkdown(callout.title, env, bold = true, compact = true)
-                else Text(callout.kind.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                else Text(stringResource(callout.kind.labelRes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
             if (foldable) Icon(
                 ReiIcons.Chevron,
@@ -511,8 +523,9 @@ internal fun CodeBlock(language: String, code: String, note: String? = null) {
             }
         }
     }
-    CodeFrame(lang.ifBlank { "Code" }, actions = {
-        ReiIconButton(ReiIcons.Copy, "Copy code", { copyToClipboard(context, "Rei code", code.trimEnd()) })
+    val codeClipboardLabel = stringResource(R.string.markdown_clipboard_code_label)
+    CodeFrame(lang.ifBlank { stringResource(R.string.markdown_code) }, actions = {
+        ReiIconButton(ReiIcons.Copy, stringResource(R.string.markdown_copy_code), { copyToClipboard(context, codeClipboardLabel, code.trimEnd()) })
     }) {
         if (note != null) Text(
             note,
@@ -596,60 +609,67 @@ private fun InlineMarkdown(
             caretOn = !caretOn
         }
     }
-    val rendered: AnnotatedString = buildAnnotatedString {
-        fun text(value: String, inLink: Boolean) {
-            if (!env.chips || inLink) return append(value)
-            for (chip in splitChips(value)) when (chip) {
-                is Chip.Plain -> append(chip.text)
-                is Chip.Mention -> withStyle(SpanStyle(background = colors.secondaryContainer, color = colors.onSecondaryContainer, fontSize = 0.9.em)) {
-                    append("\u2009@${chip.name}\u2009")
-                }
-                is Chip.Due -> {
-                    val overdue = chip.date < today
-                    val style = if (overdue) SpanStyle(background = colors.tertiaryContainer, color = colors.onTertiaryContainer, fontSize = 0.9.em)
-                    else SpanStyle(background = colors.surfaceContainerHigh, color = colors.onSurface, fontSize = 0.9.em)
-                    withStyle(style) { append("\u2009\uD83D\uDCC5 ${chip.date}\u2009") }
+    val imagePlaceholder = stringResource(R.string.common_image)
+    val baseRendered: AnnotatedString = remember(parent, env.chips, env.citations, env.struck, colors, today, imagePlaceholder) {
+        buildAnnotatedString {
+            fun text(value: String, inLink: Boolean) {
+                if (!env.chips || inLink) return append(value)
+                for (chip in splitChips(value)) when (chip) {
+                    is Chip.Plain -> append(chip.text)
+                    is Chip.Mention -> withStyle(SpanStyle(background = colors.secondaryContainer, color = colors.onSecondaryContainer, fontSize = 0.9.em)) {
+                        append("\u2009@${chip.name}\u2009")
+                    }
+                    is Chip.Due -> {
+                        val overdue = chip.date < today
+                        val style = if (overdue) SpanStyle(background = colors.tertiaryContainer, color = colors.onTertiaryContainer, fontSize = 0.9.em)
+                        else SpanStyle(background = colors.surfaceContainerHigh, color = colors.onSurface, fontSize = 0.9.em)
+                        withStyle(style) { append("\u2009\uD83D\uDCC5 ${chip.date}\u2009") }
+                    }
                 }
             }
-        }
-        fun render(node: Node, inLink: Boolean = false) {
-            fun nested() = children(node).forEach { render(it, inLink) }
-            when (node) {
-                is MarkdownText -> {
-                    var from = 0
-                    for (match in if (inLink) emptySequence() else citationUse.findAll(node.literal)) {
-                        val label = match.groupValues[1]
-                        val number = env.citations[label] ?: continue
-                        text(node.literal.substring(from, match.range.first), inLink)
-                        withLink(LinkAnnotation.Clickable("citation-$label", styles) { env.cite(label) }) { append("[$number]") }
-                        from = match.range.last + 1
+            fun render(node: Node, inLink: Boolean = false) {
+                fun nested() = children(node).forEach { render(it, inLink) }
+                when (node) {
+                    is MarkdownText -> {
+                        var from = 0
+                        for (match in if (inLink) emptySequence() else citationUse.findAll(node.literal)) {
+                            val label = match.groupValues[1]
+                            val number = env.citations[label] ?: continue
+                            text(node.literal.substring(from, match.range.first), inLink)
+                            withLink(LinkAnnotation.Clickable("citation-$label", styles) { env.cite(label) }) { append("[$number]") }
+                            from = match.range.last + 1
+                        }
+                        text(node.literal.substring(from), inLink)
                     }
-                    text(node.literal.substring(from), inLink)
+                    is Link -> if (isExternalMarkdownLink(node.destination) || parseReference(node.destination) != null) {
+                        withLink(LinkAnnotation.Clickable("link-${node.destination}", styles) { env.open(node.destination) }) {
+                            children(node).forEach { render(it, true) }
+                        }
+                    } else nested()
+                    is StrongEmphasis -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { nested() }
+                    is Emphasis -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { nested() }
+                    is Strikethrough -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { nested() }
+                    is Code -> withStyle(code) { append(node.literal) }
+                    is HardLineBreak -> append("\n")
+                    is SoftLineBreak -> append("\n")
+                    is HtmlInline -> append(node.literal)
+                    is MarkdownImage -> append(inlinePlain(node).ifBlank { imagePlaceholder })
+                    else -> nested()
                 }
-                is Link -> if (isExternalMarkdownLink(node.destination) || parseReference(node.destination) != null) {
-                    withLink(LinkAnnotation.Clickable("link-${node.destination}", styles) { env.open(node.destination) }) {
-                        children(node).forEach { render(it, true) }
-                    }
-                } else nested()
-                is StrongEmphasis -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { nested() }
-                is Emphasis -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { nested() }
-                is Strikethrough -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { nested() }
-                is Code -> withStyle(code) { append(node.literal) }
-                is HardLineBreak -> append("\n")
-                is SoftLineBreak -> append("\n")
-                is HtmlInline -> append(node.literal)
-                is MarkdownImage -> append(inlinePlain(node).ifBlank { "Image" })
-                else -> nested()
             }
+            if (env.struck === parent) withStyle(SpanStyle(color = colors.onSurfaceVariant, textDecoration = TextDecoration.LineThrough)) {
+                children(parent).forEach { render(it) }
+            } else children(parent).forEach { render(it) }
         }
-        if (env.struck === parent) withStyle(SpanStyle(color = colors.onSurfaceVariant, textDecoration = TextDecoration.LineThrough)) {
-            children(parent).forEach { render(it) }
-        } else children(parent).forEach { render(it) }
-        if (showCaret) withStyle(SpanStyle(color = if (caretOn || scale <= 0f) colors.primary else androidx.compose.ui.graphics.Color.Transparent)) { append(" ▍") }
+    }
+    val rendered = if (!showCaret) baseRendered else buildAnnotatedString {
+        append(baseRendered)
+        withStyle(SpanStyle(color = if (caretOn || scale <= 0f) colors.primary else androidx.compose.ui.graphics.Color.Transparent)) { append(" ▍") }
     }
     if (rendered.isNotEmpty()) Text(
         rendered,
-        if (align != null) Modifier.fillMaxWidth() else Modifier,
+        (if (align != null) Modifier.fillMaxWidth() else Modifier)
+            .then(if (heading in 1..6) Modifier.semantics { heading() } else Modifier),
         textAlign = align,
         fontWeight = if (bold) FontWeight.SemiBold else null,
         style = when {
@@ -665,20 +685,47 @@ private fun InlineMarkdown(
 /** An image in a message or surface: a thumbnail that opens full screen when the chat provides a viewer. */
 @Composable
 fun MarkdownPicture(api: ReiApi, destination: String, caption: String) {
-    val image by produceState<ImageBitmap?>(null, destination, api) {
-        value = null
-        value = loadPicture(api, destination, 1200)
+    val loaded by produceState<Pair<Boolean, ImageBitmap?>>(false to null, destination, api) {
+        value = false to null
+        value = true to loadPicture(api, destination, 1200)
     }
     val open = LocalPictureOpener.current
-    image?.let {
-        Image(
-            it,
-            caption.ifBlank { "Image" },
+    val (done, image) = loaded
+    when {
+        image != null -> Image(
+            image,
+            caption.ifBlank { stringResource(R.string.common_image) },
             Modifier
                 .fillMaxWidth()
                 .heightIn(max = 360.dp)
-                .then(if (open != null) Modifier.clickable(onClickLabel = "Open image") { open(PictureSource(destination, caption)) } else Modifier),
+                .then(if (open != null) Modifier.clickable(onClickLabel = stringResource(R.string.common_open_image)) { open(PictureSource(destination, caption)) } else Modifier),
         )
+        !done -> Surface(
+            Modifier.fillMaxWidth().height(160.dp),
+            shape = ReiShapes.Inset,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Box(contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+        }
+        else -> Surface(
+            Modifier.fillMaxWidth(),
+            shape = ReiShapes.Inset,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(ReiIcons.Image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    caption.ifBlank { stringResource(R.string.common_image_load_failed) },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -694,7 +741,7 @@ suspend fun loadPicture(api: ReiApi, destination: String, maxDimension: Int): Im
                 }
                 api.client to api.fileRequest(id, version, thumbnail = maxDimension <= 1200)
             } else {
-                val url = destination.toHttpUrlOrNull()?.takeIf { it.isHttps && it.username.isEmpty() && it.password.isEmpty() }
+                val url = destination.toHttpUrlOrNull()?.takeIf { isPublicImageUrl(it) }
                     ?: return@withContext null
                 // Model-provided external images never receive Rei credentials.
                 imageHttp to Request.Builder().url(url).build()

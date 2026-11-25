@@ -54,7 +54,11 @@ fun StatusBanner(
         shape = ReiShapes.Card,
         color = container,
         contentColor = content,
-        border = if (kind == StatusKind.Attention) BorderStroke(1.dp, ReiTheme.colors.attentionBorder) else null,
+        border = when (kind) {
+            StatusKind.Attention -> BorderStroke(1.dp, ReiTheme.colors.attentionBorder)
+            StatusKind.Info -> BorderStroke(1.dp, colors.outlineVariant)
+            StatusKind.Error -> null
+        },
     ) {
         Row(
             Modifier.padding(start = 14.dp, end = if (actionLabel != null) 4.dp else 14.dp, top = 10.dp, bottom = 10.dp),

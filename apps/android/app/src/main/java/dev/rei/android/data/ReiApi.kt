@@ -1,15 +1,25 @@
 package dev.rei.android.data
 
+import dev.rei.android.R
+import dev.rei.android.ui.HasUiText
+import dev.rei.android.ui.ReiInputException
+import dev.rei.android.ui.UiText
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -34,18 +44,24 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 
-class ReiApiException(val status: Int, val code: String, message: String) : IOException(message)
+class ReiApiException(
+    val status: Int,
+    val code: String,
+    message: String,
+    override val uiText: UiText = UiText.Literal(message),
+) : IOException(message), HasUiText
 
 class ReiApi(serverUrl: String, private val token: String? = null) {
     private val base = serverUrl.trim().toHttpUrlOrNull()?.also { url ->
-        require(url.username.isEmpty() && url.password.isEmpty() &&
-            url.query == null && url.fragment == null && url.encodedPath == "/") {
-            "Enter the Rei server address without a path or credentials."
+        if (!(url.username.isEmpty() && url.password.isEmpty() &&
+                url.query == null && url.fragment == null && url.encodedPath == "/")
+        ) {
+            throw ReiInputException(UiText.Resource(R.string.api_err_address_format))
         }
-        require(url.isHttps || url.host in setOf("localhost", "127.0.0.1", "::1")) {
-            "Use HTTPS to connect to a Rei server."
+        if (!(url.isHttps || url.host in setOf("localhost", "127.0.0.1", "::1"))) {
+            throw ReiInputException(UiText.Resource(R.string.api_err_address_https))
         }
-    } ?: throw IllegalArgumentException("Enter a valid Rei server address.")
+    } ?: throw ReiInputException(UiText.Resource(R.string.api_err_address_invalid))
 
     val serverUrl: String = base.toString().removeSuffix("/")
     val client: OkHttpClient get() = http
@@ -53,14 +69,14 @@ class ReiApi(serverUrl: String, private val token: String? = null) {
     suspend fun health(): Health {
         val body = request("GET", listOf("api", "health"))
         if (body.optionalString("ok") != "true") {
-            throw ReiApiException(0, "invalid_response", "This address did not return a Rei health response.")
+            throw ReiApiException(0, "invalid_response", "invalid_response", UiText.Resource(R.string.api_err_invalid_health))
         }
         val health = Health(
             body.getValue("protocolVersion").jsonPrimitive.int,
             body.getValue("minClientProtocol").jsonPrimitive.int,
         )
         if (health.minClientProtocol > PROTOCOL) {
-            throw ReiApiException(426, "client_outdated", "Update the Rei Android app to connect to this server.")
+            throw ReiApiException(426, "client_outdated", "client_outdated", UiText.Resource(R.string.api_err_client_outdated))
         }
         return health
     }
@@ -191,6 +207,14 @@ class ReiApi(serverUrl: String, private val token: String? = null) {
 
     suspend fun cancel(id: String) {
         request("POST", sessionPath(id) + "cancel")
+    }
+
+    suspend fun compactSession(id: String, requestId: String, instructions: String? = null) {
+        val body = buildJsonObject {
+            put("requestId", requestId)
+            if (!instructions.isNullOrBlank()) put("instructions", instructions.trim())
+        }
+        request("POST", sessionPath(id) + "compact", body)
     }
 
     suspend fun markRead(id: String, itemId: String, at: Long) {
@@ -387,28 +411,70 @@ class ReiApi(serverUrl: String, private val token: String? = null) {
             .followRedirects(false)
             .readTimeout(45, TimeUnit.SECONDS)
             .build()
-        val eventSources = EventSources.createFactory(http)
+        val sseHttp = http.newBuilder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+        val eventSources = EventSources.createFactory(sseHttp)
+
+        @OptIn(ExperimentalCoroutinesApi::class)
+        internal suspend fun <T> OkHttpClient.executeStreaming(
+            request: Request,
+            dispatcher: CoroutineDispatcher = Dispatchers.IO,
+            block: (Response) -> T,
+        ): T = withContext(dispatcher) {
+            val call = newCall(request)
+            val response = suspendCancellableCoroutine { continuation ->
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (continuation.isActive) continuation.resumeWithException(e)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        if (!continuation.isActive) {
+                            response.close()
+                            return
+                        }
+                        continuation.resume(response) { _, value, _ -> value.close() }
+                    }
+                })
+            }
+            val cancelHandle = currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+                if (cause != null) call.cancel()
+            }
+            try {
+                response.use(block)
+            } finally {
+                cancelHandle?.dispose()
+            }
+        }
 
         fun sessionPath(id: String): List<String> = listOf("api", "sessions", id)
 
         fun parse(raw: String): JsonObject = try {
             Json.parseToJsonElement(raw).jsonObject
         } catch (_: IllegalArgumentException) {
-            throw ReiApiException(0, "invalid_response", "The server returned an invalid response.")
+            throw ReiApiException(0, "invalid_response", "invalid_response", UiText.Resource(R.string.api_err_invalid_response))
         }
 
         fun JsonObject.signInToken(): String = optionalString("token")?.takeIf { it.isNotEmpty() }
-            ?: throw ReiApiException(0, "no_token", "Rei did not return a credential for this device.")
+            ?: throw ReiApiException(0, "no_token", "no_token", UiText.Resource(R.string.api_err_no_token))
 
-        fun networkError() = ReiApiException(0, "network_error", "Could not reach the Rei server.")
+        fun networkError() = ReiApiException(0, "network_error", "network_error", UiText.Resource(R.string.api_err_network))
 
         fun Response.apiError(raw: String?): ReiApiException {
             val error = raw?.let { runCatching { parse(it)["error"] as? JsonObject }.getOrNull() }
+            val serverMessage = error?.optionalString("message")
+            val text = when {
+                code == 426 -> UiText.Resource(R.string.api_err_client_outdated)
+                !serverMessage.isNullOrBlank() -> UiText.Literal(serverMessage)
+                else -> UiText.Resource(R.string.api_err_http, code)
+            }
             return ReiApiException(
                 code,
                 error?.optionalString("code") ?: "http_error",
-                if (code == 426) "Update the Rei Android app to connect to this server."
-                else error?.optionalString("message") ?: "Rei returned HTTP $code.",
+                serverMessage ?: "HTTP $code",
+                text,
             )
         }
     }

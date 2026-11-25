@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -16,10 +18,16 @@ class SettingsFormatTest {
     }
 
     @Test fun triggerSummariesNameTheirState() {
-        assertEquals("Every day at 09:00 · Paused after failures", TriggerItem("t", "n", "paused", "Every day at 09:00", null, "failures").summary)
-        assertEquals("On new mail · Done", TriggerItem("t", "n", "done", "On new mail", null, null).summary)
-        assertEquals("Failed", statusLabel("failed"))
-        assertEquals("No changes", statusLabel("no_changes"))
-        assertEquals("Removed", verb("remove"))
+        assertEquals(
+            UiText.Resource(R.string.settings_triggers_summary_pair, "Every day at 09:00", UiText.Resource(R.string.settings_triggers_paused_failures)),
+            TriggerItem("t", "n", "paused", "Every day at 09:00", null, "failures").summary,
+        )
+        assertEquals(
+            UiText.Resource(R.string.settings_triggers_summary_pair, "On new mail", UiText.Resource(R.string.settings_triggers_done)),
+            TriggerItem("t", "n", "done", "On new mail", null, null).summary,
+        )
+        assertEquals(UiText.Resource(R.string.settings_triggers_status_failed), statusLabel("failed"))
+        assertEquals(UiText.Resource(R.string.settings_triggers_status_no_changes), statusLabel("no_changes"))
+        assertEquals(UiText.Resource(R.string.settings_memory_verb_remove), verb("remove"))
     }
 }

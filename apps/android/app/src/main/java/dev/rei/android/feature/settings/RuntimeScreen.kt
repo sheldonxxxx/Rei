@@ -14,9 +14,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.ReiApi
 import dev.rei.android.data.obj
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.components.SettingsSwitchRow
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -42,23 +45,23 @@ private suspend fun loadRuntime(api: ReiApi) = RuntimeData(
 @Composable
 fun RuntimeScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val data = rememberResource(api) { loadRuntime(api) }
+    val data = rememberResource("runtime", api) { loadRuntime(api) }
     var tab by rememberSaveable { mutableStateOf(RuntimeTab.Context) }
     var draft by remember(data.value) { mutableStateOf(data.value?.draft()) }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<UiText?>(null) }
     var saved by remember { mutableStateOf(false) }
     val loaded = data.value
-    SubScreen("Runtime", onBack, busy = writes.busy || data.loading, error = problem ?: writes.error ?: data.error, onRetry = data::reload) {
+    SubScreen(stringResource(R.string.settings_page_runtime), onBack, busy = writes.busy || data.loading, error = problem ?: writes.error ?: data.error, onRetry = data::reload) {
         val current = draft
         if (loaded != null && current != null) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RuntimeTab.entries.forEach { FilterChip(tab == it, { tab = it }, { Text(it.label) }) }
+                RuntimeTab.entries.forEach { FilterChip(tab == it, { tab = it }, { Text(stringResource(it.labelRes)) }) }
             }
             loaded.sections.filter { it.tab == tab }.forEach { section ->
-                FormGroup(title = section.title, note = section.blurb) {
+                FormGroup(title = section.title.asString(), note = section.blurb.asString()) {
                     section.switches.forEach { (flag, label) ->
                         SettingsSwitchRow(
-                            label, current.flags[flag] ?: DefaultFlags.getValue(flag),
+                            label.asString(), current.flags[flag] ?: DefaultFlags.getValue(flag),
                             { on -> draft = current.copy(flags = current.flags + (flag to on)); saved = false },
                             enabled = !writes.busy,
                         )
@@ -67,15 +70,15 @@ fun RuntimeScreen(api: ReiApi, onBack: () -> Unit) {
                         NumberField(
                             current.texts[field.key].orEmpty(),
                             { text -> draft = current.copy(texts = current.texts + (field.key to text)); saved = false },
-                            field.label,
-                            supportingText = "${field.help} Default: ${field.defaultText}.",
+                            field.label.asString(),
+                            supportingText = stringResource(R.string.settings_runtime_field_help_default, field.help.asString(), field.defaultText.asString()),
                             enabled = !writes.busy,
                         )
                     }
                 }
             }
-            FormGroup(note = if (saved) "Saved. Applies from the next model call." else null) {
-                FormButton("Save settings", enabled = !writes.busy, onClick = {
+            FormGroup(note = if (saved) stringResource(R.string.settings_runtime_saved) else null) {
+                FormButton(stringResource(R.string.settings_runtime_save), enabled = !writes.busy, onClick = {
                     when (val save = runtimeSave(loaded.sections, current, loaded.standard)) {
                         is RuntimeSave.Invalid -> { tab = save.tab; problem = save.message }
                         is RuntimeSave.Ready -> {
@@ -88,7 +91,7 @@ fun RuntimeScreen(api: ReiApi, onBack: () -> Unit) {
                         }
                     }
                 })
-                FormButton("Reset all to defaults", primary = false, enabled = !writes.busy, onClick = {
+                FormButton(stringResource(R.string.settings_runtime_reset), primary = false, enabled = !writes.busy, onClick = {
                     problem = null
                     writes.run({ saved = true; data.reload() }) {
                         api.request("PUT", listOf("api", "settings", "context"), buildJsonObject { put("compaction", JsonNull); put("home", JsonNull) })

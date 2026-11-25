@@ -3,6 +3,8 @@ package dev.rei.android.data
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
@@ -10,8 +12,8 @@ import okio.Buffer
 import okio.BufferedSink
 import okio.source
 
-fun ContentResolver.uploadBody(uri: Uri): Pair<String, RequestBody> {
-    var filename = "Attachment"
+fun ContentResolver.uploadBody(uri: Uri, defaultFilename: String = "attachment"): Pair<String, RequestBody> {
+    var filename = defaultFilename
     var size = -1L
     query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) {
@@ -31,21 +33,26 @@ fun ContentResolver.uploadBody(uri: Uri): Pair<String, RequestBody> {
 
         override fun writeTo(sink: BufferedSink) {
             val input = openInputStream(uri)
-                ?: throw ReiApiException(0, "missing_document", "Could not read the selected file.")
-            input.source().use { source ->
-                val buffer = Buffer()
-                var total = 0L
-                while (true) {
-                    val sizeRead = source.read(buffer, 8_192L)
-                    if (sizeRead < 0) break
-                    total += sizeRead
-                    if (total > MaxUploadBytes) throw attachmentTooLarge()
-                    sink.write(buffer, sizeRead)
-                }
-            }
+                ?: throw ReiApiException(0, "missing_document", "missing_document", UiText.Resource(R.string.upload_err_missing))
+            copyWithinLimit(input, sink)
         }
     }
 }
 
-private const val MaxUploadBytes = 1024L * 1024 * 1024
-private fun attachmentTooLarge() = ReiApiException(413, "attachment_too_large", "Files can be at most 1 GiB.")
+/** Streams [input] into [sink], failing with "too large" as soon as more than [limit] bytes have been read. */
+internal fun copyWithinLimit(input: java.io.InputStream, sink: BufferedSink, limit: Long = MaxUploadBytes) {
+    input.source().use { source ->
+        val buffer = Buffer()
+        var total = 0L
+        while (true) {
+            val sizeRead = source.read(buffer, 8_192L)
+            if (sizeRead < 0) break
+            total += sizeRead
+            if (total > limit) throw attachmentTooLarge()
+            sink.write(buffer, sizeRead)
+        }
+    }
+}
+
+internal const val MaxUploadBytes = 1024L * 1024 * 1024
+private fun attachmentTooLarge() = ReiApiException(413, "attachment_too_large", "attachment_too_large", UiText.Resource(R.string.upload_err_too_large))

@@ -1,9 +1,12 @@
 package dev.rei.android.ui.components
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import dev.rei.android.R
 import dev.rei.android.data.ReiApproval
 import dev.rei.android.ui.theme.ReiTheme
 import org.junit.Assert.assertEquals
@@ -13,6 +16,11 @@ import org.junit.Test
 class ApprovalCardTest {
     @get:Rule
     val compose = createComposeRule()
+
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
 
     private fun approval(status: String = "pending", lengths: List<String> = listOf("once", "session")) = ReiApproval(
         "ap1", 1, "s1", "Research", "send_email", "mail", "send", "write", "ana@example.com", "send the summary to Ana", "{}",
@@ -35,17 +43,17 @@ class ApprovalCardTest {
     @Test
     fun aPendingApprovalAsksAndOffersAllowOnceMoreOptionsAndDeny() {
         show(approval())
-        compose.onNodeWithText("Approval needed").assertExists()
-        compose.onNodeWithText("Rei wants to: send the summary to Ana").assertExists()
-        compose.onNodeWithText("Allow once").assertIsEnabled()
-        compose.onNodeWithText("More options").assertExists()
-        compose.onNodeWithText("Deny").assertExists()
+        compose.onNodeWithText(str(R.string.approval_needed)).assertExists()
+        compose.onNodeWithText(str(R.string.approval_wants_to, "Rei", "send the summary to Ana")).assertExists()
+        compose.onNodeWithText(str(R.string.approval_allow_once)).assertIsEnabled()
+        compose.onNodeWithText(str(R.string.approval_more_options)).assertExists()
+        compose.onNodeWithText(str(R.string.approval_deny)).assertExists()
     }
 
     @Test
     fun allowOnceAnswersOnce() {
         show(approval())
-        compose.onNodeWithText("Allow once").performClick()
+        compose.onNodeWithText(str(R.string.approval_allow_once)).performClick()
         compose.waitForIdle()
         assertEquals(Triple(true, "once", null), decision)
     }
@@ -53,7 +61,7 @@ class ApprovalCardTest {
     @Test
     fun denyAnswersNo() {
         show(approval())
-        compose.onNodeWithText("Deny").performClick()
+        compose.onNodeWithText(str(R.string.approval_deny)).performClick()
         compose.waitForIdle()
         assertEquals(false, decision?.first)
     }
@@ -61,14 +69,14 @@ class ApprovalCardTest {
     @Test
     fun withOnlyOneLengthThereAreNoMoreOptions() {
         show(approval(lengths = listOf("once")))
-        compose.onNodeWithText("More options").assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.approval_more_options)).assertDoesNotExist()
     }
 
     @Test
     fun aDecidedApprovalIsAQuietRecordWithNoButtons() {
         show(approval(status = "approved"))
-        compose.onNodeWithText("Allow once").assertDoesNotExist()
-        compose.onNodeWithText("Deny").assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.approval_allow_once)).assertDoesNotExist()
+        compose.onNodeWithText(str(R.string.approval_deny)).assertDoesNotExist()
         compose.onNodeWithText("send the summary to Ana").assertExists()
     }
 }

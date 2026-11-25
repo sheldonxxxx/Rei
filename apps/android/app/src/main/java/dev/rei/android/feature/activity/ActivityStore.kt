@@ -1,9 +1,15 @@
 package dev.rei.android.feature.activity
 
-import dev.rei.android.ReiViewModel
+import androidx.compose.runtime.Immutable
+import dev.rei.android.R
+import dev.rei.android.data.ChatCatalogRepository
 import dev.rei.android.data.ReiApi
+import dev.rei.android.data.ReiApproval
+import dev.rei.android.data.SessionRepository
 import dev.rei.android.data.objects
-import dev.rei.android.data.string
+import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -24,27 +30,28 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
+@Immutable
 data class ActivityUiState(
     val feed: ActivityFeed = ActivityFeed(),
     /** The first fetch has finished (or failed); until then the list shows a quiet loading line. */
     val loaded: Boolean = false,
     val refreshing: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** Rows whose Retry or Undo is in flight. */
     val busy: Set<String> = emptySet(),
     /** A completed action to say in the snackbar ("Memory change undone"). */
-    val notice: String? = null,
+    val notice: UiText? = null,
     val agentNames: Map<String, String> = emptyMap(),
 )
 
-private data class Flags(val refreshing: Boolean = false, val busy: Set<String> = emptySet(), val error: String? = null)
+private data class Flags(val refreshing: Boolean = false, val busy: Set<String> = emptySet(), val error: UiText? = null)
 
 private data class Fetched(
     val jobs: List<BackgroundJob> = emptyList(),
     val triggers: List<TriggerSummary> = emptyList(),
     val changes: Map<String, List<MemoryChange>> = emptyMap(),
     val loaded: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 /**
@@ -54,13 +61,18 @@ private data class Fetched(
  * `memory.changed`, reconnect and change in the waiting approvals.
  */
 @OptIn(FlowPreview::class)
-class ActivityStore(private val scope: CoroutineScope, private val source: ReiViewModel, private val clock: () -> Long = System::currentTimeMillis) {
+class ActivityStore(
+    private val scope: CoroutineScope,
+    private val session: SessionRepository,
+    private val catalog: ChatCatalogRepository,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
     private val fetched = MutableStateFlow(Fetched())
     private val flags = MutableStateFlow(Flags())
-    private var notice = MutableStateFlow<String?>(null)
+    private var notice = MutableStateFlow<UiText?>(null)
     private var fetchJob: Job? = null
 
-    val state: StateFlow<ActivityUiState> = combine(source.state, fetched, flags, notice) { live, data, flag, note ->
+    val state: StateFlow<ActivityUiState> = combine(catalog.state, fetched, flags, notice) { live, data, flag, note ->
         val titles = live.sessions.associate { it.id to it.title }
         ActivityUiState(
             feed = buildActivity(live.waitingApprovals, live.takeoverSessionIds, titles, data.jobs, data.triggers, data.changes, clock()),
@@ -71,27 +83,27 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
             notice = note,
             agentNames = live.agents.associate { it.id to it.name },
         )
-    }.stateIn(scope, SharingStarted.Eagerly, ActivityUiState())
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), ActivityUiState())
 
     init {
         scope.launch {
-            source.state.map { it.api }.distinctUntilChanged().collect { api ->
+            session.api.collect { api ->
                 fetchJob?.cancel()
                 fetched.value = Fetched()
                 if (api != null) load(api, pulled = false)
             }
         }
-        scope.launch { source.changes.debounce(400).collect { refresh(pulled = false) } }
+        scope.launch { session.changes.debounce(400).collect { refresh(pulled = false) } }
         scope.launch {
             // A trigger run starts waiting for you without any change notice: its approval is the sign.
-            source.state.map { live -> live.waitingApprovals.map { it.id }.toSet() + live.takeoverSessionIds }
+            catalog.state.map { live -> live.waitingApprovals.map { it.id }.toSet() + live.takeoverSessionIds }
                 .distinctUntilChanged().drop(1).debounce(400).collect { refresh(pulled = false) }
         }
     }
 
     /** Pull to refresh (or a change notice, with [pulled] false so the spinner stays still). */
     fun refresh(pulled: Boolean = true) {
-        val api = source.state.value.api ?: return
+        val api = session.currentApi ?: return
         load(api, pulled)
     }
 
@@ -110,16 +122,14 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
     }
 
     private suspend fun fetch(api: ReiApi, previous: Fetched): Fetched = coroutineScope {
-        val jobs = async { runCatching { parseJobs(api.request("GET", listOf("api", "background"))) } }
-        val triggers = async { runCatching { parseTriggers(api.request("GET", listOf("api", "triggers"))) } }
+        val jobs = async { suspendRunCatching { parseJobs(api.request("GET", listOf("api", "background"))) } }
+        val triggers = async { suspendRunCatching { parseTriggers(api.request("GET", listOf("api", "triggers"))) } }
         val jobResult = jobs.await()
         val triggerResult = triggers.await()
-        jobResult.exceptionOrNull()?.let { if (it is CancellationException) throw it }
-        triggerResult.exceptionOrNull()?.let { if (it is CancellationException) throw it }
         val list = jobResult.getOrNull() ?: previous.jobs
         val reviewIds = list.filter { it.status == "succeeded" }.sortedByDescending { it.finishedAt ?: it.createdAt }.take(ReviewsWithChanges).map { it.id }
         val details = reviewIds.map { id ->
-            async { id to runCatching { parseMemoryChanges(api.request("GET", listOf("api", "background", id)).objects("changes")) } }
+            async { id to suspendRunCatching { parseMemoryChanges(api.request("GET", listOf("api", "background", id)).objects("changes")) } }
         }.awaitAll()
         val failure = jobResult.exceptionOrNull() ?: triggerResult.exceptionOrNull()
         Fetched(
@@ -127,13 +137,16 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
             triggers = triggerResult.getOrNull() ?: previous.triggers,
             changes = details.mapNotNull { (id, result) -> result.getOrNull()?.let { id to it } }.toMap() + previous.changes.filterKeys { key -> details.none { it.first == key && it.second.isSuccess } },
             loaded = true,
-            error = failure?.let { it.message ?: "Couldn’t load Background Activity." },
+            error = failure?.asUiText(UiText.Resource(R.string.activity_err_load)),
         )
     }
 
+    suspend fun decideApproval(approval: ReiApproval, approve: Boolean, length: String, hours: Int?): ReiApproval =
+        session.decideApproval(approval.id, approve, length, hours)
+
     fun retry(row: FailureRow) {
         val target = row.retry ?: return
-        act(row.key, "Retry started") { api ->
+        act(row.key, UiText.Resource(R.string.activity_notice_retry_started)) { api ->
             when (target) {
                 is RetryTarget.Job -> api.request("POST", listOf("api", "background", target.id, "retry"))
                 is RetryTarget.Trigger -> api.request("POST", listOf("api", "triggers", target.id, "run"))
@@ -141,7 +154,7 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
         }
     }
 
-    fun undo(change: MemoryChange) = act("change:${change.id}", "Memory change undone") { api ->
+    fun undo(change: MemoryChange) = act("change:${change.id}", UiText.Resource(R.string.activity_notice_memory_undone)) { api ->
         api.request("POST", listOf("api", "memory", "changes", change.id, "undo"))
     }
 
@@ -149,8 +162,8 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
 
     fun dismissError() { flags.update { it.copy(error = null) } }
 
-    private fun act(key: String, done: String, block: suspend (ReiApi) -> JsonObject) {
-        val api = source.state.value.api ?: return
+    private fun act(key: String, done: UiText, block: suspend (ReiApi) -> JsonObject) {
+        val api = session.currentApi ?: return
         if (key in flags.value.busy) return
         flags.update { it.copy(busy = it.busy + key, error = null) }
         scope.launch {
@@ -161,7 +174,7 @@ class ActivityStore(private val scope: CoroutineScope, private val source: ReiVi
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                flags.update { it.copy(error = failure.message ?: "Couldn’t complete that. Try again.") }
+                flags.update { it.copy(error = failure.asUiText(UiText.Resource(R.string.activity_err_action))) }
             } finally {
                 flags.update { it.copy(busy = it.busy - key) }
             }

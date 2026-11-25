@@ -1,10 +1,12 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
 import dev.rei.android.data.array
 import dev.rei.android.data.obj
 import dev.rei.android.data.objects
 import dev.rei.android.data.optionalString
 import dev.rei.android.data.string
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -34,7 +36,11 @@ internal data class PluginRow(
     val connectionCount: Long,
 ) {
     /** What the plugin brings, as the web labels it. */
-    val kind get() = if (skillCount > 0 && connectionCount > 0) "Skills + MCP" else if (skillCount > 0) "Skills" else "MCP"
+    val kind: UiText get() = when {
+        skillCount > 0 && connectionCount > 0 -> UiText.Resource(R.string.settings_plugins_kind_both)
+        skillCount > 0 -> UiText.Resource(R.string.settings_page_skills)
+        else -> UiText.Resource(R.string.settings_page_connectors)
+    }
 }
 
 internal fun JsonObject.pluginRow() = PluginRow(
@@ -92,14 +98,20 @@ internal fun pluginDetail(body: JsonObject): PluginDetailData {
     )
 }
 
-internal fun connectionStatusWord(status: String?) = when (status) {
-    "ready" -> "Connected"
-    "needs_auth" -> "Needs sign-in"
-    "error" -> "Error"
-    else -> "Pending"
-}
+internal fun connectionStatusWord(status: String?): UiText = UiText.Resource(
+    when (status) {
+        "ready" -> R.string.settings_providers_connected
+        "needs_auth" -> R.string.settings_conn_status_needs_auth
+        "error" -> R.string.settings_conn_status_error
+        else -> R.string.settings_plugins_status_pending
+    },
+)
 
-internal val ConnectionAuth = listOf(Choice("none", "None"), Choice("oauth", "Sign in with OAuth"), Choice("token", "API token"))
+internal val ConnectionAuth = listOf(
+    Choice("none", UiText.Resource(R.string.settings_plugins_auth_none)),
+    Choice("oauth", UiText.Resource(R.string.settings_plugins_auth_oauth)),
+    Choice("token", UiText.Resource(R.string.settings_plugins_auth_token)),
+)
 
 // ---- editing a package ----
 
@@ -136,13 +148,13 @@ internal fun PluginPackage.removeConnection(index: Int) = copy(mcp = mcp.filterI
 internal fun PackageConnection.withSkill(name: String, on: Boolean) = copy(skills = if (on) (skills - name) + name else skills - name)
 
 /** The first thing wrong with a package the server would refuse for being empty, in words; null when it can be sent. */
-internal fun packageProblem(pkg: PluginPackage): String? = when {
-    pkg.name.isBlank() -> "Give the plugin a name."
-    pkg.description.isBlank() -> "Describe what the plugin does."
-    pkg.skills.isEmpty() && pkg.mcp.isEmpty() -> "Add at least one skill or connection."
-    pkg.skills.any { it.name.isBlank() } -> "Every skill needs a name."
-    pkg.mcp.any { it.name.isBlank() } -> "Every connection needs a name."
-    pkg.mcp.any { it.url.isBlank() } -> "Every connection needs a server address."
+internal fun packageProblem(pkg: PluginPackage): UiText? = when {
+    pkg.name.isBlank() -> UiText.Resource(R.string.settings_plugins_err_name)
+    pkg.description.isBlank() -> UiText.Resource(R.string.settings_plugins_err_desc)
+    pkg.skills.isEmpty() && pkg.mcp.isEmpty() -> UiText.Resource(R.string.settings_plugins_err_empty)
+    pkg.skills.any { it.name.isBlank() } -> UiText.Resource(R.string.settings_plugins_err_skill_name)
+    pkg.mcp.any { it.name.isBlank() } -> UiText.Resource(R.string.settings_plugins_err_conn_name)
+    pkg.mcp.any { it.url.isBlank() } -> UiText.Resource(R.string.settings_plugins_err_conn_url)
     else -> null
 }
 

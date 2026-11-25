@@ -14,104 +14,88 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.rei.android.R
 import dev.rei.android.data.ChatAgent
-import dev.rei.android.data.ReiApi
-import dev.rei.android.data.chatAgent
-import dev.rei.android.data.obj
+import dev.rei.android.di.AppContainer
 import dev.rei.android.ui.components.AgentAvatar
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.theme.ReiShapes
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 
-private val AgentBotChoices = mapOf(
-    "bot:sprout" to "Bonsai",
-    "bot:round" to "River Stone",
-    "bot:antenna" to "Lantern",
-    "bot:cat" to "Lucky Cat",
-    "bot:ghost" to "Paper Crane",
-    "bot:astro" to "Moon Rabbit",
+private val AgentBotChoices = listOf(
+    "bot:sprout" to R.string.agents_bot_sprout,
+    "bot:round" to R.string.agents_bot_round,
+    "bot:antenna" to R.string.agents_bot_antenna,
+    "bot:cat" to R.string.agents_bot_cat,
+    "bot:ghost" to R.string.agents_bot_ghost,
+    "bot:astro" to R.string.agents_bot_astro,
 )
 
-/** Creates an agent with the chosen name and look. The caller opens its Home chat. */
+/** Creates an agent with the chosen name and look in [NewAgentViewModel]. The caller opens its Home chat. */
 @Composable
-fun NewAgentSheet(api: ReiApi, onDismiss: () -> Unit, onCreated: (ChatAgent) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var name by remember { mutableStateOf("") }
-    var bot by remember { mutableStateOf<String?>(null) }
-    var emoji by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val request = createAgentBody(name, bot ?: emoji)
-    fun create() {
-        val sent = request ?: return
-        if (busy) return
-        busy = true
-        error = null
-        scope.launch {
-            try {
-                val created = api.request("POST", listOf("api", "agents"), sent).obj("agent").chatAgent()
-                onCreated(created)
-            } catch (failure: CancellationException) {
-                throw failure
-            } catch (failure: Exception) {
-                error = failure.message?.takeIf { it.isNotBlank() } ?: "Couldn’t create the agent. Try again."
-                busy = false
-            }
+fun NewAgentSheet(container: AppContainer, onDismiss: () -> Unit, onCreated: (ChatAgent) -> Unit) {
+    val vm: NewAgentViewModel = viewModel(factory = NewAgentViewModel.factory(container))
+    val state by vm.state.collectAsStateWithLifecycle()
+    val request = createAgentBody(state.name, state.bot ?: state.emoji)
+
+    LaunchedEffect(vm) {
+        vm.created.collect { agent ->
+            onCreated(agent)
         }
     }
-    ReiSheet(onDismiss = { if (!busy) onDismiss() }, title = "New agent") {
+
+    fun dismiss() {
+        if (!state.busy) {
+            vm.reset()
+            onDismiss()
+        }
+    }
+
+    ReiSheet(onDismiss = ::dismiss, title = stringResource(R.string.agents_new_title)) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ReiTextField(name, { name = it.take(AgentNameMax) }, "Name", enabled = !busy)
+            ReiTextField(state.name, vm::setName, stringResource(R.string.agents_name_label), enabled = !state.busy)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Pick a bot", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.agents_pick_bot), style = MaterialTheme.typography.labelMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AgentBotChoices.forEach { (value, label) ->
+                    AgentBotChoices.forEach { (value, labelRes) ->
                         FilterChip(
-                            selected = bot == value,
-                            onClick = {
-                                bot = value
-                                emoji = ""
-                            },
-                            label = { Text(label) },
-                            enabled = !busy,
+                            selected = state.bot == value,
+                            onClick = { vm.selectBot(value) },
+                            label = { Text(stringResource(labelRes)) },
+                            enabled = !state.busy,
                             leadingIcon = { AgentAvatar(value, size = 24.dp) },
                         )
                     }
                 }
             }
             ReiTextField(
-                emoji,
-                {
-                    emoji = it.take(8)
-                    bot = null
-                },
-                "Or an emoji or a few letters",
-                placeholder = "🙂",
-                enabled = !busy,
+                state.emoji,
+                vm::setEmoji,
+                stringResource(R.string.agents_emoji_label),
+                placeholder = stringResource(R.string.agents_emoji_placeholder),
+                enabled = !state.busy,
             )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
             Button(
-                ::create,
+                vm::create,
                 Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                enabled = !busy && request != null,
+                enabled = !state.busy && request != null,
                 shape = ReiShapes.Pill,
             ) {
-                Text(if (busy) "Creating…" else "Create")
+                Text(stringResource(if (state.busy) R.string.agents_creating else R.string.agents_create))
             }
-            OutlinedButton(onDismiss, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !busy, shape = ReiShapes.Pill) {
-                Text("Cancel")
+            OutlinedButton(::dismiss, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !state.busy, shape = ReiShapes.Pill) {
+                Text(stringResource(R.string.common_cancel))
             }
         }
     }

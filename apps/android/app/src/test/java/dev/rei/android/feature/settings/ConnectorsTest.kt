@@ -1,5 +1,7 @@
 package dev.rei.android.feature.settings
 
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -102,11 +104,11 @@ class ConnectorsTest {
     }
 
     @Test fun `tool counts and status read in words`() {
-        assertEquals("Tools not listed yet", toolCountText(null))
-        assertEquals("1 tool", toolCountText(1))
-        assertEquals("4 tools", toolCountText(4))
-        assertEquals("Needs sign-in", statusWord("needs_auth"))
-        assertEquals("Error: boom", statusText(connector().copy(status = "error", error = "boom")))
+        assertEquals(UiText.Resource(R.string.settings_conn_tools_unlisted), toolCountText(null))
+        assertEquals(UiText.Plural(R.plurals.settings_conn_tools_count, 1, 1L), toolCountText(1))
+        assertEquals(UiText.Plural(R.plurals.settings_conn_tools_count, 4, 4L), toolCountText(4))
+        assertEquals(UiText.Resource(R.string.settings_conn_status_needs_auth), statusWord("needs_auth"))
+        assertEquals(UiText.Resource(R.string.settings_conn_status_error_msg, "boom"), statusText(connector().copy(status = "error", error = "boom")))
     }
 
     @Test fun `a connector reads from the server's json`() {

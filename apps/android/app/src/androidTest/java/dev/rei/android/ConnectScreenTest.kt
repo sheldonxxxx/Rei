@@ -1,23 +1,31 @@
 package dev.rei.android
 
+import android.content.Context
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ApplicationProvider
 import dev.rei.android.data.AuthState
 import dev.rei.android.feature.connect.ConnectScreen
+import dev.rei.android.ui.UiText
 import dev.rei.android.ui.theme.ReiTheme
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.onAllNodesWithText
 import org.junit.Rule
 import org.junit.Test
 
 class ConnectScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    private val context: Context
+        get() = ApplicationProvider.getApplicationContext()
+
+    private fun str(id: Int, vararg args: Any) = context.getString(id, *args)
 
     @Test
     fun connectNeedsServerAddress() {
@@ -26,9 +34,9 @@ class ConnectScreenTest {
                 ConnectScreen(ReiUiState(), {}, { _, _, _ -> }, {})
             }
         }
-        compose.onNodeWithText("Connect", substring = false).assertIsNotEnabled()
-        compose.onNodeWithText("Rei server address").performTextInput("https://rei.example.com")
-        compose.onNodeWithText("Connect", substring = false).assertIsEnabled()
+        compose.onNodeWithText(str(R.string.connect_action_connect), substring = false).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.connect_server_label)).performTextInput("https://rei.example.com")
+        compose.onNodeWithText(str(R.string.connect_action_connect), substring = false).assertIsEnabled()
     }
 
     @Test
@@ -46,10 +54,10 @@ class ConnectScreenTest {
                 )
             }
         }
-        compose.onNodeWithText("Password", substring = false).performTextInput("sample password")
-        compose.onNodeWithText("Sign in", substring = false).assertIsNotEnabled()
-        compose.onNodeWithText("Authenticator code").performTextInput("123456")
-        compose.onNodeWithText("Sign in", substring = false).assertIsEnabled()
+        compose.onNodeWithText(str(R.string.connect_password_label), substring = false).performTextInput("sample password")
+        compose.onNodeWithText(str(R.string.connect_action_signin), substring = false).assertIsNotEnabled()
+        compose.onNodeWithText(str(R.string.connect_totp_label)).performTextInput("123456")
+        compose.onNodeWithText(str(R.string.connect_action_signin), substring = false).assertIsEnabled()
     }
 
     @Test
@@ -60,7 +68,7 @@ class ConnectScreenTest {
                     ReiUiState(
                         serverUrl = "https://rei.example.com",
                         auth = AuthState(setupRequired = false, signedIn = false, totpEnabled = false),
-                        error = "The password or code is wrong.",
+                        error = UiText.Resource(R.string.connect_err_bad_credentials),
                         errorCode = "bad_credentials",
                     ),
                     {},
@@ -70,7 +78,7 @@ class ConnectScreenTest {
             }
         }
         // Shown once, as the password field's supporting text, not also as a banner.
-        compose.onAllNodesWithText("The password or code is wrong.").assertCountEquals(1)
+        compose.onAllNodesWithText(str(R.string.connect_err_bad_credentials)).assertCountEquals(1)
     }
 
     @Test
@@ -88,14 +96,17 @@ class ConnectScreenTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("Show password").performClick()
-        compose.onNodeWithContentDescription("Hide password").assertExists()
+        compose.onNodeWithContentDescription(str(R.string.connect_show_password)).performClick()
+        compose.onNodeWithContentDescription(str(R.string.connect_hide_password)).assertExists()
     }
 
     @Test
     fun insecureAddressIsFlaggedInRelease() {
-        compose.setContent { ReiTheme { ConnectScreen(ReiUiState(), {}, { _, _, _ -> }, {}) } }
-        compose.onNodeWithText("Rei server address").performTextInput("rei.example.com")
-        compose.onNodeWithText("Connect", substring = false).assertIsNotEnabled()
+        var connected: String? = null
+        compose.setContent { ReiTheme { ConnectScreen(ReiUiState(), { connected = it }, { _, _, _ -> }, {}) } }
+        compose.onNodeWithText(str(R.string.connect_server_label)).performTextInput("http://rei.example.com")
+        compose.onNodeWithText(str(R.string.connect_action_connect), substring = false).performClick()
+        org.junit.Assert.assertNull(connected)
+        compose.onNodeWithText(str(R.string.connect_err_https_only)).assertExists()
     }
 }

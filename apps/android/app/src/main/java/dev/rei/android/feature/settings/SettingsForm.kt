@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -17,9 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import dev.rei.android.R
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.components.ReiIconButton
 import dev.rei.android.ui.components.ReiSheet
 import dev.rei.android.ui.components.ReiTextField
 import dev.rei.android.ui.components.SettingsChevron
@@ -29,7 +37,10 @@ import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiShapes
 
 /** One option of a [ChoiceRow]: the value the server stores and the words the user sees. */
-internal data class Choice(val value: String, val label: String, val summary: String? = null, val enabled: Boolean = true)
+internal data class Choice(val value: String, val label: UiText, val summary: UiText? = null, val enabled: Boolean = true) {
+    constructor(value: String, label: String, summary: String? = null, enabled: Boolean = true) :
+        this(value, UiText.Literal(label), summary?.let(UiText::Literal), enabled)
+}
 
 /**
  * A settings row that shows its current choice and opens a sheet to change it: the phone's replacement for the web's select.
@@ -44,7 +55,7 @@ internal fun ChoiceRow(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     summary: String? = null,
-    placeholder: String = "Not set",
+    placeholder: String = stringResource(R.string.settings_not_set),
     enabled: Boolean = true,
     dividerBelow: Boolean = false,
 ) {
@@ -54,20 +65,24 @@ internal fun ChoiceRow(
         title = title,
         modifier = modifier,
         icon = icon,
-        summary = listOfNotNull(current?.label ?: placeholder, summary).joinToString("\n"),
+        summary = listOfNotNull(current?.label?.asString() ?: placeholder, summary).joinToString("\n"),
         onClick = if (enabled) ({ open = true }) else null,
         dividerBelow = dividerBelow,
         trailing = { SettingsChevron() },
     )
     if (open) {
         ReiSheet(onDismiss = { open = false }, title = title) {
-            choices.forEach { choice ->
-                SettingsRow(
-                    choice.label,
-                    summary = choice.summary,
-                    onClick = if (choice.enabled) ({ open = false; if (choice.value != selected) onSelect(choice.value) }) else null,
-                    trailing = if (choice.value == selected) ({ androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }) else null,
-                )
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                choices.forEach { choice ->
+                    SettingsRow(
+                        choice.label.asString(),
+                        summary = choice.summary?.asString(),
+                        onClick = if (choice.enabled) ({ open = false; if (choice.value != selected) onSelect(choice.value) }) else null,
+                        trailing = if (choice.value == selected) {
+                            { androidx.compose.material3.Icon(ReiIcons.Check, contentDescription = stringResource(R.string.settings_selected), tint = MaterialTheme.colorScheme.primary) }
+                        } else null,
+                    )
+                }
             }
         }
     }
@@ -136,6 +151,7 @@ internal fun SecretField(
     placeholder: String? = null,
     enabled: Boolean = true,
 ) {
+    var visible by remember { mutableStateOf(false) }
     ReiTextField(
         value = value,
         onValueChange = onValueChange,
@@ -144,8 +160,15 @@ internal fun SecretField(
         supportingText = supportingText,
         placeholder = placeholder,
         enabled = enabled,
-        visualTransformation = PasswordVisualTransformation(),
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+        trailingContent = {
+            ReiIconButton(
+                if (visible) ReiIcons.EyeOff else ReiIcons.Eye,
+                stringResource(if (visible) R.string.settings_hide_value else R.string.settings_show_value),
+                { visible = !visible },
+            )
+        },
     )
 }
 
@@ -154,7 +177,7 @@ internal fun SecretField(
  * consent page. Returns false when nothing could open it. The address is never logged.
  */
 internal fun openInBrowser(context: android.content.Context, address: String): Boolean {
-    val uri = android.net.Uri.parse(address)
+    val uri = address.toUri()
     if (uri.scheme != "https" && uri.scheme != "http") return false
     return try {
         androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, uri)

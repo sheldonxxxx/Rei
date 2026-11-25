@@ -37,11 +37,11 @@ internal suspend fun authenticateWithPasskey(
     } catch (_: GetCredentialCancellationException) {
         return null
     } catch (_: NoCredentialException) {
-        throw IllegalStateException("No passkey is available for this server on this device.")
+        throw IllegalStateException(activity.getString(R.string.passkey_err_none))
     } catch (_: GetCredentialException) {
-        throw IllegalStateException("Couldn’t use a passkey. Check the device credential provider and server setup.")
+        throw IllegalStateException(activity.getString(R.string.passkey_err_use))
     }
-    check(credential is PublicKeyCredential) { "The credential provider did not return a passkey." }
+    check(credential is PublicKeyCredential) { activity.getString(R.string.passkey_err_not_returned) }
     val signedIn = api.request("POST", passkeyPath + "login", buildJsonObject {
         put("challengeId", start.string("challengeId"))
         put("response", Json.parseToJsonElement(credential.authenticationResponseJson).jsonObject)
@@ -60,9 +60,9 @@ internal suspend fun registerPasskey(activity: Activity, api: ReiApi, password: 
     } catch (_: CreateCredentialCancellationException) {
         return false
     } catch (_: CreateCredentialException) {
-        throw IllegalStateException("Couldn’t create a passkey. Check the device credential provider and server setup.")
+        throw IllegalStateException(activity.getString(R.string.passkey_err_create))
     }
-    check(created is CreatePublicKeyCredentialResponse) { "The credential provider did not return a passkey." }
+    check(created is CreatePublicKeyCredentialResponse) { activity.getString(R.string.passkey_err_not_returned) }
     api.request("POST", passkeyPath + "register", buildJsonObject {
         put("challengeId", start.string("challengeId"))
         put("response", Json.parseToJsonElement(created.registrationResponseJson).jsonObject)
@@ -71,7 +71,7 @@ internal suspend fun registerPasskey(activity: Activity, api: ReiApi, password: 
     return true
 }
 
-internal fun passkeyError(failure: Exception): String = when (failure) {
-    is ReiApiException, is IllegalStateException -> failure.message ?: "Couldn’t update passkeys."
-    else -> "Couldn’t update passkeys."
+internal fun passkeyError(context: android.content.Context, failure: Exception): String = when (failure) {
+    is ReiApiException, is IllegalStateException -> failure.message ?: context.getString(R.string.passkey_err_update)
+    else -> context.getString(R.string.passkey_err_update)
 }

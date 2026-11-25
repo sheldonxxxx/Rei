@@ -1,22 +1,30 @@
 package dev.rei.android.feature.knowledge
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.annotation.StringRes
+import androidx.compose.runtime.Immutable
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import dev.rei.android.ReiViewModel
+import dev.rei.android.R
 import dev.rei.android.data.KnowledgeHit
 import dev.rei.android.data.KnowledgeNode
 import dev.rei.android.data.ReiApi
-import dev.rei.android.data.WorkspaceChanges
+import dev.rei.android.data.SessionRepository
+import dev.rei.android.data.WorkspaceRepository
 import dev.rei.android.data.knowledgePage
 import dev.rei.android.data.knowledgeTags
-import dev.rei.android.data.knowledgeTree
 import dev.rei.android.data.knowledgeTrash
+import dev.rei.android.data.knowledgeTree
 import dev.rei.android.data.restoreKnowledgePage
 import dev.rei.android.data.searchKnowledge
+import dev.rei.android.data.suspendRunCatching
+import dev.rei.android.di.AppContainer
+import dev.rei.android.ui.UiText
+import dev.rei.android.ui.asUiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -27,17 +35,22 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-enum class KnowledgeTab(val label: String) { All("All pages"), Favorites("Favorites"), Trash("Trash") }
+enum class KnowledgeTab(@StringRes val labelRes: Int) {
+    All(R.string.knowledge_tab_all),
+    Favorites(R.string.workspace_tab_favorites),
+    Trash(R.string.workspace_tab_trash),
+}
 
 /** One visible line of the page list: a node at [depth], open or closed. */
+@Immutable
 data class KnowledgeRow(val node: KnowledgeNode, val depth: Int, val expanded: Boolean)
 
+@Immutable
 data class KnowledgeUiState(
     val searchText: String = "",
     val tab: KnowledgeTab = KnowledgeTab.All,
@@ -52,11 +65,11 @@ data class KnowledgeUiState(
     val loaded: Boolean = false,
     val refreshing: Boolean = false,
     val loadFailed: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 ) {
     /** Words or tags are set: the list shows search results instead of the tree. */
     val searching get() = searchText.isNotBlank() || selectedTags.isNotEmpty()
-    val rows: List<KnowledgeRow> get() = knowledgeRows(tab, tree, trash, expanded)
+    val rows: List<KnowledgeRow> by lazy(LazyThreadSafetyMode.NONE) { knowledgeRows(tab, tree, trash, expanded) }
 }
 
 /**
@@ -80,13 +93,34 @@ fun knowledgeRows(tab: KnowledgeTab, tree: List<KnowledgeNode>, trash: List<Know
     }
 }
 
+private const val KeyText = "knowledge_text"
+private const val KeyTab = "knowledge_tab"
+private const val KeyTags = "knowledge_tags"
+private const val KeyExpanded = "knowledge_expanded"
+
 /** The page list: tree, favorites, trash, search and tag filter, with quiet refresh after a change elsewhere. */
 @OptIn(FlowPreview::class)
-class KnowledgeViewModel(application: Application, private val source: ReiViewModel) : AndroidViewModel(application) {
-    private val mutable = MutableStateFlow(KnowledgeUiState())
+class KnowledgeViewModel(
+    private val session: SessionRepository,
+    private val workspace: WorkspaceRepository,
+    private val savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+    private val initialText = savedStateHandle.get<String>(KeyText).orEmpty()
+    private val initialTab = savedStateHandle.get<String>(KeyTab)?.let { name -> KnowledgeTab.entries.firstOrNull { it.name == name } } ?: KnowledgeTab.All
+    private val initialTags = savedStateHandle.get<ArrayList<String>>(KeyTags)?.toList().orEmpty()
+    private val initialExpanded = savedStateHandle.get<ArrayList<String>>(KeyExpanded)?.toSet().orEmpty()
+
+    private val mutable = MutableStateFlow(
+        KnowledgeUiState(
+            searchText = initialText,
+            tab = initialTab,
+            selectedTags = initialTags,
+            expanded = initialExpanded,
+        ),
+    )
     val state: StateFlow<KnowledgeUiState> = mutable.asStateFlow()
-    private val text = MutableStateFlow("")
-    private val facets = MutableStateFlow(Pair(KnowledgeTab.All, emptyList<String>()))
+    private val text = MutableStateFlow(initialText)
+    private val facets = MutableStateFlow(Pair(initialTab, initialTags))
     private var load: Job? = null
     private var api: ReiApi? = null
     private val pending = HashSet<String>()
@@ -94,39 +128,48 @@ class KnowledgeViewModel(application: Application, private val source: ReiViewMo
 
     init {
         viewModelScope.launch {
-            combine(source.state.map { it.api }.distinctUntilChanged(), text.debounce(250).distinctUntilChanged(), facets) { api, text, facets ->
+            combine(session.api, text.debounce(250).distinctUntilChanged(), facets) { api, text, facets ->
                 Triple(api, text, facets)
             }.collectLatest { (api, text, facets) ->
                 this@KnowledgeViewModel.api = api
                 if (api != null) reload(api, text, facets.first, facets.second, refreshing = false)
             }
         }
-        viewModelScope.launch { WorkspaceChanges.pages.collect { refresh(quiet = true) } }
+        viewModelScope.launch { workspace.pagesChanged.collect { refresh(quiet = true) } }
     }
 
     fun setText(value: String) {
+        savedStateHandle[KeyText] = value
         mutable.update { it.copy(searchText = value) }
         text.value = value
     }
 
     fun setTab(tab: KnowledgeTab) {
+        savedStateHandle[KeyTab] = tab.name
         mutable.update { it.copy(tab = tab) }
         facets.update { it.copy(first = tab) }
     }
 
     fun toggleTag(tag: String) {
         val next = mutable.value.selectedTags.let { if (tag in it) it - tag else it + tag }
+        savedStateHandle[KeyTags] = ArrayList(next)
         mutable.update { it.copy(selectedTags = next) }
         facets.update { it.copy(second = next) }
     }
 
     fun clearFilters() {
+        savedStateHandle[KeyTab] = KnowledgeTab.All.name
+        savedStateHandle[KeyTags] = arrayListOf<String>()
         mutable.update { it.copy(tab = KnowledgeTab.All, selectedTags = emptyList()) }
         facets.value = KnowledgeTab.All to emptyList()
         setText("")
     }
 
-    fun toggleExpanded(id: String) = mutable.update { it.copy(expanded = if (id in it.expanded) it.expanded - id else it.expanded + id) }
+    fun toggleExpanded(id: String) {
+        val next = mutable.value.expanded.let { if (id in it) it - id else it + id }
+        savedStateHandle[KeyExpanded] = ArrayList(next)
+        mutable.update { it.copy(expanded = next) }
+    }
 
     fun refresh(quiet: Boolean = false) {
         val api = api ?: return
@@ -156,7 +199,7 @@ class KnowledgeViewModel(application: Application, private val source: ReiViewMo
                 }
             }
             if (mutable.value.allTags.isEmpty() || refreshing) {
-                runCatching { api.knowledgeTags() }.onSuccess { all -> mutable.update { it.copy(allTags = all) } }
+                suspendRunCatching { api.knowledgeTags() }.onSuccess { all -> mutable.update { it.copy(allTags = all) } }
             }
         } catch (failure: CancellationException) {
             throw failure
@@ -166,7 +209,7 @@ class KnowledgeViewModel(application: Application, private val source: ReiViewMo
                     loaded = true,
                     refreshing = false,
                     loadFailed = it.tree.isEmpty() && it.trash.isEmpty() && it.hits.isEmpty(),
-                    error = failure.localizedMessage ?: "Could not load pages.",
+                    error = failure.asUiText(UiText.Resource(R.string.knowledge_err_load)),
                 )
             }
         }
@@ -190,18 +233,18 @@ class KnowledgeViewModel(application: Application, private val source: ReiViewMo
         }
     }
 
-    fun restore(node: KnowledgeNode, failed: (String) -> Unit, done: (String) -> Unit) {
+    fun restore(node: KnowledgeNode) {
         val api = api ?: return
         viewModelScope.launch {
             try {
                 api.restoreKnowledgePage(node.id)
                 mutable.update { it.copy(trash = it.trash.filterNot { page -> page.id == node.id }) }
-                WorkspaceChanges.pagesChanged()
-                done(node.title)
+                workspace.notifyPagesChanged()
+                workspace.showNotice(UiText.Resource(R.string.knowledge_notice_restored, node.title))
             } catch (failure: CancellationException) {
                 throw failure
             } catch (failure: Exception) {
-                failed(failure.localizedMessage ?: "Could not restore the page.")
+                workspace.showNotice(failure.asUiText(UiText.Resource(R.string.knowledge_err_restore)))
             }
         }
     }
@@ -209,8 +252,14 @@ class KnowledgeViewModel(application: Application, private val source: ReiViewMo
     fun dismissError() = mutable.update { it.copy(error = null) }
 
     companion object {
-        fun factory(source: ReiViewModel): ViewModelProvider.Factory = viewModelFactory {
-            initializer { KnowledgeViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application, source) }
+        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                KnowledgeViewModel(
+                    session = container.sessionRepository,
+                    workspace = container.workspaceRepository,
+                    savedStateHandle = createSavedStateHandle(),
+                )
+            }
         }
     }
 }

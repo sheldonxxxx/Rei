@@ -3,6 +3,7 @@ package dev.rei.android.feature.chat
 import dev.rei.android.data.ChatProfile
 import dev.rei.android.data.Session
 import dev.rei.android.data.SessionDetail
+import dev.rei.android.ui.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -59,7 +60,7 @@ class ChatPermissionsTest {
             .failProfileChange("Couldn’t reach Rei. Check your connection and try again.")
         assertEquals(ChatProfile.Strict, failed.profile)
         assertFalse(failed.savingProfile)
-        assertEquals("Couldn’t reach Rei. Check your connection and try again.", failed.profileError)
+        assertEquals(UiText.Literal("Couldn’t reach Rei. Check your connection and try again."), failed.profileError)
     }
 
     @Test fun tryingAgainClearsTheOldReason() {

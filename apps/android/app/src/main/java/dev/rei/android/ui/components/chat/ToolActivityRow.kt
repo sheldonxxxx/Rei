@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -31,7 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -40,9 +46,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.RunTrace
 import dev.rei.android.data.TraceStep
 import dev.rei.android.data.groupedNumber
+import dev.rei.android.ui.components.ReiPreviewSurface
+import dev.rei.android.ui.components.ReiPreviews
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.LocalMotionScale
 import dev.rei.android.ui.theme.ReiEnter
@@ -76,46 +85,62 @@ fun ToolActivityRow(
     val capped = !detail && run.live && expanded == null
     val shown = if (capped) steps.takeLast(SimpleLiveRows) else steps
     val acted = steps.count { it.sideEffect }
-    val heading = activityHeading(run, waitingForApproval)
+    val context = LocalContext.current
+    val heading = activityHeading(run, waitingForApproval).asString()
     val scale = LocalMotionScale.current
-    val rotation by animateFloatAsState(if (open) 0f else -90f, tween((ReiMotion.CeilingMs * 0.5f * scale).toInt()), label = "chevron")
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val collapsedRotation = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 90f else -90f
+    val rotation by animateFloatAsState(
+        if (open) 0f else collapsedRotation,
+        tween(if (scale <= 0f) 0 else (ReiMotion.CeilingMs * 0.5f).toInt()),
+        label = "chevron",
+    )
 
+    val waitText = if (!run.live && run.approvalWaitMs > 0) {
+        stringResource(R.string.chat_activity_waited, duration(run.approvalWaitMs).asString())
+    } else null
+    val clickActionLabel = stringResource(if (open) R.string.chat_activity_hide else R.string.chat_activity_show)
+    val toggleStateDesc = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
     Column(modifier.fillMaxWidth().arrive(ReiEnter.Rise), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
+        Column(
             Modifier
+                .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .clickable(onClickLabel = if (open) "Hide activity" else "Show activity", role = Role.Button) { expanded = !open }
+                .clickable(onClickLabel = clickActionLabel, role = Role.Button) { expanded = !open }
                 .semantics(mergeDescendants = true) {
-                    stateDescription = if (open) "Expanded" else "Collapsed"
-                    contentDescription = heading
+                    stateDescription = toggleStateDesc
+                    contentDescription = if (waitText != null) "$heading. $waitText" else heading
                 }
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                .padding(horizontal = 4.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(heading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(
-                ReiIcons.Down,
-                contentDescription = null,
-                Modifier.size(18.dp).rotate(rotation),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (!run.live && run.approvalWaitMs > 0) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(heading, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    ReiIcons.Chevron,
+                    contentDescription = null,
+                    Modifier.size(18.dp).rotate(rotation),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (waitText != null) {
                 Text(
-                    "· Waited for approval ${duration(run.approvalWaitMs)}",
-                    Modifier.padding(start = 6.dp),
+                    waitText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        AnimatedVisibility(open, enter = ReiMotion.enter(ReiEnter.Fade, scale), exit = ReiMotion.exit(scale)) {
+        AnimatedVisibility(open, enter = ReiMotion.enter(ReiEnter.Fade, scale, density), exit = ReiMotion.exit(scale)) {
             Column(Modifier.padding(bottom = 4.dp).testTag("activity-list"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (detail) {
+                    val stepsSummary = pluralStringResource(R.plurals.chat_activity_steps, steps.size, steps.size) +
+                        if (acted > 0) stringResource(R.string.chat_activity_acted_outside_suffix, acted) else ""
                     Text(
-                        "${steps.size} ${if (steps.size == 1) "step" else "steps"}" + if (acted > 0) " · $acted acted outside" else "",
+                        stepsSummary,
                         Modifier.padding(start = 4.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -134,6 +159,15 @@ fun ToolActivityRow(
                     }
                 } else {
                     Column(Modifier.padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        val hidden = steps.size - shown.size
+                        if (hidden > 0) {
+                            Text(
+                                pluralStringResource(R.plurals.chat_activity_hidden_steps, hidden, hidden),
+                                Modifier.padding(vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         shown.forEach { step -> ActivityRowItem(step, false, outcomes, waitingForApproval, null, onOpenPage) }
                     }
                 }
@@ -154,92 +188,106 @@ internal fun ActivityRowItem(
     onOpenPage: (String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val label = activityLabel(step)
-    val status = activityStatus(step, outcomes, waitingForApproval)
-    val allowed = decidedWord(step, outcomes) == "Allowed"
+    val label = activityLabel(step).asString()
+    val status = activityStatus(step, outcomes, waitingForApproval).asString()
+    val decided = decidedWord(step, outcomes)
+    val allowed = (decided as? dev.rei.android.ui.UiText.Resource)?.id == R.string.chat_activity_allowed
     val tone = when {
         allowed -> colors.primary
         step.status == "error" -> colors.error
-        step.status == "blocked" && decidedWord(step, outcomes) == null -> colors.onTertiaryContainer
+        step.status == "blocked" && decided == null -> colors.onTertiaryContainer
         step.status == "running" -> colors.onSurface
         else -> colors.onSurfaceVariant
     }
     // A model call is the quiet backdrop; a tool call is what the run did, so it reads one step darker.
     val labelColor = if (tone == colors.onSurfaceVariant && step.type != "llm.call") colors.onSurface else tone
     val facts = if (detail) listOfNotNull(
-        step.latencyMs?.let { duration(it) },
+        step.latencyMs?.let { duration(it).asString() },
         step.model?.substringAfterLast('/'),
-        step.tokens?.let { "${groupedNumber(it)} tokens" },
+        step.tokens?.let { stringResource(R.string.chat_activity_tokens, groupedNumber(it)) },
         step.errorCode,
     ) else emptyList()
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = if (detail) 44.dp else 32.dp)
-            .then(if (onInspect != null) Modifier.clickable(onClickLabel = "Inspect step", role = Role.Button) { onInspect(step.id) } else Modifier)
-            .semantics(mergeDescendants = true) { contentDescription = "$label — $status" }
-            .padding(horizontal = if (detail) 12.dp else 0.dp, vertical = if (detail) 8.dp else 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(activityIcon(step, allowed), contentDescription = null, Modifier.size(16.dp), tint = tone)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = labelColor,
-                maxLines = if (detail) 2 else 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (step.pageId != null || step.webTitle != null) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: "Page") { onOpenPage(id) } }
-                    step.webTitle?.let { title -> ChipLabel(ReiIcons.Globe, listOfNotNull(title, step.webHost).joinToString(" · "), null) }
+    val inspectStepLabel = stringResource(R.string.chat_activity_inspect_step)
+    val rowDesc = stringResource(R.string.chat_activity_row_desc, label, status)
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .then(if (onInspect != null) Modifier.clickable(onClickLabel = inspectStepLabel, role = Role.Button) { onInspect(step.id) } else Modifier)
+                .semantics(mergeDescendants = true) { contentDescription = rowDesc }
+                .padding(horizontal = if (detail) 12.dp else 0.dp, vertical = if (detail) 8.dp else 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(activityIcon(step, allowed), contentDescription = null, Modifier.size(16.dp), tint = tone)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = labelColor,
+                    maxLines = if (detail) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (facts.isNotEmpty() || (detail && step.sideEffect)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (facts.isNotEmpty()) {
+                            Text(facts.joinToString(" · "), style = MaterialTheme.typography.labelMedium.tabular(), color = colors.onSurfaceVariant)
+                        }
+                        if (step.sideEffect) {
+                            Text(
+                                stringResource(R.string.chat_activity_acted_outside_chip),
+                                Modifier.background(colors.tertiaryContainer, ReiShapes.Pill).padding(horizontal = 8.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onTertiaryContainer,
+                            )
+                        }
+                    }
                 }
             }
-            if (facts.isNotEmpty() || (detail && step.sideEffect)) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    itemVerticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (facts.isNotEmpty()) {
-                        Text(facts.joinToString(" · "), style = MaterialTheme.typography.labelMedium.tabular(), color = colors.onSurfaceVariant)
-                    }
-                    if (step.sideEffect) {
-                        Text(
-                            "acted outside",
-                            Modifier.background(colors.tertiaryContainer, ReiShapes.Pill).padding(horizontal = 8.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onTertiaryContainer,
-                        )
-                    }
-                }
+            if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
+            if (onInspect != null) Icon(ReiIcons.Forward, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
+        }
+        if (step.pageId != null || step.webTitle != null) {
+            FlowRow(
+                Modifier.padding(start = if (detail) 40.dp else 28.dp, end = if (detail) 12.dp else 0.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                step.pageId?.let { id -> ChipLabel(ReiIcons.Page, step.pageTitle ?: stringResource(R.string.chat_activity_page)) { onOpenPage(id) } }
+                step.webTitle?.let { title -> ChipLabel(ReiIcons.Globe, listOfNotNull(title, step.webHost).joinToString(" · "), null) }
             }
         }
-        if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
-        if (onInspect != null) Icon(ReiIcons.Chevron, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun ChipLabel(icon: ImageVector, text: String, onClick: (() -> Unit)?) {
-    Surface(
-        shape = ReiShapes.Pill,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier,
+    Box(
+        Modifier
+            .then(if (onClick != null) Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick) else Modifier),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text,
-                Modifier.widthIn(max = 260.dp),
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textDecoration = if (onClick != null) TextDecoration.Underline else null,
-            )
+        Surface(
+            shape = ReiShapes.Pill,
+            color = Color.Transparent,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(icon, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text,
+                    Modifier.widthIn(max = 260.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (onClick != null) TextDecoration.Underline else null,
+                )
+            }
         }
     }
 }
@@ -262,4 +310,41 @@ internal fun activityIcon(step: TraceStep, allowed: Boolean = false): ImageVecto
         name.startsWith("knowledge_") -> ReiIcons.Knowledge
         else -> ReiIcons.Wrench
     }
+}
+
+@ReiPreviews
+@Composable
+private fun ToolActivityRowPreview() = ReiPreviewSurface {
+    ToolActivityRow(
+        run = RunTrace(
+            runId = "r1",
+            status = "completed",
+            triggerMessageId = "m1",
+            steps = listOf(
+                TraceStep(
+                    id = "st1",
+                    type = "tool.call",
+                    status = "completed",
+                    startedAt = 0L,
+                    latencyMs = 420L,
+                    sideEffect = false,
+                    toolName = "knowledge_search",
+                    decision = "allow",
+                    approvalId = null,
+                    summary = "Search Q3 notes",
+                    activity = "Searching knowledge",
+                    pageId = null,
+                    pageTitle = null,
+                    webTitle = null,
+                    webHost = null,
+                    model = null,
+                    tokens = null,
+                    errorCode = null,
+                ),
+            ),
+            durationMs = 1400L,
+            approvalWaitMs = 0L,
+        ),
+        detail = true,
+    )
 }

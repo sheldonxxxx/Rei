@@ -16,10 +16,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.rei.android.R
 import dev.rei.android.data.TakeoverInfo
 import dev.rei.android.ui.icons.ReiIcons
 import dev.rei.android.ui.theme.ReiEnter
@@ -37,7 +40,7 @@ fun TakeoverCard(takeover: TakeoverInfo, agentName: String, onOpen: () -> Unit, 
     val waiting = takeover.status == "pending"
     val active = takeover.status == "active"
     if (!waiting && !active) {
-        NoticeLine("Browser control returned to $agentName.", modifier)
+        NoticeLine(stringResource(R.string.chat_takeover_returned, agentName), modifier)
         return
     }
     Surface(
@@ -50,7 +53,7 @@ fun TakeoverCard(takeover: TakeoverInfo, agentName: String, onOpen: () -> Unit, 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(ReiIcons.Globe, null, Modifier.size(20.dp), tint = colors.onTertiaryContainer)
                 Text(
-                    if (waiting) "$agentName wants you to take over the browser" else "You have control of the browser",
+                    if (waiting) stringResource(R.string.chat_takeover_prompt, agentName) else stringResource(R.string.chat_takeover_active),
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.onTertiaryContainer,
                 )
@@ -59,9 +62,9 @@ fun TakeoverCard(takeover: TakeoverInfo, agentName: String, onOpen: () -> Unit, 
                 Text(it, style = MaterialTheme.typography.bodyLarge, color = colors.onTertiaryContainer)
             }
             (takeover.title ?: takeover.url)?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer, maxLines = 1)
+                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onTertiaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Button(onClick = onOpen, modifier = Modifier.heightIn(min = 48.dp)) { Text("Open") }
+            Button(onClick = onOpen, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.browser_open)) }
         }
     }
 }
