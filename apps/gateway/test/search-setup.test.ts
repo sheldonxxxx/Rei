@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nullLogger } from "@rei/logging";
+import type { SaveSearchSetupSettings } from "@rei/protocol";
 import { expect, it } from "vitest";
 import { createGatewayApp } from "../src/core/proxy.ts";
 import { createRedactor } from "../src/core/redact.ts";
@@ -17,7 +18,6 @@ it("authenticates and validates setup, persists write-only keys, and isolates Se
     const defaults = {
       providers: ["searxng" as const],
       searxngUrl: "https://original.example",
-      exaAuth: "keyless" as const,
       keys: async () => "original-key",
     };
     const setup = await SearchSetup.load(secrets, defaults);
@@ -55,13 +55,11 @@ it("authenticates and validates setup, persists write-only keys, and isolates Se
     const result = await save({
       providers: ["brave"],
       searxngUrl: defaults.searxngUrl,
-      exaAuth: "keyless",
       apiKeys: { brave: "test-brave-key" },
     });
     expect(await result.json()).toMatchObject({
       providers: ["brave"],
       searxngUrl: defaults.searxngUrl,
-      exaAuth: "keyless",
       codexModel: "gpt-6-luna",
     });
     expect(redactor.redact("test-brave-key")).not.toContain("test-brave-key");
@@ -76,7 +74,6 @@ it("authenticates and validates setup, persists write-only keys, and isolates Se
     await restored.save({
       providers: ["codex-subscription"],
       searxngUrl: "",
-      exaAuth: "keyless",
       codexModel: "gpt-6.1-sol",
     });
     const reloaded = await SearchSetup.load(new FileSecretStore(file), defaults);
@@ -96,7 +93,6 @@ it("preserves enabled-but-unconfigured providers so the runtime can skip them", 
     const setup = await SearchSetup.load(new FileSecretStore(join(dir, "secret", "settings.json")), {
       providers: ["brave", "tavily", "searxng", "exa"],
       searxngUrl: "http://searxng:8080",
-      exaAuth: "keyless",
       keys: async () => null,
     });
     await expect(setup.save({ providers: ["brave"], searxngUrl: "", exaAuth: "keyless" })).resolves.toMatchObject({
@@ -108,7 +104,6 @@ it("preserves enabled-but-unconfigured providers so the runtime can skip them", 
     await setup.save({
       providers: ["brave", "tavily", "searxng", "exa"],
       searxngUrl: "http://searxng:8080",
-      exaAuth: "keyless",
     });
     expect((await setup.read()).providers).toHaveLength(4);
   } finally {
@@ -129,14 +124,29 @@ it("migrates the retired bundled defaults to keyless Exa and retains paid keys f
     expect(await setup.read()).toMatchObject({
       providers: ["exa"],
       searxngUrl: "",
-      exaAuth: "keyless",
       codexModel: "gpt-6-luna",
     });
-    await setup.save({ providers: ["exa"], searxngUrl: "", exaAuth: "api_key" });
-    expect(setup.config.exaAuth).toBe("api_key");
+    const legacy = {
+      providers: ["brave", "exa"],
+      providerOrder: ["tavily", "brave", "exa", "searxng", "codex-subscription"],
+      searxngUrl: "",
+      exaAuth: "api_key",
+      apiKeys: { exa: "saved-exa-test-key" },
+    } satisfies SaveSearchSetupSettings;
+    await secrets.modify("setup-search", () => legacy);
+    const migrated = await SearchSetup.load(secrets, { providers: ["exa"], keys: async () => null });
+    expect(await migrated.read()).toMatchObject({
+      providers: ["brave", "exa-api"],
+      providerOrder: ["tavily", "brave", "exa-api", "searxng", "codex-subscription", "exa"],
+    });
+    await setup.save({ ...legacy, providers: ["exa"], apiKeys: {} });
+    expect(setup.config.providers).toEqual(["exa-api"]);
+    expect((await SearchSetup.load(secrets, { providers: ["exa"], keys: async () => null })).config.providers).toEqual([
+      "exa-api",
+    ]);
     expect(await setup.config.keys("exa")).toBe("saved-exa-test-key");
     await setup.save({ providers: ["exa"], searxngUrl: "", exaAuth: "keyless" });
-    expect(setup.config.exaAuth).toBe("keyless");
+    expect(setup.config.providers).toEqual(["exa"]);
     expect(await setup.read()).not.toHaveProperty("apiKeys");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -151,22 +161,20 @@ it("migrates enabled order, persists disabled positions and never enables a conf
     await secrets.modify("setup-search", () => ({
       providers: ["codex-subscription"],
       searxngUrl: "",
-      exaAuth: "keyless",
     }));
     const setup = await SearchSetup.load(secrets, defaults);
     expect((await setup.read()).providerOrder?.[0]).toBe("codex-subscription");
-    const order = ["brave", "exa", "codex-subscription", "searxng", "tavily"] as const;
+    const order = ["brave", "exa-api", "codex-subscription", "searxng", "exa", "tavily"] as const;
     await setup.save({
-      providers: ["codex-subscription", "exa"],
+      providers: ["codex-subscription", "exa", "exa-api"],
       providerOrder: [...order],
       searxngUrl: "",
-      exaAuth: "keyless",
       apiKeys: { brave: "test-brave-key" },
     });
     const restored = await SearchSetup.load(secrets, defaults);
     expect(await restored.read()).toMatchObject({
       providerOrder: [...order],
-      providers: ["exa", "codex-subscription"],
+      providers: ["exa-api", "codex-subscription", "exa"],
     });
     await expect(
       restored.save({ providers: [], providerOrder: ["exa"], searxngUrl: "", exaAuth: "keyless" }),

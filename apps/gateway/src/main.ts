@@ -3,7 +3,7 @@
 // each address), GATEWAY_SHARED_LISTEN (host:port of the listener for outside callers; unset means none),
 // GATEWAY_REI_BUDGET (JSON caps for Rei's own caller; unset means none), GATEWAY_CAPPED_CALL_MAX_MS (600000),
 // GATEWAY_READER_URL (the shared reader, for POST /read; unset means none), GATEWAY_ALLOWED_UPSTREAMS (extra origins), GATEWAY_CONNECT_TIMEOUT_MS, GATEWAY_IDLE_TIMEOUT_MS. Web search (POST /search) is configured in the web
-// app only: providers, Exa auth, an external SearXNG URL and every API key are saved settings (see node/search-setup.ts).
+// app only: providers, an external SearXNG URL and every API key are saved settings (see node/search-setup.ts).
 // MCP connectors and notifications: REI_VAPID_SUBJECT (Web Push `sub`, default https://example.com/), GATEWAY_MCP_DEV_HOSTS
 // (hosts allowed over plain http, for local MCP servers; none by default). Their secrets live in <data>/secret/gateway-state.json.
 import { serve } from "@hono/node-server";
@@ -50,7 +50,6 @@ const secrets = new FileSecretStore(config.secretsFile);
 const searchSetup = await SearchSetup.load(secrets, {
   providers: [...DEFAULT_PROVIDER_ORDER],
   subscription: subscriptionSearch(store, tokens, (value) => redactor.add(value)),
-  exaAuth: "keyless",
   keys: async () => null, // keys are saved settings; SearchSetup reads them
 });
 const apps = createGatewayApps({

@@ -33,23 +33,23 @@ internal fun SearchProvidersScreen(api: ReiApi, onBack: () -> Unit) {
             val busy = writes.busy
             val statuses = searchStatuses(loaded)
             val now = System.currentTimeMillis()
-            val rows = searchRows(current.order)
+            val rows = current.order
             val ready = firstReady(current, statuses, now)
-            val exaConfigured = current.exaAuth == "api_key" && statuses.any { it.id == "exa" && it.configured }
             SettingsGroup(title = "Search order") {
                 SettingsRow("Enabled providers are tried from top to bottom. Search stops when one returns results.")
             }
-            rows.forEachIndexed { index, option ->
-                val id = providerOf(option)
+            rows.forEachIndexed { index, id ->
+                val keyId = if (id == ExaApiRow) "exa" else id
                 val status = statuses.firstOrNull { it.id == id }
                 val configured = when {
-                    id == "exa" -> option == "exa" || exaConfigured || current.keys["exa"].orEmpty().isNotBlank()
+                    id == "exa" -> true
+                    id == ExaApiRow -> status?.configured == true || current.keys[keyId].orEmpty().isNotBlank()
                     else -> status?.configured ?: false
                 }
-                val enabled = current.enabled(option)
+                val enabled = id in current.providers
                 SettingsGroup {
                     SettingsSwitchRow(
-                        searchName(option), enabled, { on -> form = current.toggled(option, on); notice = null },
+                        searchName(id), enabled, { on -> form = current.toggled(id, on); notice = null },
                         icon = ReiIcons.Globe, enabled = !busy,
                         summary = listOfNotNull(searchState(configured, status, now), if (enabled && id == ready) "First available" else null).joinToString(" · "),
                     )
@@ -57,13 +57,13 @@ internal fun SearchProvidersScreen(api: ReiApi, onBack: () -> Unit) {
                         "Position ${index + 1} of ${rows.size}",
                         trailing = {
                           Row {
-                            ReiIconButton(ReiIcons.Up, "Move ${searchName(option)} up", { form = current.copy(order = moveSearch(current.order, option, -1)); notice = "${searchName(option)} moved. Save to apply." }, enabled = !busy && index > 0)
-                            ReiIconButton(ReiIcons.Down, "Move ${searchName(option)} down", { form = current.copy(order = moveSearch(current.order, option, 1)); notice = "${searchName(option)} moved. Save to apply." }, enabled = !busy && index < rows.lastIndex)
-                            if (option != "exa") ReiIconButton(ReiIcons.Settings, "Configure ${searchName(option)}", { open = if (open == option) null else option })
+                            ReiIconButton(ReiIcons.Up, "Move ${searchName(id)} up", { form = current.copy(order = moveSearch(current.order, id, -1)); notice = "${searchName(id)} moved. Save to apply." }, enabled = !busy && index > 0)
+                            ReiIconButton(ReiIcons.Down, "Move ${searchName(id)} down", { form = current.copy(order = moveSearch(current.order, id, 1)); notice = "${searchName(id)} moved. Save to apply." }, enabled = !busy && index < rows.lastIndex)
+                            if (id != "exa") ReiIconButton(ReiIcons.Settings, "Configure ${searchName(id)}", { open = if (open == id) null else id })
                           }
                         },
                     )
-                    if (open == option) {
+                    if (open == id) {
                         FormGroup(note = "Configuration does not turn this provider on. Credentials stay in the gateway.") {
                             if (id == "codex-subscription") {
                                 ReiTextField(
@@ -74,10 +74,10 @@ internal fun SearchProvidersScreen(api: ReiApi, onBack: () -> Unit) {
                             if (id == "searxng") {
                                 ReiTextField(current.searxngUrl, { form = current.copy(searxngUrl = it) }, "SearXNG URL", placeholder = "https://search.example.com", enabled = !busy)
                             }
-                            if (id != "codex-subscription" && !(id == "exa" && option != "exa-api")) {
+                            if (id != "codex-subscription" && id != "exa") {
                                 SecretField(
-                                    current.keys[id].orEmpty(), { form = current.copy(keys = current.keys + (id to it)); notice = null },
-                                    if (id == "searxng") "Authentication (optional)" else "${searchName(id)} API key",
+                                    current.keys[keyId].orEmpty(), { form = current.copy(keys = current.keys + (keyId to it)); notice = null },
+                                    if (id == "searxng") "Authentication (optional)" else if (id == ExaApiRow) "Exa API key" else "${searchName(id)} API key",
                                     placeholder = "Leave blank to keep a saved credential", enabled = !busy,
                                 )
                             }

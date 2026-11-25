@@ -659,7 +659,6 @@ describe("budgets", () => {
     const w = world({
       search: {
         providers: ["codex-subscription", "exa"],
-        exaAuth: "keyless",
         keys: async () => null,
         subscription: {
           accessToken: async () => {

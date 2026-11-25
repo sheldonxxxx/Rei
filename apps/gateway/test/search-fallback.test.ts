@@ -105,7 +105,7 @@ it("snapshots order for an in-flight query and reports disabled providers only i
   });
   expect(await r.service.run(query, new AbortController().signal)).toMatchObject({ ok: true, provider: "brave" });
   expect(await r.service.status()).toEqual([]);
-  expect(await r.service.status(true)).toHaveLength(5);
+  expect(await r.service.status(true)).toHaveLength(6);
   expect(await r.service.run(query, new AbortController().signal)).toMatchObject({
     ok: false,
     code: "search_unavailable",

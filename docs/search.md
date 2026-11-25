@@ -2,7 +2,7 @@
 
 Settings → Providers → Web search shows every provider in a saved priority order. Move a row by its drag handle, arrow keys on the handle, or its up/down buttons. The move buttons also work on touch screens. Enable switches determine which providers may receive queries; configuring credentials does not enable a provider. Unconfigured rows are muted but remain configurable and movable. Turn all providers off to disable search.
 
-Configure expands the settings for that provider: ChatGPT subscription model (default `gpt-6-luna`), Exa authentication mode/key, Brave or Tavily key, or external SearXNG URL/authentication. Secrets are write-only; blank inputs retain saved credentials. Save changes applies the list and configuration together. The UI distinguishes missing configuration, configured credentials, rate-limit cooldowns and the last failed attempt. Configured credentials do not guarantee provider entitlement or health.
+Configure expands the settings for that provider: ChatGPT subscription model (default `gpt-6-luna`), Exa API key, Brave or Tavily key, or external SearXNG URL/authentication. Exa (keyless) and Exa (API key) can both be enabled and positioned independently. Existing setups retain their selected Exa mode and its priority. Secrets are write-only; blank inputs retain saved credentials. Save changes applies the list and configuration together. The UI distinguishes missing configuration, configured credentials, rate-limit cooldowns and the last failed attempt. Configured credentials do not guarantee provider entitlement or health.
 
 ## Execution
 

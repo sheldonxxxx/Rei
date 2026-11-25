@@ -116,35 +116,33 @@ class ProvidersTest {
     }
 
     @Test
-    fun searchOrderFillsInAndExaShowsTwice() {
-        assertEquals(listOf("brave", "codex-subscription", "exa", "tavily", "searxng"), searchOrder(listOf("brave", "bogus")))
-        assertEquals(listOf("exa", "exa-api"), searchRows(listOf("exa")))
+    fun searchOrderFillsInBothExaModes() {
+        assertEquals(listOf("brave", "codex-subscription", "exa", "exa-api", "tavily", "searxng"), searchOrder(listOf("brave", "bogus")))
     }
 
     @Test
     fun movingRowsReordersProviders() {
-        val order = listOf("codex-subscription", "exa", "brave", "tavily", "searxng")
-        assertEquals(listOf("exa", "codex-subscription", "brave", "tavily", "searxng"), moveSearch(order, "codex-subscription", 1))
-        assertEquals(listOf("codex-subscription", "brave", "exa", "tavily", "searxng"), moveSearch(order, "exa-api", 1))
+        val order = listOf("codex-subscription", "exa", "exa-api", "brave", "tavily", "searxng")
+        assertEquals(listOf("exa", "codex-subscription", "exa-api", "brave", "tavily", "searxng"), moveSearch(order, "codex-subscription", 1))
+        assertEquals(listOf("codex-subscription", "exa", "brave", "exa-api", "tavily", "searxng"), moveSearch(order, "exa-api", 1))
         assertEquals(order, moveSearch(order, "codex-subscription", -1))
         assertEquals(order, moveSearch(order, "searxng", 1))
     }
 
     @Test
-    fun togglingExaPicksItsSignInKind() {
-        val form = SearchForm(providers = emptyList(), order = SearchProviderIds, searxngUrl = "", exaAuth = "keyless", codexModel = DefaultSearchModel)
-        val api = form.toggled("exa-api", true)
-        assertEquals("api_key", api.exaAuth)
-        assertTrue(api.enabled("exa-api"))
-        assertFalse(api.enabled("exa"))
-        assertFalse(api.toggled("exa-api", false).enabled("exa-api"))
+    fun togglingExaModesIsIndependent() {
+        val form = SearchForm(providers = emptyList(), order = SearchProviderIds, searxngUrl = "", codexModel = DefaultSearchModel)
+        val both = form.toggled("exa", true).toggled("exa-api", true)
+        assertEquals(listOf("exa", "exa-api"), both.providers)
+        assertEquals(listOf("exa"), both.toggled("exa-api", false).providers)
+        assertEquals(listOf("exa-api"), both.toggled("exa", false).providers)
     }
 
     @Test
     fun searchSaveKeepsOrderEnabledAndOnlyTypedKeys() {
         val form = SearchForm(
             providers = listOf("brave", "tavily"), order = listOf("tavily", "brave", "exa", "codex-subscription", "searxng"),
-            searxngUrl = " https://s.test ", exaAuth = "keyless", codexModel = DefaultSearchModel,
+            searxngUrl = " https://s.test ", codexModel = DefaultSearchModel,
             keys = mapOf("brave" to " key ", "tavily" to " "),
         )
         val body = (searchSave(form) as SearchSave.Ready).body
@@ -158,7 +156,7 @@ class ProvidersTest {
 
     @Test
     fun firstReadySkipsUnconfiguredAndLimited() {
-        val form = SearchForm(listOf("exa", "brave"), listOf("codex-subscription", "exa", "brave", "tavily", "searxng"), "", "keyless", DefaultSearchModel)
+        val form = SearchForm(listOf("exa", "brave"), listOf("codex-subscription", "exa", "exa-api", "brave", "tavily", "searxng"), "", DefaultSearchModel)
         val statuses = listOf(SearchStatus("exa", true, 2_000, null), SearchStatus("brave", true, null, null))
         assertEquals("brave", firstReady(form, statuses, now = 1_000))
         assertEquals("exa", firstReady(form, statuses, now = 3_000))

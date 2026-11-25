@@ -204,7 +204,6 @@ async function searchCheckCommand(): Promise<void> {
   const setup = await SearchSetup.load(new FileSecretStore(config.secretsFile), {
     providers: [...DEFAULT_PROVIDER_ORDER],
     subscription: subscriptionSearch(credentials, tokens, (value) => redactor.add(value)),
-    exaAuth: "keyless",
     keys: async () => null, // keys are saved settings; SearchSetup reads them
   });
   const lines = await searchCheck(setup.config);

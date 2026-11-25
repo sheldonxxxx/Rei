@@ -32,7 +32,7 @@ export interface GatewayStatus {
   search: {
     /** In the order the gateway tries them. */
     providers: {
-      id: "brave" | "tavily" | "searxng" | "exa" | "codex-subscription";
+      id: SearchProviderId;
       configured: boolean;
       limitedUntil: number | null;
     }[];
@@ -400,7 +400,7 @@ export interface WebPushSendRequest {
 /** `gone` means the push service said 404 or 410: the subscription must be dropped. `status` is 0 when the service was unreachable. */
 export type WebPushSendResponse = { ok: true } | { ok: false; gone: boolean; status: number; retryAfterMs?: number };
 
-export const SEARCH_PROVIDER_IDS = ["codex-subscription", "exa", "brave", "tavily", "searxng"] as const;
+export const SEARCH_PROVIDER_IDS = ["codex-subscription", "exa", "exa-api", "brave", "tavily", "searxng"] as const;
 export type SearchProviderId = (typeof SEARCH_PROVIDER_IDS)[number];
 export interface SearchProviderReadiness {
   id: SearchProviderId;
@@ -418,9 +418,10 @@ export const DEFAULT_SEARCH_MODEL = "gpt-6-luna";
 
 /** Search credentials are write-only; blank keys retain the stored credential. */
 export interface SearchSetupSettings {
-  providers: ("brave" | "tavily" | "searxng" | "exa" | "codex-subscription")[];
+  providers: SearchProviderId[];
   searxngUrl: string;
-  exaAuth: "keyless" | "api_key";
+  /** Legacy input. API-key search now uses the exa-api provider ID. */
+  exaAuth?: "keyless" | "api_key";
   /** Subscription search model; absent in older settings means gpt-6-luna. */
   codexModel?: string;
   /** All rows, including disabled providers, in presentation/priority order. */
