@@ -28,21 +28,43 @@ import dev.rei.android.ui.components.SettingsRow
 import dev.rei.android.ui.components.SettingsSwitchRow
 import dev.rei.android.ui.components.StatusBanner
 import dev.rei.android.ui.icons.ReiIcons
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-/** Notifications: this device's push switch, whether previews show message text, a test, and Android's own settings. */
+/** One kind of notification the user can turn off: the server's category key, and what it is called and tells. */
+internal data class NotifyCategory(val key: String, val title: Int, val summary: Int)
+
+/** In the order the server lists them (packages/protocol, NOTIFY_CATEGORIES). */
+internal val NotifyCategories = listOf(
+    NotifyCategory("approvals", R.string.settings_notif_cat_approvals, R.string.settings_notif_cat_approvals_summary),
+    NotifyCategory("takeovers", R.string.settings_notif_cat_takeovers, R.string.settings_notif_cat_takeovers_summary),
+    NotifyCategory("replies", R.string.settings_notif_cat_replies, R.string.settings_notif_cat_replies_summary),
+    NotifyCategory("trigger_results", R.string.settings_notif_cat_trigger_results, R.string.settings_notif_cat_trigger_results_summary),
+    NotifyCategory("trigger_problems", R.string.settings_notif_cat_trigger_problems, R.string.settings_notif_cat_trigger_problems_summary),
+    NotifyCategory("backups", R.string.settings_notif_cat_backups, R.string.settings_notif_cat_backups_summary),
+)
+
+/** Which categories this device receives, from `GET/PUT /api/devices/current/notifications`; a category the answer lacks is on. */
+internal fun JsonObject.notificationCategories(): Map<String, Boolean> =
+    (this["categories"] as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.content == "true" }
+
+/** Notifications: this device's push switch, what it is notified about, whether previews show message text, a test, and Android's own settings. */
 @Composable
 fun NotificationsScreen(api: ReiApi, onBack: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext
     val configured = ReiFirebase.configured(app)
     val path = listOf("api", "notifications")
+    val categoriesPath = listOf("api", "devices", "current", "notifications")
     val writes = rememberWrites()
     var enabled by remember { mutableStateOf(ReiNotifications.enabled(app)) }
     var permitted by remember(app) { mutableStateOf(ReiNotifications.hasPermission(app)) }
     var notice by remember { mutableStateOf<UiText?>(null) }
     val preview = rememberResource("notifications.preview", api) { api.request("GET", path).optionalString("preview") == "true" }
+    val categories = rememberResource("notifications.categories", api) { api.request("GET", categoriesPath).jsonObject.notificationCategories() }
 
     fun update(value: Boolean) {
         ReiNotifications.setEnabled(app, value)
@@ -58,7 +80,12 @@ fun NotificationsScreen(api: ReiApi, onBack: () -> Unit) {
         permitted = allowed
     }
 
-    SubScreen(stringResource(R.string.settings_page_notifications), onBack, busy = writes.busy || preview.loading, error = writes.error ?: preview.error, onRetry = preview::reload) {
+    SubScreen(
+        stringResource(R.string.settings_page_notifications), onBack,
+        busy = writes.busy || preview.loading || categories.loading,
+        error = writes.error ?: preview.error ?: categories.error,
+        onRetry = { preview.reload(); categories.reload() },
+    ) {
         SettingsGroup {
             SettingsSwitchRow(
                 stringResource(R.string.settings_notif_android), enabled,
@@ -109,6 +136,26 @@ fun NotificationsScreen(api: ReiApi, onBack: () -> Unit) {
                     },
                     trailing = { SettingsChevron() },
                 )
+            }
+        }
+        if (configured) {
+            SettingsGroup(title = stringResource(R.string.settings_notif_group_what)) {
+                NotifyCategories.forEachIndexed { index, category ->
+                    SettingsSwitchRow(
+                        stringResource(category.title), categories.value?.get(category.key) ?: true,
+                        { value ->
+                            writes.run {
+                                val result = api.request("PUT", categoriesPath, buildJsonObject {
+                                    put("categories", buildJsonObject { put(category.key, value) })
+                                })
+                                categories.set(result.jsonObject.notificationCategories())
+                            }
+                        },
+                        summary = stringResource(category.summary),
+                        enabled = categories.value != null && !writes.busy,
+                        dividerBelow = index < NotifyCategories.lastIndex,
+                    )
+                }
             }
         }
         notice?.asString()?.let { StatusBanner(it) }

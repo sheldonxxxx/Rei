@@ -1,14 +1,19 @@
 // Notifications: the worker that sends `notify` outbox rows to Web Push (every subscribed device) and the settings
 // behind the Settings screen. The gateway holds the VAPID key; this side decides what to send, to whom, and when to try
 // again.
-import type {
-  DeliveryChannel,
-  NotificationsResponse,
-  NotifyPayload,
-  PushSubscriptionJson,
-  RegisterChannelRequest,
+import {
+  type DeliveryChannel,
+  type DeviceNotifications,
+  NOTIFY_CATEGORIES,
+  type NotificationsResponse,
+  type NotifyCategory,
+  type NotifyPayload,
+  notifyCategory,
+  type PushSubscriptionJson,
+  type RegisterChannelRequest,
+  type UpdateDeviceNotificationsRequest,
 } from "@rei/protocol";
-import type { AppStore, OutboxRow } from "../store/store.ts";
+import { type AppStore, type OutboxRow, SEEN_SUFFIX } from "../store/store.ts";
 import type { Clock } from "../util/clock.ts";
 import { badRequest, HttpError } from "../util/errors.ts";
 import type { Logger } from "../util/log.ts";
@@ -87,6 +92,8 @@ const channelId = (row: SubRow) => `ch_${row.id}`;
 export class NotificationService {
   readonly #d: NotifyDeps;
   readonly #presence = new Map<string, Presence>();
+  /** Outbox rows (SEEN_SUFFIX) that were queued while a device was in use: you saw them happen. */
+  readonly #seen = new Set<number>();
   #chain: Promise<void> = Promise.resolve();
   #timer: ReturnType<typeof setInterval> | undefined;
   #stopped = true;
@@ -103,7 +110,10 @@ export class NotificationService {
 
   start(): void {
     this.#stopped = false;
-    this.#d.store.onNotifyQueued = () => void this.deliver();
+    this.#d.store.onNotifyQueued = () => {
+      this.#noteSeen();
+      void this.deliver();
+    };
     this.#timer = setInterval(() => void this.deliver(), this.#d.tickMs ?? 15_000);
     this.#timer.unref?.();
     void this.deliver();
@@ -228,12 +238,57 @@ export class NotificationService {
     this.#removeSubscription(row);
   }
 
-  /** A revoked device: its channels and presence go with it. */
+  /** A revoked device: its channels, choices and presence go with it. */
   removeDevice(deviceId: string): void {
     for (const row of this.#db.all<SubRow>("SELECT * FROM push_subscriptions WHERE device_id = ?", deviceId))
       this.#removeSubscription(row);
+    this.#db.run("DELETE FROM device_notification_muted WHERE device_id = ?", deviceId);
     this.#presence.delete(deviceId);
     void this.deliver();
+  }
+
+  // ---- what a device receives --------------------------------------------------------------------------------------
+
+  #mutedCategories(deviceId: string): Set<NotifyCategory> {
+    return new Set(
+      this.#db
+        .all<{ category: string }>("SELECT category FROM device_notification_muted WHERE device_id = ?", deviceId)
+        .map((r) => r.category as NotifyCategory),
+    );
+  }
+
+  /** Which kinds of notification a device receives; every one is on until the device turns it off. */
+  deviceSettings(deviceId: string): DeviceNotifications {
+    const muted = this.#mutedCategories(deviceId);
+    return {
+      categories: Object.fromEntries(
+        NOTIFY_CATEGORIES.map((category) => [category, !muted.has(category)]),
+      ) as DeviceNotifications["categories"],
+    };
+  }
+
+  /** Changes only the categories named; answers the full settings. */
+  updateDeviceSettings(deviceId: string, request: UpdateDeviceNotificationsRequest): DeviceNotifications {
+    this.#d.store.tx(() => {
+      for (const category of NOTIFY_CATEGORIES) {
+        const on = request.categories[category];
+        if (on === undefined) continue;
+        if (on) {
+          this.#db.run(
+            "DELETE FROM device_notification_muted WHERE device_id = ? AND category = ?",
+            deviceId,
+            category,
+          );
+        } else {
+          this.#db.run(
+            "INSERT OR IGNORE INTO device_notification_muted (device_id, category) VALUES (?, ?)",
+            deviceId,
+            category,
+          );
+        }
+      }
+    });
+    return this.deviceSettings(deviceId);
   }
 
   #canSend(kind: SubRow["kind"]): boolean {
@@ -295,6 +350,12 @@ export class NotificationService {
   }
   #present(): boolean {
     return this.#anyActive();
+  }
+  /** Remembers which queued notifications about visible things happened while a device was in use. */
+  #noteSeen(): void {
+    if (!this.#anyActive()) return;
+    for (const row of this.#d.store.pendingOutbox("notify"))
+      if (row.request_id.endsWith(SEEN_SUFFIX)) this.#seen.add(row.id);
   }
 
   async state(origin?: string): Promise<NotificationsResponse> {
@@ -408,16 +469,20 @@ export class NotificationService {
 
   async #deliverRow(row: OutboxRow): Promise<void> {
     const now = this.#now;
-    if (now - row.created_at > DROP_AFTER_MS) return this.#finish(row, "dropped");
+    if (now - row.created_at > DROP_AFTER_MS || this.#seen.has(row.id)) return this.#finish(row, "dropped");
     const preview = this.#preview();
     // Previews are applied when sending, so changing the setting covers notifications already queued.
     const payload = shownPayload(JSON.parse(row.payload) as NotifyPayload, preview);
+    // A device that turned this kind off never gets it, whatever channel it has; the choice is read when sending.
+    const category = notifyCategory(payload.event);
     const done = new Map(
       this.#db
         .all<DeliveryRow>("SELECT * FROM notify_deliveries WHERE outbox_id = ?", row.id)
         .map((d) => [d.destination, d]),
     );
-    const destinations = this.#subscriptions().map((s) => ({ key: `push:${s.id}`, sub: s }));
+    const destinations = this.#subscriptions()
+      .filter((s) => s.device_id === null || !this.#mutedCategories(s.device_id).has(category))
+      .map((s) => ({ key: `push:${s.id}`, sub: s }));
     let open = 0;
     for (const dest of destinations) {
       const prior = done.get(dest.key);
@@ -467,6 +532,7 @@ export class NotificationService {
   }
 
   #finish(row: OutboxRow, state: "delivered" | "dropped"): void {
+    this.#seen.delete(row.id);
     this.#d.store.tx(() => {
       this.#db.run(
         "UPDATE outbox SET state = ?, delivered_at = ?, payload = '{}' WHERE id = ?",

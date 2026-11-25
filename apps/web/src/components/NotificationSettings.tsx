@@ -1,3 +1,5 @@
+import type { NotifyCategory } from "@rei/protocol";
+import { NOTIFY_CATEGORIES } from "@rei/protocol";
 import { useEffect, useId, useState } from "react";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/primitives/field.tsx";
 import { Switch } from "@/components/primitives/switch.tsx";
@@ -14,6 +16,8 @@ type NotifyApi = Pick<
   | "removeChannel"
   | "getNotifications"
   | "updatePreview"
+  | "getDeviceNotifications"
+  | "updateDeviceNotifications"
   | "testNotifications"
 >;
 
@@ -23,12 +27,26 @@ const WHY_NOT: Record<Exclude<PushSupport, "ok">, string> = {
   denied: "Notifications are blocked for Rei. Allow them in your browser's settings, then come back.",
 };
 
-/** Settings → General: browser notifications and their preview settings. */
+/** What each kind of notification is called, and what it tells you about. */
+const CATEGORY_TEXT: Record<NotifyCategory, { title: string; help: string }> = {
+  approvals: { title: "Approvals", help: "An agent is waiting for you to approve something" },
+  takeovers: { title: "Browser help", help: "An agent needs you in its browser" },
+  replies: {
+    title: "Replies",
+    help: "A chat has a new reply, or a scheduled task that isn't reported to the home chat has finished",
+  },
+  trigger_results: { title: "Scheduled task results", help: "A scheduled task has something to report" },
+  trigger_problems: { title: "Scheduled task problems", help: "A scheduled task failed or was paused" },
+  backups: { title: "Backup problems", help: "A backup needs attention" },
+};
+
+/** Settings → Notifications: browser notifications, previews, and what this device is notified about. */
 export function NotificationSettings({ api, push = browserPush }: { api: NotifyApi; push?: PushEnv }) {
   return (
     <>
       <DeviceNotifications api={api} push={push} />
       <PreviewSetting api={api} />
+      <CategorySettings api={api} />
     </>
   );
 }
@@ -99,6 +117,85 @@ function DeviceNotifications({ api, push }: { api: NotifyApi; push: PushEnv }) {
           onCheckedChange={() => void toggle()}
         />
       )}
+    </Field>
+  );
+}
+
+/** Which kinds of notification this device receives. A server that can't be reached leaves the rows off the screen. */
+function CategorySettings({ api }: { api: NotifyApi }) {
+  const [categories, setCategories] = useState<Record<NotifyCategory, boolean> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve()
+      .then(() => api.getDeviceNotifications())
+      .then(
+        (s) => live && setCategories((current) => current ?? s.categories),
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [api]);
+  const change = async (category: NotifyCategory, next: boolean) => {
+    setError(null);
+    setCategories((current) => current && { ...current, [category]: next });
+    try {
+      setCategories((await api.updateDeviceNotifications({ categories: { [category]: next } })).categories);
+    } catch (e) {
+      setCategories((current) => current && { ...current, [category]: !next });
+      setError(describeError(e));
+    }
+  };
+  if (!categories) return null;
+  return (
+    <fieldset className="m-0 min-w-0 border-0 p-0">
+      <legend className="pt-5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Notify me about
+      </legend>
+      {NOTIFY_CATEGORIES.map((category) => (
+        <CategoryRow
+          key={category}
+          category={category}
+          on={categories[category]}
+          onChange={(next) => void change(category, next)}
+        />
+      ))}
+      {error && (
+        <p className="field-hint m-0 pb-3 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+function CategoryRow({
+  category,
+  on,
+  onChange,
+}: {
+  category: NotifyCategory;
+  on: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  const labelId = useId();
+  const helpId = useId();
+  const text = CATEGORY_TEXT[category];
+  return (
+    <Field
+      orientation="horizontal"
+      className="setting-row min-w-0 justify-between gap-5 py-5 [&+[data-slot=field]]:border-t"
+    >
+      <FieldContent className="setting-text min-w-0">
+        <FieldTitle id={labelId} className="setting-label text-sm font-medium">
+          {text.title}
+        </FieldTitle>
+        <FieldDescription id={helpId} className="setting-help m-0 max-w-xl text-sm text-muted-foreground">
+          {text.help}
+        </FieldDescription>
+      </FieldContent>
+      <Switch checked={on} aria-labelledby={labelId} aria-describedby={helpId} onCheckedChange={onChange} />
     </Field>
   );
 }

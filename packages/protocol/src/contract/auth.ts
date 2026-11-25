@@ -2,6 +2,7 @@
 // native clients as a bearer token returned in the sign-in answer.
 
 import { arr, bool, int, lit, map, obj, oneOf, opt, type Static, str, union, unknown } from "@earendil-works/pi-schema";
+import type { NotifyEvent } from "../api.ts";
 import { defineRoute, named } from "./define.ts";
 import { CLIENT_KINDS } from "./version.ts";
 
@@ -179,6 +180,73 @@ export const DevicePresenceRequestSchema = obj({
 });
 export type DevicePresenceRequest = Static<typeof DevicePresenceRequestSchema>;
 
+/**
+ * What a device can choose to receive. Every notification event belongs to exactly one category, and every category is on
+ * until the device turns it off, so a category added later reaches existing devices without a migration.
+ *
+ * - approvals: an agent waits for your approval (approval)
+ * - takeovers: an agent needs you in its browser (takeover)
+ * - replies: a chat, or a scheduled task that does not report to the home chat, has finished (session_done)
+ * - trigger_results: a scheduled task has a result (trigger_report)
+ * - trigger_problems: a scheduled task failed or was paused (trigger_failed, trigger_paused)
+ * - backups: a backup needs attention (backup_failed)
+ */
+export const NOTIFY_CATEGORIES = [
+  "approvals",
+  "takeovers",
+  "replies",
+  "trigger_results",
+  "trigger_problems",
+  "backups",
+] as const;
+export type NotifyCategory = (typeof NOTIFY_CATEGORIES)[number];
+
+/** The category a notification event belongs to; what a device filters on. */
+export function notifyCategory(event: NotifyEvent): NotifyCategory {
+  switch (event) {
+    case "approval":
+      return "approvals";
+    case "takeover":
+      return "takeovers";
+    case "session_done":
+      return "replies";
+    case "trigger_report":
+      return "trigger_results";
+    case "trigger_failed":
+    case "trigger_paused":
+      return "trigger_problems";
+    case "backup_failed":
+      return "backups";
+  }
+}
+
+export const DeviceNotificationsSchema = named(
+  "DeviceNotifications",
+  obj({
+    categories: obj({
+      approvals: bool(),
+      takeovers: bool(),
+      replies: bool(),
+      trigger_results: bool(),
+      trigger_problems: bool(),
+      backups: bool(),
+    }),
+  }),
+);
+export type DeviceNotifications = Static<typeof DeviceNotificationsSchema>;
+
+export const UpdateDeviceNotificationsRequestSchema = obj({
+  categories: obj({
+    approvals: opt(bool()),
+    takeovers: opt(bool()),
+    replies: opt(bool()),
+    trigger_results: opt(bool()),
+    trigger_problems: opt(bool()),
+    backups: opt(bool()),
+  }),
+});
+export type UpdateDeviceNotificationsRequest = Static<typeof UpdateDeviceNotificationsRequestSchema>;
+
 // ---- routes ------------------------------------------------------------------------------------------------------------
 
 export const authStateRoute = defineRoute({
@@ -352,6 +420,25 @@ export const presenceRoute = defineRoute({
   response: OkSchema,
 });
 
+export const deviceNotificationsRoute = defineRoute({
+  method: "GET",
+  path: "/api/devices/current/notifications",
+  tag: "devices",
+  summary: "Which kinds of notification this device receives.",
+  description:
+    "Each category is on until this device turns it off. A category that is off is never sent to any of this device's delivery channels.",
+  response: DeviceNotificationsSchema,
+});
+export const updateDeviceNotificationsRoute = defineRoute({
+  method: "PUT",
+  path: "/api/devices/current/notifications",
+  tag: "devices",
+  summary: "Choose which kinds of notification this device receives.",
+  description: "Only the categories named are changed. Answers the full settings.",
+  body: UpdateDeviceNotificationsRequestSchema,
+  response: DeviceNotificationsSchema,
+});
+
 export const authRoutes = [
   authStateRoute,
   setupRoute,
@@ -373,4 +460,6 @@ export const authRoutes = [
   registerChannelRoute,
   removeChannelRoute,
   presenceRoute,
+  deviceNotificationsRoute,
+  updateDeviceNotificationsRoute,
 ];

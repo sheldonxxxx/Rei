@@ -34,6 +34,7 @@ import type {
   DecideApprovalResponse,
   DeleteSessionResponse,
   Device,
+  DeviceNotifications,
   DevicePresenceRequest,
   DevicesResponse,
   EditLogResponse,
@@ -122,6 +123,7 @@ import type {
   UpdateCompanionRequest,
   UpdateConnectorRequest,
   UpdateContextSettingsRequest,
+  UpdateDeviceNotificationsRequest,
   UpdateFirstTimeSetupRequest,
   UpdateMemoryExtractionRequest,
   UpdateMemoryLineRequest,
@@ -644,6 +646,11 @@ export function createApi(options: ApiOptions = {}) {
     /** Whether this device is in use; while any device is, no notification is sent. */
     postPresence: (report: DevicePresenceRequest) => post<OkResponse>("/api/devices/current/presence", report),
     getNotifications: () => request<NotificationsResponse>("GET", "/api/notifications"),
+    /** Which kinds of notification this device receives; each is on until the device turns it off. */
+    getDeviceNotifications: () => request<DeviceNotifications>("GET", "/api/devices/current/notifications"),
+    /** Changes only the categories named; answers all of them. */
+    updateDeviceNotifications: (req: UpdateDeviceNotificationsRequest) =>
+      request<DeviceNotifications>("PUT", "/api/devices/current/notifications", req),
     updatePreview: (preview: boolean) =>
       request<NotificationsResponse>("PUT", "/api/notifications/preview", { preview } satisfies UpdatePreviewRequest),
     /** Sends a test to every subscribed device; fails with the reason (the error's message is a sentence to show). */

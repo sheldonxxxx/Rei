@@ -96,7 +96,7 @@ To have one agent manage another's work, enable **Manage triggers for other agen
 
 A trigger can also start when another service on your network says something happened, instead of on a schedule. Make a source with `./rei sources add <id>`, give its secret to the sender, then ask an agent to start a trigger on events from it, or choose **When an event arrives** in the trigger's settings. Events that arrive while a run is going gather into one waiting run. The Triggers page lists the sources and shows the events each run was started for. [Events](events.md) has the sender's contract.
 
-In **Settings → General**, use the notification controls to enable browser notifications and choose whether previews show what happened. On devices that require it, add Rei to the Home Screen before enabling browser notifications. Delivery depends on browser permissions and your device's notification settings.
+In **Settings → Notifications**, use the notification controls to enable notifications on that device, choose which categories that device receives (approvals, browser help, replies — including scheduled tasks set to **Never** report to the home chat — scheduled task results, scheduled task problems, and backup problems), and choose whether previews show what happened. On devices that require it, add Rei to the Home Screen before enabling browser notifications. Delivery depends on browser permissions and your device's notification settings.
 
 For installation checks and service problems, see [the installation guide](installation.md#troubleshooting).
 

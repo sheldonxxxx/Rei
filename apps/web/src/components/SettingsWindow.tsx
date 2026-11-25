@@ -52,6 +52,7 @@ import { UsagePage } from "./UsagePage.tsx";
 
 const SECTIONS: Record<SettingsSection, { label: string; icon: IconName }> = {
   general: { label: "General", icon: "sliders" },
+  notifications: { label: "Notifications", icon: "bell" },
   usage: { label: "Usage", icon: "usage" },
   memory: { label: "Memory", icon: "memory" },
   triggers: { label: "Triggers", icon: "clock" },
@@ -230,6 +231,8 @@ function SettingsWindowBody({
   const content =
     section === "general" ? (
       <GeneralSettings api={api} agents={agents} companion={companion} onLogout={onLogout} />
+    ) : section === "notifications" ? (
+      <NotificationsPage api={api} />
     ) : section === "usage" ? (
       <UsagePage api={api} tab={route.id} />
     ) : section === "memory" ? (
@@ -430,13 +433,20 @@ function GeneralSettings({
       <CompanionSetting api={api} agents={agents} companion={companion} />
       <TimeZoneSetting api={api} />
       <TitleSettings api={api} />
-      <NotificationSettings api={api} />
       <Field className="setting-row min-w-0 justify-between gap-5 py-5 [&+[data-slot=field]]:border-t border-t py-5">
         <Button type="button" variant="outline" className="w-fit" onClick={onLogout}>
           <Icon name="logout" size={18} />
           Log out
         </Button>
       </Field>
+    </PageShell>
+  );
+}
+
+function NotificationsPage({ api }: { api: Api }) {
+  return (
+    <PageShell title="Notifications" className="[&>.page-col]:gap-0 [&>.page-col>*+*]:border-t">
+      <NotificationSettings api={api} />
     </PageShell>
   );
 }

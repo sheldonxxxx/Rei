@@ -22,7 +22,9 @@ describe("main assistant event decisions", () => {
     expect(reply.internal).toBe(true);
     expect(server.host.plane.store.getRun(event.runId!)!.silent).toBe(1);
     expect(result.session.preview).not.toContain("This final text");
-    expect(server.host.plane.store.db.all("SELECT id FROM outbox WHERE kind = 'notify'")).toHaveLength(0);
+    expect(
+      server.host.plane.store.db.all("SELECT id FROM outbox WHERE kind = 'notify' AND request_id LIKE '%:reply'"),
+    ).toHaveLength(0);
   });
   it("can dismiss a trigger result without exposing streamed text or notifying", async () => {
     server = await startSignedIn();
@@ -88,7 +90,7 @@ describe("main assistant event decisions", () => {
     const reply = result.messages.filter((m) => m.role === "assistant").at(-1)!;
     expect(reply.internal).toBeUndefined();
     const notify = server.host.plane.store.db.all<{ payload: string }>(
-      "SELECT payload FROM outbox WHERE kind = 'notify'",
+      "SELECT payload FROM outbox WHERE kind = 'notify' AND request_id LIKE '%:reply'",
     );
     expect(notify).toHaveLength(1);
     expect(JSON.parse(notify[0]!.payload).body).toBe(reply.text.replace(/\s+/g, " ").trim().slice(0, 200));

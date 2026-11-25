@@ -101,7 +101,7 @@ describe("notification events", () => {
     const child = await until(async () => (await childrenOf(server!, parent))[0], 10_000, "the child");
     await settled(server, child.id, 1);
     const done = await until(
-      () => rows(server!).find((r) => r.payload.event === "session_done"),
+      () => rows(server!).find((r) => r.payload.event === "session_done" && r.requestId.endsWith(":reply")),
       10_000,
       "the session_done row",
     );
@@ -117,6 +117,25 @@ describe("notification events", () => {
     const id = done.payload.messageId;
     await until(async () => (await detail(server!, parent)).messages.some((m) => m.id === id), 10_000, "that message");
     expect(done.requestId).toMatch(/^notify:session_done:report:/);
+    // The parent's own reply to you is a separate notification, and the report's is told once.
+    expect(
+      rows(server).filter((r) => r.payload.event === "session_done" && r.requestId.endsWith(":reply")),
+    ).toHaveLength(1);
+  });
+
+  it("session_done: when a chat of yours finishes a reply, kept only if you were away", async () => {
+    server = await startSignedIn();
+    const id = await chat(server);
+    await say(server, id, "hello");
+    const done = await until(
+      () => rows(server!).find((r) => r.payload.event === "session_done"),
+      10_000,
+      "the session_done row",
+    );
+    expect(done.sessionId).toBe(id);
+    expect(done.requestId).toMatch(/^notify:session_done:.*:chat$/);
+    expect(done.payload.messageId).toMatch(/^a:/);
+    expect(done.payload.body.length).toBeGreaterThan(0);
     expect(rows(server).filter((r) => r.payload.event === "session_done")).toHaveLength(1);
   });
 
@@ -158,6 +177,61 @@ describe("notification events", () => {
         sessionId: home(),
         path: `#/s/${home()}`,
       });
+    });
+
+    const triggerRunDone = (t: Trigger) =>
+      until(
+        () => {
+          const status = plane().store.db.get<{ status: string }>(
+            "SELECT status FROM trigger_runs WHERE trigger_id = ? ORDER BY created_at DESC LIMIT 1",
+            t.id,
+          )?.status;
+          return status !== undefined && status !== "running" && status !== "queued";
+        },
+        10_000,
+        "the trigger run to finish",
+      );
+
+    it("report never: the run is told on its own session like any chat, and not through the home chat", async () => {
+      server = await startSignedIn();
+      const t = make({ report: "never", hideInList: false });
+      fireAt(t);
+      const row = await until(
+        () => rows(server!).find((r) => r.payload.event === "session_done"),
+        10_000,
+        "the session_done row",
+      );
+      expect(row.sessionId).not.toBe(home());
+      expect(row.requestId).toMatch(/^notify:session_done:.*:chat$/);
+      expect(row.payload).toMatchObject({ title: t.name, path: `#/s/${row.sessionId}` });
+      expect(row.payload.body.length).toBeGreaterThan(0);
+      await triggerRunDone(t);
+      expect(rows(server).filter((r) => r.payload.event === "session_done")).toHaveLength(1);
+      expect(rows(server).filter((r) => r.payload.event === "trigger_report")).toHaveLength(0);
+    });
+
+    it("report on_change with nothing to report is silent: the run's own session does not tell you", async () => {
+      server = await startSignedIn();
+      const t = make({ report: "on_change", hideInList: true });
+      fireAt(t);
+      await triggerRunDone(t);
+      expect(rows(server)).toHaveLength(0);
+    });
+
+    it("report never: a failed run is told on its own session, once", async () => {
+      server = await startSignedIn();
+      const t = make({ report: "never", hideInList: false, action: { kind: "skill", skill: "gone" } });
+      fireAt(t);
+      await T().runner.idle();
+      const failed = await until(
+        () => rows(server!).find((r) => r.payload.event === "trigger_failed"),
+        10_000,
+        "the trigger_failed row",
+      );
+      expect(failed.requestId).toMatch(/^notify:trigger_failed:.*:chat$/);
+      expect(failed.payload).toMatchObject({ title: t.name });
+      expect(failed.payload.body).toContain("gone");
+      expect(rows(server).filter((r) => r.payload.event === "trigger_failed")).toHaveLength(1);
     });
 
     it("trigger_failed, then trigger_paused after three failures in a row", async () => {
@@ -322,6 +396,8 @@ describe("the App API", () => {
       ["POST", "/api/push/subscriptions"],
       ["DELETE", "/api/push/subscriptions"],
       ["PUT", "/api/notifications/preview"],
+      ["GET", "/api/devices/current/notifications"],
+      ["PUT", "/api/devices/current/notifications"],
       ["POST", "/api/notifications/test"],
     ] as const;
     for (const [m, p] of all)
@@ -418,6 +494,86 @@ describe("the App API", () => {
     expect(rows(s)).toHaveLength(0);
     await s.client.post("/api/presence", { visible: true });
     expect((await s.client.post("/api/notifications/test", {})).status).toBe(204);
+  });
+});
+
+describe("what a device receives", () => {
+  const settings = "/api/devices/current/notifications";
+  const allOn = {
+    approvals: true,
+    takeovers: true,
+    replies: true,
+    trigger_results: true,
+    trigger_problems: true,
+    backups: true,
+  };
+
+  it("starts with every category on, and changes only the ones named", async () => {
+    const gw = new FakeNotifyGateway();
+    const s = await start(gw);
+    expect((await s.client.get(settings)).body).toEqual({ categories: allOn });
+    const off = await s.client.call("PUT", settings, { body: { categories: { replies: false, backups: false } } });
+    expect(off.body).toEqual({ categories: { ...allOn, replies: false, backups: false } });
+    const back = await s.client.call("PUT", settings, { body: { categories: { replies: true } } });
+    expect(back.body).toEqual({ categories: { ...allOn, backups: false } });
+    expect((await s.client.get(settings)).body).toEqual(back.body);
+    expect((await s.client.call("PUT", settings, { body: { categories: { replies: "no" } } })).status).toBe(400);
+    expect((await s.client.call("PUT", settings, { body: {} })).status).toBe(400);
+  });
+
+  it("never sends a category the device turned off, on any of its channels, and sends it again once back on", async () => {
+    const gw = new FakeNotifyGateway();
+    const s = await start(gw);
+    await s.client.post("/api/devices/current/channels", { kind: "webpush", subscription: sub(1).subscription });
+    await s.client.call("PUT", settings, { body: { categories: { trigger_results: false, trigger_problems: false } } });
+    queue(s, { event: "trigger_report" });
+    queue(s, { event: "trigger_failed" });
+    queue(s, { event: "trigger_paused" });
+    queue(s, { event: "approval", title: "Needs your approval" });
+    await deliver(s);
+    const sent = () => gw.sent("/notify/webpush/send").map((c) => JSON.parse(c.body.payload).event);
+    expect(sent()).toEqual(["approval"]);
+    // The skipped rows are finished, not held for later.
+    expect(rows(s)).toHaveLength(0);
+    await s.client.call("PUT", settings, { body: { categories: { trigger_results: true } } });
+    queue(s, { event: "trigger_report" });
+    queue(s, { event: "trigger_failed" });
+    await deliver(s);
+    expect(sent()).toEqual(["approval", "trigger_report"]);
+  });
+
+  it("drops a reply you were there to see, but still sends what needs you once you step away", async () => {
+    const gw = new FakeNotifyGateway();
+    const s = await start(gw);
+    await s.client.post("/api/push/subscriptions", sub(1));
+    await s.client.post("/api/presence", { visible: true });
+    queue(s, { event: "session_done", dedupe: "run1:chat" });
+    queue(s, { event: "approval", title: "Needs your approval" });
+    await deliver(s);
+    expect(gw.sent("/notify/webpush/send")).toHaveLength(0);
+    s.clock.advance(PRESENCE_MS + 1_000);
+    await deliver(s);
+    expect(gw.sent("/notify/webpush/send").map((c) => JSON.parse(c.body.payload).event)).toEqual(["approval"]);
+    expect(state(s, "notify:session_done:run1:chat")).toBe("dropped");
+    // One that happened while you were away is sent.
+    queue(s, { event: "session_done", dedupe: "run2:chat" });
+    await deliver(s);
+    expect(gw.sent("/notify/webpush/send")).toHaveLength(2);
+  });
+
+  it("forgets a device's choices when it is revoked", async () => {
+    const gw = new FakeNotifyGateway();
+    const s = await start(gw);
+    const device = (await s.client.get("/api/auth/state")).body.deviceId;
+    await s.client.call("PUT", settings, { body: { categories: { backups: false } } });
+    const count = () =>
+      s.host.plane.store.db.get<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM device_notification_muted WHERE device_id = ?",
+        device,
+      )!.n;
+    expect(count()).toBe(1);
+    s.host.plane.notifications.removeDevice(device);
+    expect(count()).toBe(0);
   });
 });
 

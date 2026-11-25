@@ -53,6 +53,7 @@ import {
   deleteSessionRoute,
   deleteSkillRoute,
   deleteTriggerRoute,
+  deviceNotificationsRoute,
   editLogRoute,
   editMessageRoute,
   embeddingSetupRoute,
@@ -178,6 +179,7 @@ import {
   updateCompanionRoute,
   updateConnectorRoute,
   updateContextSettingsRoute,
+  updateDeviceNotificationsRoute,
   updateFirstTimeSetupRoute,
   updateMemoryExtractionRoute,
   updateMemoryLineRoute,
@@ -1695,6 +1697,10 @@ export function createApp(deps: AppDeps): Hono {
     return undefined;
   });
   mountRoute(app, notificationsRoute, contract, (c) => notifications().state(appOrigin(c)));
+  mountRoute(app, deviceNotificationsRoute, contract, (c) => notifications().deviceSettings(currentDevice(c).id));
+  mountRoute(app, updateDeviceNotificationsRoute, contract, (c, { body }) =>
+    notifications().updateDeviceSettings(currentDevice(c).id, body),
+  );
   mountRoute(app, updatePreviewRoute, contract, (c, { body }) =>
     notifications().setPreview(body.preview, appOrigin(c)),
   );
