@@ -24,7 +24,7 @@ import dev.rei.android.ui.icons.ReiIcons
 @Composable
 internal fun EmbeddingScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val setup = rememberResource(api) { api.request("GET", listOf("api", "embedding", "setup")) }
+    val setup = rememberResource("providers.embedding", api) { api.request("GET", listOf("api", "embedding", "setup")) }
     var form by remember(setup.value) { mutableStateOf(setup.value?.let(::embeddingForm)) }
     var verifiedDims by remember { mutableStateOf<Long?>(null) }
     var verified by remember { mutableStateOf(false) }

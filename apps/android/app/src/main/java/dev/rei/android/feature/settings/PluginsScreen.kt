@@ -60,7 +60,7 @@ fun PluginsScreen(api: ReiApi, onOpenPlugin: (String) -> Unit, onBack: () -> Uni
 private fun PluginList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     val writes = rememberWrites()
-    val list = rememberResource(api) { api.request("GET", listOf("api", "plugins")).objects("plugins").map { it.pluginRow() } }
+    val list = rememberResource("plugins.list", api) { api.request("GET", listOf("api", "plugins")).objects("plugins").map { it.pluginRow() } }
     var problem by remember { mutableStateOf<UiText?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -113,7 +113,7 @@ private fun PluginList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit
 fun PluginEditScreen(api: ReiApi, id: String, onBack: () -> Unit, onSaved: (String) -> Unit) {
     val writes = rememberWrites()
     val creating = id == NewPlugin
-    val loaded = rememberResource(id) { if (creating) null else pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
+    val loaded = rememberResource("plugins.edit", id) { if (creating) null else pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
     val data = loaded.value
     if (!creating && data == null) {
         SubScreen(stringResource(R.string.settings_plugins_edit_title), onBack, busy = loaded.loading, error = loaded.error, onRetry = loaded::reload) {}
@@ -142,8 +142,8 @@ fun PluginDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onEdit: (Str
         return
     }
     val writes = rememberWrites()
-    val loaded = rememberResource(id) { pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
-    val agents = rememberResource(api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
+    val loaded = rememberResource("plugins.detail", id) { pluginDetail(api.request("GET", listOf("api", "plugins", id))) }
+    val agents = rememberResource("plugins.agents", api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
     var history by remember { mutableStateOf<PluginDetailData?>(null) }
     var confirmRemove by remember { mutableStateOf(false) }
     val data = loaded.value

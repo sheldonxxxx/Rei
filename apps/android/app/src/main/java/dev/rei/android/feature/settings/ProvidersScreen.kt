@@ -59,7 +59,7 @@ fun ProvidersScreen(onOpenSection: (ProviderSection) -> Unit, onBack: () -> Unit
 @Composable
 fun ChatProvidersScreen(api: ReiApi, onOpenForm: (kind: String, editingId: String?) -> Unit, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val rows = rememberResource(api) { providerRows(api.request("GET", listOf("api", "providers"))) }
+    val rows = rememberResource("providers.list", api) { providerRows(api.request("GET", listOf("api", "providers"))) }
     var removing by remember { mutableStateOf<ProviderRow?>(null) }
     SubScreen(stringResource(R.string.settings_providers_section_chat), onBack, busy = writes.busy || rows.loading, error = writes.error ?: rows.error, onRetry = rows::reload) {
         val loaded = rows.value
@@ -104,12 +104,12 @@ fun ChatProvidersScreen(api: ReiApi, onOpenForm: (kind: String, editingId: Strin
 fun ProviderEditorScreen(api: ReiApi, kind: String, editingId: String?, onClose: () -> Unit) {
     val context = LocalContext.current
     val notices = LocalNotices.current
-    val initialRow = rememberResource(editingId) {
+    val initialRow = rememberResource("providers.editor.initial", editingId) {
         if (editingId == null) null
         else providerRows(api.request("GET", listOf("api", "providers"))).firstOrNull { it.id == editingId }
     }
     val customDefault = stringResource(R.string.settings_providers_default_custom_name)
-    var form by rememberSettingsState<ProviderForm?> {
+    var form by rememberSettingsState<ProviderForm?>("providers.editor.form") {
         if (editingId == null) newProviderForm(kind, customDefault) else null
     }
     val row = initialRow.value

@@ -254,13 +254,15 @@ fun ReiNavHost(nav: NavHostController, env: ShellEnv, modifier: Modifier = Modif
                         AnimatedPane {
                             val page = navigator.currentDestination?.contentKey ?: SettingsPage.General
                             CompositionLocalProvider(LocalSubScreenHideBack provides bothExpanded) {
-                                SettingsDetailContent(
-                                    page = page,
-                                    env = env,
-                                    nav = nav,
-                                    onBack = { scope.launch { navigator.navigateBack() } },
-                                    onOpenPage = { target -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, target) } },
-                                )
+                                key(page) {
+                                    SettingsDetailContent(
+                                        page = page,
+                                        env = env,
+                                        nav = nav,
+                                        onBack = { scope.launch { navigator.navigateBack() } },
+                                        onOpenPage = { target -> scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, target) } },
+                                    )
+                                }
                             }
                         }
                     },

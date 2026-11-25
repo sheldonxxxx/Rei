@@ -34,7 +34,7 @@ internal data class DeviceItem(val id: String, val label: String, val kind: Stri
 fun DevicesScreen(api: ReiApi, onCurrentRevoked: () -> Unit, onBack: () -> Unit) {
     val path = listOf("api", "devices")
     val writes = rememberWrites()
-    val devices = rememberResource(api) {
+    val devices = rememberResource("devices.list", api) {
         api.request("GET", path).objects("devices").map {
             DeviceItem(it.string("id"), it.string("label"), it.string("kind"), it.optionalString("current") == "true", it.optionalString("lastSeenAt")?.toLongOrNull())
         }

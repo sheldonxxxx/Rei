@@ -74,7 +74,7 @@ private fun pauseBody(active: Boolean) = buildJsonObject { put("paused", active)
 @Composable
 private fun TriggerList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val writes = rememberWrites()
-    val triggers = rememberResource(api) { api.request("GET", listOf("api", "triggers")).objects("triggers").map { it.trigger() } }
+    val triggers = rememberResource("triggers.list", api) { api.request("GET", listOf("api", "triggers")).objects("triggers").map { it.trigger() } }
     SubScreen(stringResource(R.string.settings_page_triggers), onBack, busy = writes.busy || triggers.loading, error = writes.error ?: triggers.error, onRetry = triggers::reload) {
         val list = triggers.value
         when {
@@ -105,7 +105,7 @@ private fun TriggerList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Uni
 fun TriggerDetail(api: ReiApi, id: String, onBack: () -> Unit) {
     val writes = rememberWrites()
     val path = listOf("api", "triggers", id)
-    val detail = rememberResource(id) {
+    val detail = rememberResource("triggers.detail", id) {
         val body = api.request("GET", path)
         body.obj("trigger").trigger() to body.objects("runs").map {
             RunItem(it.string("id"), it.string("status"), it.optionalString("scheduledAt")?.toLongOrNull(), it.optionalString("report"), it.optionalString("reason"))

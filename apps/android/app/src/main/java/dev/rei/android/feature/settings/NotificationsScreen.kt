@@ -42,7 +42,7 @@ fun NotificationsScreen(api: ReiApi, onBack: () -> Unit) {
     var enabled by remember { mutableStateOf(ReiNotifications.enabled(app)) }
     var permitted by remember(app) { mutableStateOf(ReiNotifications.hasPermission(app)) }
     var notice by remember { mutableStateOf<UiText?>(null) }
-    val preview = rememberResource(api) { api.request("GET", path).optionalString("preview") == "true" }
+    val preview = rememberResource("notifications.preview", api) { api.request("GET", path).optionalString("preview") == "true" }
 
     fun update(value: Boolean) {
         ReiNotifications.setEnabled(app, value)

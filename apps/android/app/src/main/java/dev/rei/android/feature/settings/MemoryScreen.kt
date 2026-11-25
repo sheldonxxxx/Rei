@@ -71,8 +71,8 @@ private fun MemoryList(
     val resources = LocalResources.current
     val notices = LocalNotices.current
     val writes = rememberWrites()
-    val memory = rememberResource(api) { parseMemory(api.request("GET", listOf("api", "memory"))) }
-    val names = rememberResource(api) {
+    val memory = rememberResource("memory.docs", api) { parseMemory(api.request("GET", listOf("api", "memory"))) }
+    val names = rememberResource("memory.agentNames", api) {
         suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
     }
     var sheet by remember { mutableStateOf<MemoryEntry?>(null) }
@@ -186,7 +186,7 @@ private fun androidx.compose.ui.Modifier.androidAddLabel(label: String) =
 @Composable
 fun MemoryHistory(api: ReiApi, lineId: String, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val edits = rememberResource(lineId) {
+    val edits = rememberResource("memory.history", lineId) {
         api.request("GET", listOf("api", "memory", "lines", lineId, "changes")).objects("changes").map {
             MemoryEdit(
                 it.string("id"), it.string("op"), it.string("by"), it.optionalString("at")?.toLongOrNull(), it.optionalString("before"), it.optionalString("after"),

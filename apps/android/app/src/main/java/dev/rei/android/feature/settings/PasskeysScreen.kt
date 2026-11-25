@@ -49,7 +49,7 @@ internal data class SavedPasskey(val id: String, val label: String)
 fun PasskeysScreen(api: ReiApi, onBack: () -> Unit) {
     val activity = LocalActivity.current
     val writes = rememberWrites()
-    val keys = rememberResource(api) { api.request("GET", passkeyPath).objects("passkeys").map { SavedPasskey(it.string("id"), it.string("label")) } }
+    val keys = rememberResource("passkeys.list", api) { api.request("GET", passkeyPath).objects("passkeys").map { SavedPasskey(it.string("id"), it.string("label")) } }
     val https = api.serverUrl.startsWith("https://")
     var adding by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<SavedPasskey?>(null) }

@@ -45,7 +45,7 @@ fun ConnectorsScreen(api: ReiApi, onOpenConnector: (String) -> Unit, onBack: () 
 @Composable
 private fun ConnectorList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val writes = rememberWrites()
-    val list = rememberResource(api) { connectorList(api.request("GET", listOf("api", "connectors"))) }
+    val list = rememberResource("connectors.list", api) { connectorList(api.request("GET", listOf("api", "connectors"))) }
     var url by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var nameEdited by remember { mutableStateOf(false) }
@@ -122,7 +122,7 @@ private fun ConnectorList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> U
 @Composable
 fun ConnectorDetail(api: ReiApi, id: String, canRemove: Boolean, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val loaded = rememberResource(id) {
+    val loaded = rememberResource("connectors.detail", id) {
         connectorList(api.request("GET", listOf("api", "connectors"))).firstOrNull { it.id == id }
     }
     var connector by remember(loaded.value) { mutableStateOf(loaded.value) }

@@ -45,7 +45,7 @@ private suspend fun loadRuntime(api: ReiApi) = RuntimeData(
 @Composable
 fun RuntimeScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val data = rememberResource(api) { loadRuntime(api) }
+    val data = rememberResource("runtime", api) { loadRuntime(api) }
     var tab by rememberSaveable { mutableStateOf(RuntimeTab.Context) }
     var draft by remember(data.value) { mutableStateOf(data.value?.draft()) }
     var problem by remember { mutableStateOf<UiText?>(null) }

@@ -13,7 +13,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,8 +63,8 @@ class Resource<T> internal constructor(
  */
 class SettingsScreenViewModel : ViewModel() {
     val writes = Writes(viewModelScope)
-    private val resources = mutableMapOf<Int, Entry<Any?>>()
-    private val states = mutableMapOf<Int, MutableState<Any?>>()
+    private val resources = mutableMapOf<String, Entry<Any?>>()
+    private val states = mutableMapOf<String, MutableState<Any?>>()
 
     private class Entry<T>(var key: Any?, private val scope: CoroutineScope, var loader: suspend () -> T) {
         val state = mutableStateOf<T?>(null)
@@ -93,7 +92,7 @@ class SettingsScreenViewModel : ViewModel() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    internal fun <T> resource(slot: Int, key: Any?, load: suspend () -> T): Resource<T> {
+    internal fun <T> resource(slot: String, key: Any?, load: suspend () -> T): Resource<T> {
         val existing = resources[slot] as? Entry<T>
         if (existing == null) {
             val created = Entry(key, viewModelScope, load)
@@ -112,21 +111,23 @@ class SettingsScreenViewModel : ViewModel() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    internal fun <T> state(slot: Int, init: () -> T): MutableState<T> =
+    internal fun <T> state(slot: String, init: () -> T): MutableState<T> =
         states.getOrPut(slot) { mutableStateOf(init() as Any?) } as MutableState<T>
 }
 
+/**
+ * Loads and caches a settings resource inside [SettingsScreenViewModel] under an explicit [slot] so
+ * multiple resources in the same composable or across tablet detail panes never collide or overwrite each other.
+ */
 @Composable
-fun <T> rememberResource(key: Any?, load: suspend () -> T): Resource<T> {
+fun <T> rememberResource(slot: String, key: Any?, load: suspend () -> T): Resource<T> {
     val vm: SettingsScreenViewModel = viewModel()
-    val slot = currentCompositeKeyHashCode.hashCode()
     return vm.resource(slot, key, load)
 }
 
 @Composable
-internal fun <T> rememberSettingsState(init: () -> T): MutableState<T> {
+internal fun <T> rememberSettingsState(slot: String, init: () -> T): MutableState<T> {
     val vm: SettingsScreenViewModel = viewModel()
-    val slot = currentCompositeKeyHashCode.hashCode()
     return vm.state(slot, init)
 }
 

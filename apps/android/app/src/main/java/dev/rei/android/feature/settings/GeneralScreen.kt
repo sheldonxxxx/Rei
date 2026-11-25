@@ -118,7 +118,7 @@ fun GeneralScreen(api: ReiApi, onBack: () -> Unit) {
 private fun GeneralMain(api: ReiApi, onBack: () -> Unit) {
     val resources = LocalResources.current
     val writes = rememberWrites()
-    val data = rememberResource(api) { loadGeneral(api) }
+    val data = rememberResource("general", api) { loadGeneral(api) }
     var zones by remember { mutableStateOf(false) }
     var cadence by remember(data.value?.reviewEvery) { mutableStateOf(data.value?.reviewEvery?.toString().orEmpty()) }
     var cadenceError by remember { mutableStateOf<String?>(null) }

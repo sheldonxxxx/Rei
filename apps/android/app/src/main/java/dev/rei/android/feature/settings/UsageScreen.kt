@@ -67,10 +67,10 @@ fun UsageScreen(api: ReiApi, onBack: () -> Unit) {
     var from by rememberSaveable { mutableStateOf(initial.first) }
     var to by rememberSaveable { mutableStateOf(initial.second) }
     val problem = if (period == "custom") rangeProblem(from, to) else null
-    val agents = rememberResource(api) {
+    val agents = rememberResource("usage.agents", api) {
         suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").associate { it.string("id") to it.string("name") } }.getOrDefault(emptyMap())
     }
-    val usage = rememberResource(Triple(period, from.takeIf { period == "custom" }, to.takeIf { period == "custom" })) {
+    val usage = rememberResource("usage.report", Triple(period, from.takeIf { period == "custom" }, to.takeIf { period == "custom" })) {
         if (problem != null) null
         else usageData(api.request("GET", listOf("api", "usage"), query = usageQuery(period, from, to)), agents.value.orEmpty())
     }

@@ -47,7 +47,7 @@ fun TwoFactorScreen(api: ReiApi, onBack: () -> Unit) {
     val resources = LocalResources.current
     val context = LocalContext.current
     val writes = rememberWrites()
-    val state = rememberResource(api) { api.authState().totpEnabled }
+    val state = rememberResource("twoFactor", api) { api.authState().totpEnabled }
     var editing by remember { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }

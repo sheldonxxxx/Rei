@@ -59,7 +59,7 @@ fun SkillsScreen(api: ReiApi, onOpenSkill: (String) -> Unit, onBack: () -> Unit)
 private fun SkillList(api: ReiApi, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     val writes = rememberWrites()
-    val data = rememberResource(api) {
+    val data = rememberResource("skills.list", api) {
         val skills = api.request("GET", listOf("api", "skills")).objects("skills").map { it.skillSummary() }
         val agents = suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList())
         skills to agents
@@ -152,14 +152,14 @@ fun SkillDetailScreen(api: ReiApi, id: String, onBack: () -> Unit, onOpenPlugin:
     val writes = rememberWrites()
     var viewing by rememberSaveable { mutableStateOf<Long?>(null) }
     var missing by remember { mutableStateOf(false) }
-    val loaded = rememberResource(id to viewing) {
+    val loaded = rememberResource("skills.detail", id to viewing) {
         try {
             skillData(api.request("GET", listOf("api", "skills", id), query = viewing?.let { mapOf("version" to it.toString()) } ?: emptyMap()))
         } catch (failure: ReiApiException) {
             if (failure.code == "not_found") { missing = true; null } else throw failure
         }
     }
-    val agents = rememberResource(api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
+    val agents = rememberResource("skills.agents", api) { suspendRunCatching { api.request("GET", listOf("api", "agents")).objects("agents").map { it.agentOption() } }.getOrDefault(emptyList()) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }

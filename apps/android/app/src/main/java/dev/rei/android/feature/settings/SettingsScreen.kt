@@ -94,7 +94,7 @@ internal fun SettingsIndex(
     val context = LocalContext.current
     val details = remember { ShowDetailsStore.get(context) }
     val showDetails by details.enabled.collectAsStateWithLifecycle()
-    val device = rememberResource(api) {
+    val device = rememberResource("settings.device", api) {
         api.request("GET", listOf("api", "devices")).objects("devices")
             .firstOrNull { it.optionalString("current") == "true" }?.string("label")
     }

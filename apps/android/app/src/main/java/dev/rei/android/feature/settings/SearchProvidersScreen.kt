@@ -24,7 +24,7 @@ import dev.rei.android.ui.icons.ReiIcons
 @Composable
 internal fun SearchProvidersScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val settings = rememberResource(api) { api.request("GET", listOf("api", "providers", "search-settings")) }
+    val settings = rememberResource("providers.search", api) { api.request("GET", listOf("api", "providers", "search-settings")) }
     var form by remember(settings.value) { mutableStateOf(settings.value?.let(::searchForm)) }
     var open by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<UiText?>(null) }

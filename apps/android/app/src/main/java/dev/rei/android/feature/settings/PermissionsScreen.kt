@@ -129,7 +129,7 @@ fun PermissionsScreen(api: ReiApi, onOpenSandbox: () -> Unit, onBack: () -> Unit
 @Composable
 private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Unit) {
     val writes = rememberWrites()
-    val data = rememberResource(api) { loadPermissions(api) }
+    val data = rememberResource("permissions.list", api) { loadPermissions(api) }
     var revoking by remember { mutableStateOf<GrantItem?>(null) }
     SubScreen(stringResource(R.string.settings_page_permissions), onBack, busy = writes.busy || data.loading, error = writes.error ?: data.error, onRetry = data::reload) {
         val loaded = data.value
@@ -207,7 +207,7 @@ private fun PermissionsMain(api: ReiApi, onBack: () -> Unit, onSandbox: () -> Un
 @Composable
 fun SandboxNetworkScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val settings = rememberResource(api) {
+    val settings = rememberResource("permissions.sandboxNetwork", api) {
         val body = api.request("GET", listOf("api", "settings", "sandbox-network"))
         body.stringList("whitelist") to body.stringList("defaults")
     }

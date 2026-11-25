@@ -89,7 +89,7 @@ private suspend fun loadModels(api: ReiApi): ModelsData {
 @Composable
 fun ModelsScreen(api: ReiApi, onBack: () -> Unit) {
     val writes = rememberWrites()
-    val data = rememberResource(api) { loadModels(api) }
+    val data = rememberResource("models", api) { loadModels(api) }
     var limitModel by rememberSaveable { mutableStateOf<String?>(null) }
     var drafts by remember { mutableStateOf<Map<String, Pair<String, String>>>(emptyMap()) }
     var problem by remember { mutableStateOf<UiText?>(null) }
