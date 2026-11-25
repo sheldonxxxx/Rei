@@ -11,7 +11,13 @@ import { tavily } from "./tavily.ts";
 export type { Freshness, ProviderId, SearchQuery, SearchResult } from "./common.ts";
 export { PROVIDER_IDS } from "./common.ts";
 
-const PROVIDERS: Record<Exclude<ProviderId, "codex-subscription">, SearchProvider> = { brave, tavily, searxng, exa };
+const PROVIDERS: Record<Exclude<ProviderId, "codex-subscription">, SearchProvider> = {
+  brave,
+  tavily,
+  searxng,
+  exa,
+  "exa-api": exa,
+};
 export const DEFAULT_PROVIDER_ORDER: readonly ProviderId[] = ["exa"];
 export type KeyName = "brave" | "tavily" | "exa" | "searxng";
 export interface SearchDeps {
@@ -19,7 +25,6 @@ export interface SearchDeps {
   providerOrder?: readonly ProviderId[];
   subscription?: SubscriptionSearch;
   codexModel?: string;
-  exaAuth?: "keyless" | "api_key";
   keys: (name: KeyName) => Promise<string | null>;
   searxngUrl?: string | undefined;
   /** Per-attempt override for tests and deployments. */
@@ -98,9 +103,9 @@ export function createSearchService(
     const provider = PROVIDERS[id];
     const baseUrl = config.endpoints?.[id] ?? (id === "searxng" ? config.searxngUrl : provider.defaultBaseUrl);
     if (!baseUrl) return null;
-    const key = id === "exa" && config.exaAuth !== "api_key" ? null : await config.keys(id);
+    const key = id === "exa" ? null : await config.keys(id === "exa-api" ? "exa" : id);
     if (key) env.addSecret(...(id === "searxng" ? (parseSearxngAuth(key)?.secrets ?? [key]) : [key]));
-    if (!key && (provider.needsKey || (id === "exa" && config.exaAuth === "api_key"))) return null;
+    if (!key && (provider.needsKey || id === "exa-api")) return null;
     return { key, baseUrl };
   }
   return {

@@ -136,8 +136,8 @@ describe("providers: request and mapping", () => {
   });
 
   it("exa: a key goes in x-api-key; a plain JSON reply works too", async () => {
-    rig = await startSearchRig({ providers: ["exa"], keys: KEYS });
-    rig.on("exa", (req) => {
+    rig = await startSearchRig({ providers: ["exa-api"], keys: KEYS });
+    rig.on("exa-api", (req) => {
       const sse = exaReply("exa-search.sse", req);
       return {
         body: sse
@@ -148,7 +148,7 @@ describe("providers: request and mapping", () => {
     });
     const out = await okJson(await rig.search({ query: "q" }));
     expect(out.results).toHaveLength(3);
-    expect(rig.forProvider("exa")[0]!.headers["x-api-key"]).toBe(KEYS.exa);
+    expect(rig.forProvider("exa-api")[0]!.headers["x-api-key"]).toBe(KEYS.exa);
   });
 
   it("exa: does the initialize handshake when the server insists on a session", async () => {
@@ -669,21 +669,27 @@ describe("units", () => {
 });
 
 describe("explicit Exa authentication modes", () => {
-  it("keyless ignores an existing key and paid mode uses it", async () => {
-    for (const exaAuth of ["keyless", "api_key"] as const) {
-      const rig = await startSearchRig({ providers: ["exa"], keys: { exa: KEYS.exa }, exaAuth });
-      try {
-        rig.on("exa", (req) => ({ headers: SSE, body: exaReply("exa-search.sse", req) }));
-        expect((await okJson(await rig.search({ query: "wikipedia" }))).provider).toBe("exa");
-        expect(rig.forProvider("exa")[0]!.headers["x-api-key"]).toBe(exaAuth === "api_key" ? KEYS.exa : undefined);
-      } finally {
-        await rig.stop();
-      }
+  it("falls back from rate-limited keyless Exa to authenticated Exa independently", async () => {
+    const rig = await startSearchRig({ providers: ["exa", "exa-api"], keys: { exa: KEYS.exa } });
+    try {
+      rig.on("exa", (req) => ({ headers: SSE, body: exaReply("exa-ratelimited.sse", req) }));
+      rig.on("exa-api", (req) => ({ headers: SSE, body: exaReply("exa-search.sse", req) }));
+
+      expect((await okJson(await rig.search({ query: "wikipedia" }))).provider).toBe("exa-api");
+      expect(rig.requests.map(({ provider, headers }) => [provider, headers["x-api-key"]])).toEqual([
+        ["exa", undefined],
+        ["exa-api", KEYS.exa],
+      ]);
+      expect((await okJson(await rig.search({ query: "wikipedia" }))).provider).toBe("exa-api");
+      expect(rig.forProvider("exa")).toHaveLength(1);
+      expect(rig.forProvider("exa-api")).toHaveLength(2);
+    } finally {
+      await rig.stop();
     }
   });
   it("paid Exa is unavailable without a key", async () => {
     const service = createSearchService(
-      { providers: ["exa"], exaAuth: "api_key", keys: async () => null },
+      { providers: ["exa-api"], keys: async () => null },
       {
         fetch: async () => {
           throw new Error("must not call the provider");
@@ -692,6 +698,6 @@ describe("explicit Exa authentication modes", () => {
         addSecret() {},
       },
     );
-    expect(await service.status()).toEqual([{ id: "exa", configured: false, limitedUntil: null }]);
+    expect(await service.status()).toEqual([{ id: "exa-api", configured: false, limitedUntil: null }]);
   });
 });

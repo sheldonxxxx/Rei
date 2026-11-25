@@ -560,7 +560,7 @@ export const SaveProviderConnectionRequestSchema = obj({
 });
 true satisfies Same<Static<typeof SaveProviderConnectionRequestSchema>, SaveProviderConnectionRequest>;
 
-const SearchProviderSchema = oneOf(["brave", "tavily", "searxng", "exa", "codex-subscription"]);
+const SearchProviderSchema = oneOf(["brave", "tavily", "searxng", "exa", "exa-api", "codex-subscription"]);
 export const WebSearchSetupStatusSchema = obj({
   providers: arr(obj({ id: SearchProviderSchema, configured: bool() })),
 });
@@ -568,7 +568,7 @@ true satisfies Same<Static<typeof WebSearchSetupStatusSchema>, WebSearchSetupSta
 export const SearchSetupSettingsSchema = obj({
   providers: arr(SearchProviderSchema),
   searxngUrl: str(),
-  exaAuth: oneOf(["keyless", "api_key"]),
+  exaAuth: opt(oneOf(["keyless", "api_key"])),
   codexModel: opt(str()),
   providerOrder: opt(arr(SearchProviderSchema)),
   providerStatus: opt(
@@ -579,7 +579,7 @@ true satisfies Same<Static<typeof SearchSetupSettingsSchema>, SearchSetupSetting
 export const SaveSearchSetupSettingsSchema = obj({
   providers: arr(SearchProviderSchema),
   searxngUrl: str(),
-  exaAuth: oneOf(["keyless", "api_key"]),
+  exaAuth: opt(oneOf(["keyless", "api_key"])),
   codexModel: opt(str()),
   providerOrder: opt(arr(SearchProviderSchema)),
   providerStatus: opt(

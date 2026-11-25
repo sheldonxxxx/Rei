@@ -23,7 +23,7 @@ import { classifyUpstreamError, SseMeter, usageFromJson } from "./meter.ts";
 import { registerNotifyRoutes } from "./notify/routes.ts";
 import { redactingLogger } from "./redact.ts";
 import type { Freshness, SearchQuery } from "./search/service.ts";
-import { createSearchService } from "./search/service.ts";
+import { createSearchService, PROVIDER_IDS } from "./search/service.ts";
 import type { GatewayDeps } from "./types.ts";
 import { TokenError } from "./types.ts";
 import { checkUpstream, downstreamResponseHeaders, upstreamRequestHeaders } from "./upstream.ts";
@@ -816,7 +816,7 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
     if (!deps.setupSearch)
       return c.json({ error: { code: "unavailable", message: "Search settings unavailable." } }, 503);
     const body = await readJsonObject(c.req.raw);
-    const ids = ["brave", "tavily", "searxng", "exa", "codex-subscription"];
+    const ids: readonly string[] = PROVIDER_IDS;
     if (
       !Array.isArray(body.providers) ||
       body.providers.some((id) => !ids.includes(String(id))) ||
@@ -827,8 +827,7 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
     if (
       body.providerOrder !== undefined &&
       (!Array.isArray(body.providerOrder) ||
-        body.providerOrder.length !== ids.length ||
-        new Set(body.providerOrder).size !== ids.length ||
+        new Set(body.providerOrder).size !== body.providerOrder.length ||
         body.providerOrder.some((id) => !ids.includes(String(id))))
     )
       return c.json(
@@ -867,6 +866,7 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
         if (
           !ids.includes(id) ||
           id === "codex-subscription" ||
+          id === "exa-api" ||
           typeof key !== "string" ||
           (key && !(id === "searxng" ? /^[\x20-\x7e]{3,512}$/ : /^[\x21-\x7e]{8,512}$/).test(key))
         )
@@ -880,7 +880,7 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
     const savedSearch = await deps.setupSearch.save({
       providers: body.providers as import("@rei/protocol").SearchSetupSettings["providers"],
       searxngUrl: body.searxngUrl,
-      exaAuth: body.exaAuth === "api_key" ? "api_key" : "keyless",
+      ...(body.exaAuth === "api_key" ? { exaAuth: body.exaAuth } : {}),
       apiKeys,
       ...(typeof body.codexModel === "string" ? { codexModel: body.codexModel.trim() } : {}),
       ...(Array.isArray(body.providerOrder)

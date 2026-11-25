@@ -1,6 +1,8 @@
 // What every search provider shares: the result shape, the failure kinds the fallback logic cares about, and the text
 // and URL clean-up that turns whatever an upstream sent into plain, bounded strings.
 
+import type { SearchProviderId as ProviderId } from "@rei/protocol";
+
 export type Freshness = "day" | "week" | "month" | "year";
 
 export interface SearchQuery {
@@ -16,8 +18,8 @@ export interface SearchResult {
   published?: string;
 }
 
-export const PROVIDER_IDS = ["brave", "tavily", "searxng", "exa", "codex-subscription"] as const;
-export type ProviderId = (typeof PROVIDER_IDS)[number];
+export { SEARCH_PROVIDER_IDS as PROVIDER_IDS } from "@rei/protocol";
+export type { ProviderId };
 
 export const MAX_TITLE = 300;
 export const MAX_SNIPPET = 1_000;

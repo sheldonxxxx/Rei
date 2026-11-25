@@ -8,7 +8,6 @@ function setup(patch: Partial<SearchSetupSettings> = {}) {
   const value: SearchSetupSettings = {
     providers: ["codex-subscription"],
     searxngUrl: "",
-    exaAuth: "keyless",
     providerStatus: [
       { id: "codex-subscription", configured: true, limitedUntil: null },
       { id: "exa", configured: true, limitedUntil: null },
@@ -46,7 +45,7 @@ it("saves fallback order, switches and write-only configuration together without
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
         providers: ["exa", "codex-subscription"],
-        providerOrder: ["exa", "codex-subscription", "brave", "tavily", "searxng"],
+        providerOrder: ["exa", "codex-subscription", "exa-api", "brave", "tavily", "searxng"],
         apiKeys: { brave: "test-brave-key" },
         codexModel: "gpt-6-luna",
       }),
@@ -67,7 +66,7 @@ it("supports drag reordering and keyboard movement, including disabled rows", as
   await waitFor(() =>
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerOrder: ["codex-subscription", "searxng", "exa", "brave", "tavily"],
+        providerOrder: ["codex-subscription", "searxng", "exa", "exa-api", "brave", "tavily"],
         providers: ["codex-subscription"],
       }),
     ),
@@ -96,19 +95,21 @@ it("shows save failures without discarding unsaved order", async () => {
   );
 });
 
-it("offers separate Exa modes and saves the selected authentication", async () => {
+it("enables and reorders both Exa modes independently", async () => {
   const save = setup({ providers: ["exa"] });
   await screen.findByRole("list");
   expect(screen.queryByText("Brave Search API")).toBeNull();
   fireEvent.click(screen.getByRole("switch", { name: "Enable Exa (API key)" }));
-  expect(screen.getByRole("switch", { name: "Enable Exa (keyless)" }).getAttribute("aria-checked")).toBe("false");
+  expect(screen.getByRole("switch", { name: "Enable Exa (keyless)" }).getAttribute("aria-checked")).toBe("true");
   expect(within(screen.getByRole("listitem", { name: "Exa (API key)" })).getByText("Needs setup")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Configure Exa (API key)" }));
   fireEvent.change(screen.getByLabelText("Exa API key"), { target: { value: "test-exa-key" } });
+  fireEvent.click(screen.getByRole("button", { name: "Move Exa (API key) up" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move Exa (API key) up" }));
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() =>
     expect(save).toHaveBeenCalledWith(
-      expect.objectContaining({ providers: ["exa"], exaAuth: "api_key", apiKeys: { exa: "test-exa-key" } }),
+      expect.objectContaining({ providers: ["exa-api", "exa"], apiKeys: { exa: "test-exa-key" } }),
     ),
   );
 });
