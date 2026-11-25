@@ -334,6 +334,7 @@ describe("Settings window", () => {
         .map((l) => l.textContent),
     ).toEqual([
       "General",
+      "Notifications",
       "Providers",
       "Models",
       "Runtime",
@@ -618,18 +619,21 @@ describe("Settings window", () => {
     fireEvent.click(sw);
     expect(within(dialog()).getByRole("switch", { name: "Show details" }).getAttribute("aria-checked")).toBe("true");
     expect(localStorage.getItem("rei:full-mode")).toBe("1");
-    // General holds two switches: Full mode and the notification preview setting (once it loads).
-    await waitFor(() =>
-      expect(
-        screen
-          .getAllByRole("switch")
-          .map(
-            (s) =>
-              s.getAttribute("aria-labelledby") &&
-              document.getElementById(s.getAttribute("aria-labelledby")!)?.textContent?.trim(),
-          ),
-      ).toEqual(["Show details", "Show previews"]),
-    );
+    // General holds only the Full mode switch; notification settings live on their own page.
+    expect(
+      screen
+        .getAllByRole("switch")
+        .map(
+          (s) =>
+            s.getAttribute("aria-labelledby") &&
+            document.getElementById(s.getAttribute("aria-labelledby")!)?.textContent?.trim(),
+        ),
+    ).toEqual(["Show details"]);
+    fireEvent.click(within(dialog()).getByRole("link", { name: "Notifications" }));
+    expect(currentRoute()).toBe("/settings/notifications");
+    goTo("/settings/notifications");
+    await waitFor(() => expect(within(dialog()).getByRole("switch", { name: "Show previews" })).toBeTruthy());
+    goTo("/settings/general");
     fireEvent.click(within(dialog()).getByRole("button", { name: "Log out" }));
     await waitFor(() => expect(onLoggedOut).toHaveBeenCalled());
     expect(api.logout).toHaveBeenCalled();
@@ -657,6 +661,7 @@ describe("Settings window", () => {
           .map((l) => l.textContent),
       ).toEqual([
         "General",
+        "Notifications",
         "Providers",
         "Models",
         "Runtime",

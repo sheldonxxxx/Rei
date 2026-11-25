@@ -40,13 +40,13 @@ const CATEGORY_TEXT: Record<NotifyCategory, { title: string; help: string }> = {
   backups: { title: "Backup problems", help: "A backup needs attention" },
 };
 
-/** Settings → General: browser notifications, what they cover, and their preview settings. */
+/** Settings → Notifications: browser notifications, previews, and what this device is notified about. */
 export function NotificationSettings({ api, push = browserPush }: { api: NotifyApi; push?: PushEnv }) {
   return (
     <>
       <DeviceNotifications api={api} push={push} />
-      <CategorySettings api={api} />
       <PreviewSetting api={api} />
+      <CategorySettings api={api} />
     </>
   );
 }
@@ -149,7 +149,10 @@ function CategorySettings({ api }: { api: NotifyApi }) {
   };
   if (!categories) return null;
   return (
-    <fieldset className="m-0 min-w-0 border-0 p-0" aria-label="What this device is notified about">
+    <fieldset className="m-0 min-w-0 border-0 p-0">
+      <legend className="pt-5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Notify me about
+      </legend>
       {NOTIFY_CATEGORIES.map((category) => (
         <CategoryRow
           key={category}

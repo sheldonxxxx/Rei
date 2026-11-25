@@ -93,6 +93,7 @@ describe("parseSettingsRoute", () => {
     expect(parseSettingsRoute("/settings")).toEqual({ section: null, id: null });
     expect(parseSettingsRoute("/settings/")).toEqual({ section: null, id: null });
     expect(parseSettingsRoute("/settings/general")).toEqual({ section: "general", id: null });
+    expect(parseSettingsRoute("/settings/notifications")).toEqual({ section: "notifications", id: null });
     expect(parseSettingsRoute("/settings/usage")).toEqual({ section: "usage", id: null });
     expect(parseSettingsRoute("/settings/memory")).toEqual({ section: "memory", id: null });
     expect(parseSettingsRoute("/settings/permissions")).toEqual({ section: "permissions", id: null });

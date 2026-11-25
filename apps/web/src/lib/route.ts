@@ -29,6 +29,7 @@ export function sessionHref(sessionId: string, messageId?: string | null): strin
 
 export type SettingsSection =
   | "general"
+  | "notifications"
   | "usage"
   | "memory"
   | "triggers"
@@ -42,6 +43,7 @@ export type SettingsSection =
   | "backups";
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "general",
+  "notifications",
   "providers",
   "models",
   "runtime",
