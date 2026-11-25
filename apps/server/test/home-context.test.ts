@@ -183,6 +183,29 @@ describe("home context selection", () => {
     expect(select(false)).toEqual([...updates, ...previous, currentUpdate, current]);
   });
 
+  it("leaves replay signatures out of the size estimate", () => {
+    // Providers hand these back so a reply can be replayed. They are not text the model reads.
+    const opaque = "gAAAAABq7Zx3".repeat(2_000);
+    const signed = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "short thought", thinkingSignature: opaque },
+        { type: "text", text: "short answer", textSignature: opaque },
+        { type: "toolCall", id: "call", name: "read", arguments: {}, thoughtSignature: opaque },
+      ],
+    };
+    const messages = [msg("user", "first"), signed, msg("user", "second")];
+    let crossed = false;
+    expect(
+      selectHomeMessages(messages, 500, undefined, undefined, {
+        compact: () => {
+          crossed = true;
+        },
+      }),
+    ).toEqual(messages);
+    expect(crossed).toBe(false);
+  });
+
   it("keeps Pi's summary when the old complete groups must be trimmed", () => {
     const summary = msg(
       "user",
@@ -254,6 +277,71 @@ describe("home context selection", () => {
     expect(followup.includes("Keep the agreed launch date.")).toBe(true);
     expect(followup.includes("current-plan")).toBe(true);
     expect(followup.includes("planned-for-friday")).toBe(false);
+  });
+
+  it.each([
+    { when: "while a later run is still replying", holdLaterReply: true },
+    { when: "after a later run has ended", holdLaterReply: false },
+  ])("compacts once when the summary lands $when", async ({ holdLaterReply }) => {
+    const summary = Promise.withResolvers<void>();
+    const laterReply = Promise.withResolvers<void>();
+    const isSummaryRequest = (raw: string) => raw.includes("structured context checkpoint summary");
+    gateway = await startFakeGateway({
+      bearer: STANDIN,
+      behavior: async (request) => {
+        if (isSummaryRequest(request.raw)) {
+          await summary.promise;
+          return { kind: "text", text: "Earlier history." };
+        }
+        if (holdLaterReply && request.raw.includes("during-summary")) await laterReply.promise;
+        return { kind: "text", text: "Reply." };
+      },
+    });
+    server = await startSignedIn({ gatewayUrl: gateway.url });
+    const s = server;
+    const home = homeChat(s);
+    const summaries = () => gateway!.seen.filter((request) => isSummaryRequest(request.raw));
+    await s.client.call("PUT", "/api/settings/context", {
+      body: { compaction: { keepRecentTokens: 100 }, home: { maxTokens: 5_000 } },
+    });
+    await say(s, home, `oldest ${" a".repeat(1_400)}`);
+    await settled(s, home);
+    await say(s, home, `crosses-the-budget ${" b".repeat(1_400)}`);
+    await settled(s, home, 2);
+    const conv = (await s.host.plane.adapter.trees.open(treeOf(s, home))).session(home)!.conv;
+    const state = () =>
+      conv.commit(async (tx) => {
+        const budget = await tx.doc(HomeBudgetCompactionDoc, conv.id);
+        const live = await tx.doc(LiveDoc, conv.id);
+        return { pending: budget.pending === true, compacting: (live.compactions?.length ?? 0) > 0 };
+      }, BACKGROUND_CONTEXT);
+    try {
+      await until(() => summaries().length === 1, 5_000, "the first summarization call");
+      // This run still sends the whole history, so it records a crossing of its own.
+      // Longer than the verbatim target, so a second summary would have something to fold in.
+      await say(s, home, `during-summary ${" c".repeat(300)}`);
+      await until(async () => (await state()).pending, 5_000, "the second crossing to be recorded");
+      if (!holdLaterReply) await settled(s, home, 3);
+      summary.resolve();
+      if (holdLaterReply) {
+        await until(async () => !(await state()).compacting, 5_000, "the summary to be written");
+        laterReply.resolve();
+        await settled(s, home, 3);
+      }
+    } finally {
+      summary.resolve();
+      laterReply.resolve();
+    }
+    await until(
+      async () => {
+        const now = await state();
+        return !now.pending && !now.compacting;
+      },
+      8_000,
+      "Home compaction to come to rest",
+    );
+    expect(summaries()).toHaveLength(1);
+    expect((await detail(s, home)).messages.filter((m) => m.role === "compaction")).toHaveLength(1);
   });
 
   it("still compacts on a model overflow before the run ends", async () => {
