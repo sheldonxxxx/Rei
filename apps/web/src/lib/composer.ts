@@ -56,6 +56,30 @@ export function mentionQuery(text: string, cursor: number): { start: number; que
   const match = /(?:^|\s)@([^@\n]*)$/.exec(text.slice(0, cursor));
   return match ? { start: cursor - match[1]!.length - 1, query: match[1]! } : null;
 }
+/**
+ * The picker row to highlight for what was typed, so Tab and Enter take the one that was meant: a name that starts
+ * with the query, then a later word of a name (`sum` for `acme/summarize`), then anywhere in a name, then whatever
+ * else matched (a description). Ties keep list order, and a disabled row is highlighted only when nothing else is left.
+ */
+export function bestChoice(choices: readonly { label: string; disabled?: boolean }[], query: string): number {
+  const wanted = query.toLocaleLowerCase();
+  const rank = ({ label }: { label: string }) => {
+    const name = label.toLocaleLowerCase().replace(/^\//, "");
+    if (name.startsWith(wanted)) return 0;
+    if (name.split(/[\s/_.:-]+/).some((word) => word.startsWith(wanted))) return 1;
+    return name.includes(wanted) ? 2 : 3;
+  };
+  let best = 0,
+    bestRank = Number.POSITIVE_INFINITY;
+  choices.forEach((choice, index) => {
+    const value = choice.disabled ? Number.POSITIVE_INFINITY : rank(choice);
+    if (value < bestRank) {
+      best = index;
+      bestRank = value;
+    }
+  });
+  return best;
+}
 /** The one built-in slash command: `/compact` always means it, never a skill of that name. */
 export const COMPACT_COMMAND = "compact";
 

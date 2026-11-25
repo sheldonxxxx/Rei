@@ -126,6 +126,105 @@ describe("slash palette", () => {
   });
 });
 
+describe("tab completion", () => {
+  // `fireEvent` answers false when the handler took the key (prevented the default focus move).
+  const tab = (input: HTMLTextAreaElement, modifiers: { shiftKey?: boolean; ctrlKey?: boolean } = {}) =>
+    !fireEvent.keyDown(input, { key: "Tab", ...modifiers });
+  const chips = () => screen.queryByRole("list", { name: "Skills for this message" });
+  const highlighted = () => screen.getByRole("option", { selected: true }).textContent;
+
+  it("completes the skill whose name was typed, not an earlier row that only mentions it", async () => {
+    const { input, onSend } = setup({
+      api: apiOf([option("s1", "triage", { description: "Runs after summarize." }), option("s2", "acme/summarize")]),
+    });
+    type(input, "/summ");
+    await screen.findByRole("option", { name: /acme\/summarize/ });
+    expect(highlighted()).toMatch(/acme\/summarize/);
+    expect(tab(input)).toBe(true);
+    expect(chips()?.textContent).toMatch(/acme\/summarize/);
+    expect(chips()?.textContent).not.toMatch(/triage/);
+    expect(input.value).toBe("");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("completes the row moved to with the arrows", async () => {
+    const { input } = setup();
+    type(input, "/");
+    await screen.findByRole("option", { name: /review/ });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(tab(input)).toBe(true);
+    expect(chips()?.textContent).toMatch(/review/);
+  });
+
+  it("fills /compact in without running it, even when it is already typed in full", async () => {
+    const { input, onCompact } = setup();
+    for (const typed of ["/comp", "/compact"]) {
+      type(input, typed);
+      await screen.findByRole("option", { name: /\/compact/ });
+      expect(tab(input)).toBe(true);
+      expect(input.value).toBe("/compact ");
+    }
+    expect(onCompact).not.toHaveBeenCalled();
+  });
+
+  it("completes a connector mention from its name", async () => {
+    const connectors = [
+      { id: "c1", name: "Linear", status: "connected" },
+      { id: "c2", name: "GitHub", status: "connected" },
+    ];
+    const api = { ...apiOf(), getConnectors: vi.fn().mockResolvedValue({ connectors }) };
+    const { input, onSend } = setup({ api: api as unknown as import("../api/client.ts").Api });
+    type(input, "ask @git");
+    await screen.findByRole("option", { name: /GitHub/ });
+    expect(tab(input)).toBe(true);
+    expect(input.value).toBe("ask @GitHub ");
+    send();
+    expect(onSend).toHaveBeenCalledWith("ask @GitHub ", {
+      mentions: [{ kind: "connector", id: "c2", label: "GitHub", start: 4, end: 11 }],
+    });
+  });
+
+  it("highlights a usable name match ahead of the attachment row and a connector that needs sign-in", async () => {
+    const connectors = [
+      { id: "c1", name: "Mail archive", status: "needs_auth" },
+      { id: "c2", name: "Maps", status: "connected" },
+    ];
+    const api = { ...apiOf(), getConnectors: vi.fn().mockResolvedValue({ connectors }) };
+    const { input } = setup({ api: api as unknown as import("../api/client.ts").Api });
+    type(input, "@ma");
+    await screen.findByRole("option", { name: /Maps/ });
+    expect(highlighted()).toMatch(/Maps/);
+    expect(tab(input)).toBe(true);
+    expect(input.value).toBe("@Maps ");
+  });
+
+  it("leaves Tab alone with no list, nothing to complete, or a modifier", async () => {
+    const { input } = setup();
+    type(input, "hello");
+    expect(tab(input)).toBe(false);
+    type(input, "/zzz");
+    await screen.findByText("No matching skills.");
+    expect(tab(input)).toBe(false);
+    type(input, "/rev");
+    await screen.findByRole("option", { name: /review/ });
+    expect(tab(input, { shiftKey: true })).toBe(false);
+    expect(tab(input, { ctrlKey: true })).toBe(false);
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(tab(input)).toBe(false);
+    expect(input.value).toBe("/rev");
+    expect(chips()).toBeNull();
+  });
+
+  it("leaves Tab alone while the + menu is open", async () => {
+    const { input } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    await screen.findByRole("option", { name: /Upload attachment/ });
+    expect(tab(input)).toBe(false);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+  });
+});
+
 describe("selected skills", () => {
   const pick = async (input: HTMLTextAreaElement, name: RegExp, query = "/") => {
     type(input, query);

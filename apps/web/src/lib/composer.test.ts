@@ -2,6 +2,7 @@ import { ATTACHMENT_MAX_BYTES, MESSAGE_MAX_ATTACHMENT_BYTES } from "@rei/protoco
 import { describe, expect, it } from "vitest";
 import {
   attachmentLimit,
+  bestChoice,
   changedDraft,
   isLargePaste,
   mentionQuery,
@@ -95,5 +96,29 @@ describe("slash commands", () => {
     expect(parseSlashAction("/skill compact")).toBeNull();
     expect(parseSlashAction("/unknown thing")).toBeNull();
     expect(parseSlashAction("please /compact")).toBeNull();
+  });
+});
+
+describe("picker highlight", () => {
+  const rows = (...labels: string[]) => labels.map((label) => ({ label }));
+
+  it("keeps the first row while nothing is typed", () => {
+    expect(bestChoice(rows("/compact", "review"), "")).toBe(0);
+    expect(bestChoice([], "")).toBe(0);
+  });
+
+  it("prefers a name prefix, then a later word, then the inside of a name, then anything else", () => {
+    const list = rows("other", "preview", "code review", "Review");
+    expect(bestChoice(list, "rev")).toBe(3);
+    expect(bestChoice(list.slice(0, 3), "rev")).toBe(2);
+    expect(bestChoice(list.slice(0, 2), "rev")).toBe(1);
+    expect(bestChoice(list.slice(0, 1), "rev")).toBe(0);
+    expect(bestChoice(rows("/compact", "acme/summarize"), "summ")).toBe(1);
+    expect(bestChoice(rows("review", "/compact"), "comp")).toBe(1);
+  });
+
+  it("passes over a disabled row unless every row is disabled", () => {
+    expect(bestChoice([{ label: "git", disabled: true }, { label: "Git notes" }], "git")).toBe(1);
+    expect(bestChoice([{ label: "git", disabled: true }], "git")).toBe(0);
   });
 });
