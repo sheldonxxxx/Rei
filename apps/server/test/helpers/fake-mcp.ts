@@ -28,6 +28,7 @@ export class FakeMcpGateway {
   calls: McpCallSeen[] = [];
   requests: { method: string; path: string; body: any }[] = [];
   down = false;
+  toolsDown = new Set<string>();
   /** What a call answers: a result, or an HTTP error. */
   callReply: (c: McpCallSeen) => { status?: number; json: unknown } = () => ({
     json: { isError: false, text: "ok", structured: null, truncated: false } satisfies McpCallResult,
@@ -98,6 +99,11 @@ export class FakeMcpGateway {
             });
       if (m[2] === "/tools") {
         if (c.status === "needs_auth") return err(409, "needs_auth", "Sign in again.");
+        if (this.toolsDown.has(id)) {
+          Object.assign(c, { status: "error", error: "It did not answer." });
+          return err(502, "mcp_error", "It did not answer.");
+        }
+        if (c.status === "error") Object.assign(c, { status: "connected", error: null });
         return json({ tools: this.tools.get(id) ?? [], fetchedAt: 5 });
       }
       if (m[2] === "/call") {

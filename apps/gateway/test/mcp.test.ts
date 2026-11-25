@@ -559,6 +559,42 @@ describe("token refresh", () => {
 });
 
 describe("tools cache", () => {
+  it("recovers a connector after an outage without a request for its tools", async () => {
+    let down = false;
+    rig = startMcpRig({
+      world: { require: { token: "test-token" } },
+      wrapFetch: (real) =>
+        (async (input, init) => {
+          if (down && String(input) === MCP_URL) throw new TypeError("fetch failed");
+          return real(input, init);
+        }) as typeof fetch,
+    });
+    const { connector } = await rig.json(await create({ token: "test-token" }));
+    const list = async () => (await rig.json(await rig.request("GET", "/mcp/connectors"))).connectors;
+    const status = async () => (await list())[0];
+    expect(await status()).toMatchObject({ status: "connected", toolCount: 5 });
+    const { connector: rejected } = await rig.json(await create({ name: "Rejected", token: "wrong-token" }));
+    expect(rejected.status).toBe("needs_auth");
+    const before = rig.world.seen.length;
+    await rig.recoverConnectors();
+    expect(rig.world.seen).toHaveLength(before); // healthy and needs_auth connectors are left alone
+
+    down = true;
+    expect((await rig.request("GET", `/mcp/connectors/${connector.id}/tools?refresh=1`)).status).toBe(502);
+    expect(await status()).toMatchObject({ status: "error" });
+    await rig.recoverConnectors();
+    expect(await status()).toMatchObject({ status: "error" });
+
+    rig.restart(); // the error was persisted and must also be retried by a fresh gateway
+    down = false;
+    await rig.recoverConnectors();
+    expect(await status()).toMatchObject({ status: "connected", error: null, toolCount: 5 });
+    expect((await list())[1]).toMatchObject({ id: rejected.id, status: "needs_auth" });
+    expect((await rig.json(await call(connector.id, { tool: "echo", arguments: { text: "back" } }))).text).toBe(
+      "echo: back",
+    );
+  });
+
   it("serves the list from cache until refresh=1", async () => {
     rig = startMcpRig({ world: { require: null } });
     const { connector } = await rig.json(await create());

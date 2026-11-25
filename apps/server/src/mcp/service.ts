@@ -568,7 +568,7 @@ export class McpService {
       );
     }
     const ref = connectorRef.trim().toLowerCase();
-    const connector = all.find((c) => c.id.toLowerCase() === ref) ?? all.find((c) => c.name.toLowerCase() === ref);
+    let connector = all.find((c) => c.id.toLowerCase() === ref) ?? all.find((c) => c.name.toLowerCase() === ref);
     if (!connector) {
       const names = all.map((c) => c.name);
       throw new McpCallError(
@@ -577,19 +577,24 @@ export class McpService {
           : `There is no connector "${connectorRef}". The connectors are: ${names.join(", ")}.`,
       );
     }
-    if (connector.status === "needs_auth")
-      throw new McpCallError(
-        `${connector.name} needs the user to sign in again. Tell the user to open Settings → Capabilities → Connectors and sign in to ${connector.name}, then end your turn.`,
-      );
-    if (connector.status === "error")
-      throw new McpCallError(
-        `${connector.name} is not working right now${connector.error ? ` (${connector.error})` : ""}. Tell the user and do not retry.`,
-      );
+    const { id, name, status } = connector;
     let tools: McpToolInfo[];
     try {
-      tools = (await this.#toolList(connector.id, refresh, connector)).tools;
+      if (status === "needs_auth") throw new HttpError(409, "needs_auth", "Sign in again.");
+      tools = (await this.#toolList(id, refresh || status === "error", connector)).tools;
+      if (status === "error") {
+        // The tool list can heal the connector. Bind the call to its current state before authorizing it.
+        const recovered = (await this.list()).find((c) => c.id === id);
+        if (!recovered) throw new HttpError(404, "connector_not_found", "The connector was removed.");
+        if (recovered.status === "needs_auth") throw new HttpError(409, "needs_auth", "Sign in again.");
+        if (recovered.status !== "connected")
+          throw new HttpError(502, "connector_unreachable", recovered.error ?? "The connector is still unavailable.");
+        if (recovered.providerIdentity !== connector.providerIdentity || recovered.name !== name)
+          throw new HttpError(409, "tool_changed", "The connector changed during recovery. Inspect it again.");
+        connector = recovered;
+      }
     } catch (error) {
-      throw new McpCallError(this.#failure(connector.name, error));
+      throw new McpCallError(this.#failure(name, error));
     }
     const matches = tools.filter((t) => t.name === toolName);
     if (matches.length > 1)

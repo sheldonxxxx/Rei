@@ -1,7 +1,7 @@
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { Approval, McpProfile, SessionTraceResponse } from "@rei/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defaultClass, McpService } from "../src/mcp/service.ts";
+import { defaultClass, McpService, TOOLS_TTL_MS } from "../src/mcp/service.ts";
 import * as faux from "../src/pi/faux.ts";
 import { allowMatches } from "../src/pi/policy-ext.ts";
 import { checkAllow } from "../src/triggers/spec.ts";
@@ -445,6 +445,36 @@ describe("calling a connector tool", () => {
     const r = await callTool(s, await chat(s), "notes__search_notes", {});
     expect(r.last).toMatchObject({ isError: true });
     expect(r.last!.text).toContain("Note not found");
+  });
+
+  it("reconnects a previously listed connector on an agent call and dispatches once", async () => {
+    const gw = world();
+    const s = await start(gw);
+    await s.host.plane.mcp.setOverride("con_notes", "search_notes", "read_external");
+    await trustProvider(s);
+    const id = await chat(s);
+    await search(s, id, { load: ["notes__search_notes"] });
+
+    gw.toolsDown.add("con_notes");
+    s.clock.advance(TOOLS_TTL_MS);
+    await s.host.plane.adapter.trees.syncConnectors(); // discovery encounters the outage
+    await s.host.plane.adapter.trees.syncConnectors();
+    expect(gw.connectors[0]!.status).toBe("error");
+    const discoveryCount = () => gw.requests.filter((r) => r.path === "/mcp/connectors/con_notes/tools").length;
+    const before = discoveryCount();
+    const down = await callTool(s, id, "notes__search_notes", { q: "receipt" });
+    expect(down.last!.text).toContain("It did not answer.");
+    expect(discoveryCount()).toBe(before + 1);
+    expect(gw.calls).toHaveLength(0);
+
+    gw.toolsDown.delete("con_notes");
+    expect(gw.connectors[0]!.status).toBe("error");
+    const recovered = await callTool(s, id, "notes__search_notes", { q: "receipt" });
+    expect(recovered.last!.isError).toBe(false);
+    expect(gw.connectors[0]!.status).toBe("connected");
+    expect(gw.calls).toMatchObject([{ connector: "con_notes", tool: "search_notes", args: { q: "receipt" } }]);
+    const dispatched = gw.requests.find((r) => r.path === "/mcp/connectors/con_notes/call");
+    expect(dispatched?.body.expected.connector.status).toBe("connected");
   });
 
   it("turns needs_auth, an unreachable connector, a gateway outage and unknown or removed tools into clear messages", async () => {

@@ -55,7 +55,11 @@ export function createGatewayApp(deps: GatewayDeps): Hono {
   return createGatewayApps(deps).internal;
 }
 
-export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: Hono } {
+export function createGatewayApps(deps: GatewayDeps): {
+  internal: Hono;
+  shared: Hono;
+  recoverConnectors: () => Promise<void>;
+} {
   const fetchFn: typeof fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const now = deps.now ?? Date.now;
   const connectMs = deps.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
@@ -1169,7 +1173,7 @@ export function createGatewayApps(deps: GatewayDeps): { internal: Hono; shared: 
     app.all("/notify/*", () =>
       errorResponse(503, { code: "notify_unavailable", message: "Notifications are not configured on the gateway." }),
     );
-  return { internal: finalize(app), shared };
+  return { internal: finalize(app), shared, recoverConnectors: async () => connectors?.recover() };
 }
 
 function concat(chunks: Uint8Array[], total: number): Uint8Array {
