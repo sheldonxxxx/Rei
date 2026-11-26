@@ -55,8 +55,10 @@ jobs:
       - name: Name tonight's version and the temporary folders
         run: |
           set -euo pipefail
+          # Bump the patch number so the pre-release sorts after the published version (e.g. 0.1.1-nightly.N > 0.1.0).
+          next=$(node -p 'const [M, m, p] = require("./package.json").version.split("-")[0].split(".").map(Number); `${M}.${m}.${p + 1}`')
           {
-            echo "VERSION=$(node -p 'require("./package.json").version')-nightly.${GITHUB_RUN_NUMBER}"
+            echo "VERSION=${next}-nightly.${GITHUB_RUN_NUMBER}"
             echo "REI_HOME=$RUNNER_TEMP/rei-home"
             echo "PREFIX=$RUNNER_TEMP/prefix"
           } >> "$GITHUB_ENV"
