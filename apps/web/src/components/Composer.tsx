@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentCapabilities,
   Attachment,
   Connector,
   ConversationLive,
@@ -11,7 +12,12 @@ import type {
   Session,
   SessionSkillOption,
 } from "@rei/protocol";
-import { COMPACT_INSTRUCTIONS_MAX, SELECTED_SKILLS_MAX } from "@rei/protocol";
+import {
+  COMPACT_INSTRUCTIONS_MAX,
+  inlineAttachmentKind,
+  resolveAgentCapabilities,
+  SELECTED_SKILLS_MAX,
+} from "@rei/protocol";
 import type { KeyboardEvent, ReactNode, Ref } from "react";
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
@@ -79,6 +85,8 @@ interface Props {
   sessionId?: string;
   sessions?: Session[] | undefined;
   agents?: Agent[];
+  agentId?: string | undefined;
+  capabilities?: AgentCapabilities | undefined;
   allowedConnectorIds?: string[] | null;
 }
 interface Choice {
@@ -108,8 +116,11 @@ export function Composer({
   sessionId,
   sessions = [],
   agents = [],
+  agentId,
+  capabilities,
   allowedConnectorIds,
 }: Props) {
+  const caps = resolveAgentCapabilities(capabilities);
   const [restored, setRestored] = useState(!sessionId || typeof indexedDB === "undefined");
   const [text, setText] = useState("");
   const [mentions, setMentions] = useState<MessageMention[]>([]);
@@ -286,14 +297,18 @@ export function Composer({
         if (!cancelled) setLoading(false);
       });
     // Knowledge pages to mention; a failure only leaves them out of the list.
-    api.knowledgeTree?.().then(
-      (r) => !cancelled && setPages(r.pages),
-      () => {},
-    );
+    if (caps.knowledge !== "off") {
+      api.knowledgeTree?.().then(
+        (r) => !cancelled && setPages(r.pages),
+        () => {},
+      );
+    } else {
+      setPages([]);
+    }
     return () => {
       cancelled = true;
     };
-  }, [api, open, slashOpen]);
+  }, [api, open, slashOpen, caps.knowledge]);
   useEffect(() => {
     if (picker?.source === "plus") searchRef.current?.focus();
   }, [picker?.source]);
@@ -362,10 +377,10 @@ export function Composer({
       kind: "upload" as const,
       id: "upload",
       label: "Upload attachment",
-      detail: "Photos and files from your computer",
+      detail: caps.sandbox ? "Photos and files from your computer" : "Text and image files from your computer",
       disabled: !api || !sessionId,
     },
-    ...(api && sessionId && picker?.source === "plus"
+    ...(api && sessionId && picker?.source === "plus" && caps.library !== "off"
       ? [
           {
             kind: "library" as const,
@@ -387,30 +402,34 @@ export function Composer({
           disabled: c.status !== "connected",
         }),
       ),
-    ...sessions
-      .filter((s) => s.id !== sessionId)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 5)
-      .map(
-        (s): Choice => ({
-          kind: "chat",
-          id: s.id,
-          label: s.title,
-          detail: `${agents.find((a) => a.id === s.agentId)?.name ?? "Agent"} · ${s.origin === "spawned" ? "Worker" : s.origin === "home" ? "Home chat" : s.origin === "fork" ? "Fork" : "Chat"}`,
-        }),
-      ),
+    ...(caps.chatHistory === "off"
+      ? []
+      : sessions
+          .filter((s) => s.id !== sessionId && (caps.chatHistory !== "own" || !agentId || s.agentId === agentId))
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, 5)
+          .map(
+            (s): Choice => ({
+              kind: "chat",
+              id: s.id,
+              label: s.title,
+              detail: `${agents.find((a) => a.id === s.agentId)?.name ?? "Agent"} · ${s.origin === "spawned" ? "Worker" : s.origin === "home" ? "Home chat" : s.origin === "fork" ? "Fork" : "Chat"}`,
+            }),
+          )),
     // Pages: the most recently active five, or every match while typing (up to eight).
-    ...pages
-      .filter((p) => !query || `${p.title} ${p.description}`.toLocaleLowerCase().includes(query))
-      .slice(0, query ? 8 : 5)
-      .map(
-        (p): Choice => ({
-          kind: "page",
-          id: p.id,
-          label: p.title,
-          detail: p.description ? `Knowledge page · ${p.description}` : "Knowledge page",
-        }),
-      ),
+    ...(caps.knowledge === "off"
+      ? []
+      : pages
+          .filter((p) => !query || `${p.title} ${p.description}`.toLocaleLowerCase().includes(query))
+          .slice(0, query ? 8 : 5)
+          .map(
+            (p): Choice => ({
+              kind: "page",
+              id: p.id,
+              label: p.title,
+              detail: p.description ? `Knowledge page · ${p.description}` : "Knowledge page",
+            }),
+          )),
   ].filter((c) => !query || `${c.label} ${c.detail}`.toLocaleLowerCase().includes(query));
   const choices = picker?.source === "slash" ? slashChoices : contextChoices;
   const active = moved ?? bestChoice(choices, picker?.query ?? "");
@@ -511,10 +530,12 @@ export function Composer({
       const error =
         !api || !sessionId
           ? "Uploads are unavailable."
-          : attachmentLimit(
-              file,
-              next.filter((f) => f.status !== "rejected").map((f) => ({ size: f.attachment?.size ?? f.file.size })),
-            );
+          : !caps.sandbox && inlineAttachmentKind({ name: file.name, mediaType: file.type }) === null
+            ? "Only text and image files can be attached when Sandbox is disabled for this agent."
+            : attachmentLimit(
+                file,
+                next.filter((f) => f.status !== "rejected").map((f) => ({ size: f.attachment?.size ?? f.file.size })),
+              );
       const draft: DraftFile = {
         key: crypto.randomUUID(),
         file,
@@ -873,6 +894,11 @@ export function Composer({
           type="file"
           multiple
           hidden
+          accept={
+            caps.sandbox
+              ? undefined
+              : "image/png,image/jpeg,image/webp,image/gif,text/*,.md,.markdown,.mdx,.csv,.tsv,.json,.jsonl,.yaml,.yml,.toml,.xml,.html,.htm,.log,.ini,.cfg,.conf,.env,.sh,.bash,.zsh,.py,.js,.jsx,.ts,.tsx,.css,.scss,.sql,.c,.h,.cpp,.hpp,.java,.go,.rs,.rb,.php,.swift,.tex,.diff,.patch,.eml"
+          }
           aria-label="Upload attachments"
           onChange={(e) => {
             addFiles(Array.from(e.target.files ?? []));

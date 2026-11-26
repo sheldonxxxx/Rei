@@ -1158,6 +1158,8 @@ export function ChatView({
                   sessionId={sessionId}
                   sessions={sessions}
                   agents={agents}
+                  agentId={agent?.id}
+                  capabilities={agent?.capabilities}
                   allowedConnectorIds={agent?.allowedConnectorIds}
                   onSend={send}
                   whenBusy={whenBusy}

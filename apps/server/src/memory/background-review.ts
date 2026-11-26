@@ -132,7 +132,8 @@ export class BackgroundMemoryReview {
       !event.run_id ||
       !event.input_entry_id ||
       !event.cut_entry_id ||
-      !store.getSessionRow(event.session_id)
+      !store.getSessionRow(event.session_id) ||
+      store.agentCapabilities(event.agent_id).memory !== "read_write"
     )
       return;
     store.db.run(
@@ -217,6 +218,7 @@ export class BackgroundMemoryReview {
       if (signal.aborted) return false;
       return (
         this.enabled() &&
+        store.agentCapabilities(job.agent_id).memory === "read_write" &&
         rows.every(
           (row) =>
             store.db.get(

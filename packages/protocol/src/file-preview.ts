@@ -95,3 +95,39 @@ export function filePreview(file: { name: string; mediaType: string }): {
   return { kind: mediaType.startsWith("text/") ? "text" : "unsupported", mediaType: "text/plain", extension };
 }
 export const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+
+export const INLINE_IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+const inlineImageTypes = new Set<string>(INLINE_IMAGE_MEDIA_TYPES);
+const inlineTextKinds = new Set<FilePreviewKind>(["text", "markdown", "html", "csv", "tsv"]);
+const inlineTextTypes = new Set([
+  "application/json",
+  "application/ld+json",
+  "application/xml",
+  "application/javascript",
+  "application/typescript",
+  "application/yaml",
+  "application/x-yaml",
+  "application/toml",
+]);
+
+/**
+ * Classifies an attachment when Sandbox is disabled: only model-supported images and plain text files can be inlined
+ * without a workspace. Returns null for binaries (PDF, Office, archives, audio, video).
+ */
+export function inlineAttachmentKind(file: { name: string; mediaType: string }): "image" | "text" | null {
+  const preview = filePreview(file);
+  if (preview.kind === "image") {
+    return inlineImageTypes.has(preview.mediaType) ? "image" : null;
+  }
+  if (inlineTextKinds.has(preview.kind)) return "text";
+  const mediaType = file.mediaType.toLowerCase().split(";")[0]!.trim();
+  if (
+    mediaType.startsWith("text/") ||
+    inlineTextTypes.has(mediaType) ||
+    mediaType.endsWith("+json") ||
+    mediaType.endsWith("+xml")
+  ) {
+    return "text";
+  }
+  return null;
+}

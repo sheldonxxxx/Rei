@@ -198,8 +198,8 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
     });
 
   /** Read at every use, so turning the permission off also stops a call that was already waiting for approval. */
-  const managesOthers = (session: Caller): boolean =>
-    store.getAgent(session.agent_id)?.canCreateTriggersForOtherAgents === true;
+  const triggerAccess = (session: Caller) => store.agentCapabilities(session.agent_id).triggers;
+  const managesOthers = (session: Caller): boolean => triggerAccess(session) === "all";
 
   /** " for <name>" in a card's summary when the trigger belongs to an agent other than the caller's. */
   const forOther = (agentId: string | undefined, session: Caller | undefined): string => {
@@ -208,8 +208,10 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
   };
 
   const targetOf = (session: Caller, agentId: string | undefined): string => {
+    const access = triggerAccess(session);
+    if (access === "off") throw new Invalid("Trigger management is disabled for this agent.");
     if (agentId === undefined || agentId === session.agent_id) return session.agent_id;
-    if (!managesOthers(session))
+    if (access !== "all")
       throw new Invalid("Enable ‘Manage triggers for other agents’ in your agent settings to choose another agent.");
     if (!store.getAgent(agentId)) throw new Invalid("That agent does not exist. list_triggers shows eligible agents.");
     return agentId;
@@ -243,8 +245,10 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
 
   /** The trigger an agent may change: its own, or any agent's when it may manage other agents' triggers. */
   const editable = (session: Caller, id: unknown) => {
+    const access = triggerAccess(session);
+    if (access === "off") throw new Invalid("Trigger management is disabled for this agent.");
     const row = typeof id === "string" ? triggers.row(id) : undefined;
-    if (!row || (row.agent_id !== session.agent_id && !managesOthers(session)))
+    if (!row || (row.agent_id !== session.agent_id && access !== "all"))
       throw new Invalid(
         `There is no trigger with id ${typeof id === "string" ? id : "(missing)"}. list_triggers shows the ones you can change.`,
       );
@@ -421,6 +425,7 @@ export function createTriggersExtension(deps: TriggerToolsDeps): Extension {
       execute: async (_args, api) => {
         const session = callerOf(api.conversationId);
         if (!session) return fail("This session is no longer available.");
+        if (triggerAccess(session) === "off") return fail("Trigger management is disabled for this agent.");
         const all = triggers.list();
         const mine = all.filter((t) => t.agentId === session.agent_id);
         const sources = triggers.sources?.list() ?? [];

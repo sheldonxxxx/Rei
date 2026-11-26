@@ -20,10 +20,12 @@ import {
 } from "@earendil-works/pi-durable";
 import { createFitImagesExtension } from "@earendil-works/pi-durable/images/fit";
 import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
+import type { AgentCapabilities } from "@rei/protocol";
 import type { AttachmentService } from "../attachments/service.ts";
 import type { BrowserService } from "../browser/service.ts";
 import type { TakeoverService } from "../browser/takeover-service.ts";
 import { createBrowserExtension } from "../browser/tools.ts";
+import { agentAllowsTool, capabilityDroppedExtensions } from "../capabilities/agent-access.ts";
 import { createCapabilitiesExtension } from "../capabilities/extension.ts";
 import { ToolGroups } from "../capabilities/groups.ts";
 import { COMMANDS_KIND, CommandsDoc, type Ledger } from "../conversation/ledger.ts";
@@ -35,12 +37,12 @@ import type { WorkspaceManager } from "../exec/workspaces.ts";
 import { createImageExtension } from "../images/tools.ts";
 import type { ImageWorker } from "../images/worker.ts";
 import type { KnowledgeService } from "../knowledge/service.ts";
-import { createKnowledgeExtension } from "../knowledge/tools.ts";
-import { createLibraryExtension } from "../library/tools.ts";
+import { createKnowledgeExtension, createKnowledgeWriteExtension } from "../knowledge/tools.ts";
+import { createLibraryExtension, createLibraryWriteExtension } from "../library/tools.ts";
 import { type ConnectorToolDirectory, createConnectorToolsExtension } from "../mcp/connector-tools.ts";
 import type { McpService } from "../mcp/service.ts";
 import type { MemoryService } from "../memory/service.ts";
-import { createMemoryExtension } from "../memory/tools.ts";
+import { createHistoryExtension, createMemoryExtension, createMemoryWriteExtension } from "../memory/tools.ts";
 import type { PluginService } from "../plugins/service.ts";
 import { createPluginsExtension } from "../plugins/tools.ts";
 import { canonicalJson } from "../policy/decision.ts";
@@ -85,7 +87,12 @@ import {
 import type { ModelRuntime } from "./models.ts";
 import { createPolicyExtension, type ToolCatalog } from "./policy-ext.ts";
 import { createRecallRouterExtension } from "./recall-router.ts";
-import { createSessionExtension, createSessionRoleExtension, type SessionHostRef } from "./session-tools.ts";
+import {
+  createHomeEventsExtension,
+  createSessionExtension,
+  createSessionRoleExtension,
+  type SessionHostRef,
+} from "./session-tools.ts";
 import { RunPins } from "./stable-prefix.ts";
 import type { StepRecorder } from "./steps.ts";
 import type { TreeFiles } from "./tree-files.ts";
@@ -184,8 +191,13 @@ export class TreeSession {
  * The extensions a conversation of this origin does not select: the session tools belong to the home chat only, and
  * report with the trigger-run note to the runs of a trigger only.
  */
-export function droppedExtensions(origin: string | undefined): string[] {
-  return [...(origin === "home" ? [] : ["sessions"]), ...(origin === "trigger" ? [] : ["trigger_run"])];
+export function droppedExtensions(origin: string | undefined, capabilities?: AgentCapabilities): string[] {
+  const drop = [
+    ...(origin === "home" ? [] : ["sessions", "home_events"]),
+    ...(origin === "trigger" ? [] : ["trigger_run"]),
+    ...(capabilities ? capabilityDroppedExtensions(capabilities) : []),
+  ];
+  return [...new Set(drop)];
 }
 
 export interface ExtensionDrift {
@@ -200,17 +212,16 @@ export interface ExtensionDrift {
 }
 
 /**
- * How a conversation's resolved extension selection differs from what a conversation of its origin selects: every
- * extension installed in the tree, in install order, minus `droppedExtensions(origin)`. Nothing else is left out on
- * purpose: agent restrictions, connectors, skills and demo tools filter inside their extensions or are not installed, so
- * an installed extension a conversation lacks for any other reason (an explicit list, a stale remove) is restored.
+ * How a conversation's resolved extension selection differs from what a conversation of its origin and agent selects:
+ * every extension installed in the tree, in install order, minus `droppedExtensions(origin, capabilities)`.
  */
 export function extensionDrift(
   installed: readonly string[],
   selected: readonly string[],
   origin: string | undefined,
+  capabilities?: AgentCapabilities,
 ): ExtensionDrift {
-  const drop = new Set(droppedExtensions(origin));
+  const drop = new Set(droppedExtensions(origin, capabilities));
   const want = installed.filter((name) => !drop.has(name));
   const added = want.filter((name) => !selected.includes(name));
   const removed = selected.filter((name) => !want.includes(name));
@@ -265,6 +276,8 @@ export class TreeManager {
   readonly #connectorSlots = new Map<string, () => void>();
   /** Each open tree's code mode switch: installs or removes the `codemode` tool to match the setting. */
   readonly #codemodeSlots = new Map<string, () => void>();
+  /** Last aligned capabilities snapshot per open session, so live Agent Settings edits realign on the next call. */
+  readonly #alignedCaps = new Map<string, string>();
   /** Prepares the images tools return (one Photon worker for every tree; it exits when idle). Made at the first tree. */
   #images: ReturnType<typeof createNodePhotonImages> | undefined;
   #imageProcessor(): ReturnType<typeof createNodePhotonImages> {
@@ -471,7 +484,8 @@ export class TreeManager {
       syntheticPayload: d.runtime.mode === "faux",
       beforeCall: () => d.runtime.arm(),
       scrub: (text) => d.runtime.scrub(text),
-      nativeSearch: () => d.runtime.nativeSearch(),
+      nativeSearch: (info) =>
+        d.runtime.nativeSearch() && (info.agentId ? d.store.agentCapabilities(info.agentId).web : true),
     });
 
     const registry = createRegistry();
@@ -507,6 +521,7 @@ export class TreeManager {
     // Code mode: a script's output is fenced when it read outside content. Before the policy, for the same reason.
     install(createUntrustedOutputExtension(d.catalog));
     install(createSessionExtension(treeId, d.store, d.sessionHost, d.catalog));
+    install(createHomeEventsExtension(treeId, d.store, d.catalog));
     if (d.demoTools) install(createDemoExtension(treeId, d.store, d.approvals, d.catalog));
     if (d.exec && execBackend)
       install(
@@ -536,7 +551,11 @@ export class TreeManager {
     install(
       createWebExtension({ treeId, store: d.store, approvals: d.approvals, catalog: d.catalog, log: d.log, ...d.web }),
     );
-    if (d.memory) install(createMemoryExtension({ treeId, store: d.store, memory: d.memory, catalog: d.catalog }));
+    if (d.memory) {
+      install(createMemoryExtension({ treeId, store: d.store, memory: d.memory, catalog: d.catalog }));
+      install(createMemoryWriteExtension({ treeId, store: d.store, memory: d.memory, catalog: d.catalog }));
+      install(createHistoryExtension({ treeId, store: d.store, memory: d.memory, catalog: d.catalog }));
+    }
     if (d.mcp) {
       const { service, directory } = d.mcp;
       await directory.refresh();
@@ -572,10 +591,15 @@ export class TreeManager {
       sync();
       this.#connectorSlots.set(treeId, sync);
     }
-    if (d.attachments?.library) install(createLibraryExtension(treeId, d.attachments.library, d.catalog));
+    if (d.attachments?.library) {
+      install(createLibraryExtension(treeId, d.attachments.library, d.catalog));
+      install(createLibraryWriteExtension(treeId, d.attachments.library, d.catalog));
+    }
     if (d.images && d.attachments) install(createImageExtension(treeId, d.attachments, d.catalog, d.images));
-    if (d.knowledge)
+    if (d.knowledge) {
       install(createKnowledgeExtension({ treeId, store: d.store, knowledge: d.knowledge, catalog: d.catalog }));
+      install(createKnowledgeWriteExtension({ treeId, store: d.store, knowledge: d.knowledge, catalog: d.catalog }));
+    }
     install(createSurfaceExtension({ treeId, store: d.store, catalog: d.catalog, now: () => d.clock.now() }));
     if (d.plugins) install(createPluginsExtension({ treeId, store: d.store, plugins: d.plugins, catalog: d.catalog }));
     if (d.skills) install(createSkillsExtension({ treeId, store: d.store, skills: d.skills, catalog: d.catalog }));
@@ -598,7 +622,14 @@ export class TreeManager {
       }),
     );
     // After the memory and Knowledge notes: where things go, and the check before the final answer.
-    install(createRecallRouterExtension({ memory: Boolean(d.memory), knowledge: Boolean(d.knowledge) }));
+    install(
+      createRecallRouterExtension({
+        treeId,
+        store: d.store,
+        memory: Boolean(d.memory),
+        knowledge: Boolean(d.knowledge),
+      }),
+    );
     // Code mode, when its setting is on: the tool and its prompt section. Here so the policy declaration is in the
     // catalog before the policy runs. Turning the setting on or off later installs or removes it in place (Pi's
     // registry publishes between model requests); a tree whose state already matches is left alone, so the prompt
@@ -615,9 +646,10 @@ export class TreeManager {
             // A tree registers the connector tools of every agent in it; a script sees only its own agent's, as
             // search_capabilities does.
             visible: (conversationId, name) => {
+              const session = d.store.sessionByConversation(treeId, String(conversationId));
+              if (session && !agentAllowsTool(d.store.agentCapabilities(session.agent_id), name)) return false;
               const connectors = d.mcp?.directory;
               if (!connectors?.info(name)) return true;
-              const session = d.store.sessionByConversation(treeId, String(conversationId));
               return !!session && connectors.visibleTo(name, session.agent_id);
             },
           });
@@ -904,9 +936,9 @@ export class TreeManager {
       const conv = await tree.harness.conversation(m.id, context);
       if (conv) {
         await tree.guard.repair(conv, context);
-        // Repair restores the host defaults, so reapply the per-origin extension selection too.
+        // Repair restores the host defaults, so reapply the per-origin and per-agent extension selection too.
         const session = this.#d.store.sessionByConversation(tree.id, String(conv.id));
-        await this.alignExtensions(tree, conv, session?.origin, session?.id);
+        await this.alignExtensions(tree, conv, session?.origin, session?.id, session?.agent_id);
       }
     }
     return missing.length;
@@ -926,10 +958,17 @@ export class TreeManager {
     conv: Conversation,
     origin: string | undefined,
     sessionId?: string,
+    agentId?: string,
   ): Promise<boolean> {
     const d = this.#d;
     const conversationId = String(conv.id);
     try {
+      const resolvedAgentId =
+        agentId ??
+        (sessionId
+          ? d.store.getSessionRow(sessionId)?.agent_id
+          : d.store.sessionByConversation(tree.id, conversationId)?.agent_id);
+      const capabilities = resolvedAgentId ? d.store.agentCapabilities(resolvedAgentId) : undefined;
       const installed = tree.registry.snapshot().installed();
       const agent = await conv.agent(context);
       const selected = agent.extensions.map((e) => e.name);
@@ -937,6 +976,7 @@ export class TreeManager {
         installed.map((e) => e.name),
         selected,
         origin,
+        capabilities,
       );
       if (!drift.changed) return false;
       // Guarded reconfiguration also repairs the policy. Keep the same audit evidence as auditPolicy.
@@ -947,7 +987,7 @@ export class TreeManager {
           extensions: selected.join(","),
         });
       }
-      const drop = droppedExtensions(origin);
+      const drop = droppedExtensions(origin, capabilities);
       const remove = installed.filter((e) => drop.includes(e.name));
       await tree.guard.reconfigure(conv, { extensions: { remove } }, context);
       d.log.info("conversation.extensions_aligned", {
@@ -975,7 +1015,8 @@ export class TreeManager {
     // A setting saved while the tree was opening.
     this.#codemodeSlots.get(tree.id)?.();
     // Applies to existing conversations and forks too, before they resume. The store also refuses non-home spawns.
-    await this.alignExtensions(tree, conv, session.origin, session.id);
+    await this.alignExtensions(tree, conv, session.origin, session.id, session.agent_id);
+    this.#alignedCaps.set(session.id, JSON.stringify(d.store.agentCapabilities(session.agent_id)));
     const sync = new SessionSync({
       store: d.store,
       approvals: d.approvals,
@@ -1003,6 +1044,7 @@ export class TreeManager {
   async detachSession(tree: OpenTree, sessionId: string): Promise<void> {
     const ts = tree.sessions.get(sessionId);
     if (!ts) return;
+    this.#alignedCaps.delete(sessionId);
     tree.sessions.delete(sessionId);
     if (ts.providerSessionId) tree.providerSessions.delete(ts.providerSessionId);
     ts.sync.dispose();
@@ -1049,9 +1091,16 @@ export class TreeManager {
     return typeof value === "number" && value > 0 ? value : null;
   }
 
-  /** Model, deadlines and credential for the next call of a session's conversation (models.json is read each time). */
   async prepareCall(tree: OpenTree, ts: TreeSession): Promise<void> {
     const d = this.#d;
+    const session = d.store.getSessionRow(ts.sessionId);
+    if (session) {
+      const capsJson = JSON.stringify(d.store.agentCapabilities(session.agent_id));
+      if (this.#alignedCaps.get(ts.sessionId) !== capsJson) {
+        await this.alignExtensions(tree, ts.conv, session.origin, session.id, session.agent_id);
+        this.#alignedCaps.set(ts.sessionId, capsJson);
+      }
+    }
     await d.runtime.ensureProviders?.();
     const config = parseModelsConfig(await d.modelsConfig.read().catch(() => undefined));
     tree.deadlines = config.standard.deadlines;
@@ -1092,6 +1141,7 @@ export class TreeManager {
     this.#codemodeSlots.delete(treeId);
     tree.commits?.detach();
     for (const ts of tree.sessions.values()) {
+      this.#alignedCaps.delete(ts.sessionId);
       await ts.drained();
       ts.sync.dispose();
     }

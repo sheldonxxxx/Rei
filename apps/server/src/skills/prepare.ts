@@ -185,9 +185,12 @@ export class SkillPreparer {
    * `.skills/<id>/v<version>/<runId>/` when there is one. A missing sandbox or a failed copy degrades that skill (the
    * block says so and the files stay readable with read_skill_file): it never fails the message.
    */
-  async prepare(resolved: readonly ResolvedSkill[], where: { treeId: string; runId: string }): Promise<string[]> {
+  async prepare(
+    resolved: readonly ResolvedSkill[],
+    where: { treeId: string; runId: string; sandbox?: boolean },
+  ): Promise<string[]> {
     let env: ExecutionEnv | undefined;
-    const needsEnv = resolved.some((s) => s.files.length > 1);
+    const needsEnv = where.sandbox !== false && resolved.some((s) => s.files.length > 1);
     if (needsEnv && this.#d.workspaces) {
       try {
         const backend = this.#d.workspaces.forTree(where.treeId);

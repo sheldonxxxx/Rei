@@ -83,8 +83,12 @@ export function createExecExtension(deps: ExecToolsDeps): Extension {
   };
 
   /** Before every call: the sandbox answers and the workspace exists; otherwise an ordinary tool error for the model. */
-  const ready = async (): Promise<ToolText | undefined> => {
+  const ready = async (conversationId?: unknown): Promise<ToolText | undefined> => {
     try {
+      const caller =
+        conversationId !== undefined ? store.sessionByConversation(treeId, String(conversationId)) : undefined;
+      if (caller && store.agentCapabilities?.(caller.agent_id)?.sandbox === false)
+        return fail("Sandbox access is disabled for this agent.");
       await backend.ready(treeId);
       // A sandbox read/bash can see another session's files. Carry its labels before returning data or issuing egress.
       const owner = store.db.get<{ agent_id: string }>(
@@ -92,6 +96,8 @@ export function createExecExtension(deps: ExecToolsDeps): Extension {
         treeId,
       );
       if (owner) {
+        if (!caller && store.agentCapabilities?.(owner.agent_id)?.sandbox === false)
+          return fail("Sandbox access is disabled for this agent.");
         const labels = store.db
           .all<{ taint: string }>("SELECT taint FROM sessions WHERE agent_id = ?", owner.agent_id)
           .flatMap((r) => JSON.parse(r.taint));
@@ -104,7 +110,7 @@ export function createExecExtension(deps: ExecToolsDeps): Extension {
   };
   const guarded = <P extends object>(tool: ToolRegistration<P>): ToolRegistration<P> => ({
     ...tool,
-    execute: async (args, api, context) => (await ready()) ?? tool.execute(args, api, context),
+    execute: async (args, api, context) => (await ready(api.conversationId)) ?? tool.execute(args, api, context),
   });
 
   const read = policyTool(
@@ -147,7 +153,7 @@ export function createExecExtension(deps: ExecToolsDeps): Extension {
       // Run commands sequentially so each command reports its own network denials.
       executionMode: "sequential",
       execute: async (args, api, context) => {
-        const unavailable = await ready();
+        const unavailable = await ready(api.conversationId);
         if (unavailable) return unavailable;
         const run = runningRun(api.conversationId);
         const timeout = effectiveTimeout(args.timeout);

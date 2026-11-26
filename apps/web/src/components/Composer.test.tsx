@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_CAPABILITIES } from "@rei/protocol";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -263,4 +264,89 @@ it("consumes the @ query when choosing Upload attachment", () => {
   fireEvent.change(input, { target: { value: "Read @upload" } });
   fireEvent.click(screen.getByRole("option", { name: /Upload attachment/ }));
   expect(input.value).toBe("Read ");
+});
+
+describe("composer agent capabilities", () => {
+  const mockApi = (extra: Partial<import("../api/client.ts").Api> = {}) =>
+    ({
+      getConnectors: vi.fn().mockResolvedValue({ connectors: [] }),
+      uploadAttachment: vi.fn().mockResolvedValue({ id: "att1", name: "notes.txt", size: 5, mediaType: "text/plain" }),
+      knowledgeTree: vi.fn().mockResolvedValue({
+        pages: [{ id: "p1", title: "Project Plan", description: "Main plan" }],
+      }),
+      ...extra,
+    }) as unknown as import("../api/client.ts").Api;
+  const sess = (id: string, title: string, agentId: string) =>
+    ({ id, title, agentId, origin: "user", updatedAt: 10 }) as import("@rei/protocol").Session;
+
+  it("hides Knowledge pages and skips knowledgeTree when knowledge is off", async () => {
+    const api = mockApi();
+    setup({
+      api,
+      sessionId: "current",
+      capabilities: { ...DEFAULT_AGENT_CAPABILITIES, knowledge: "off" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    await screen.findByRole("option", { name: /Upload attachment/ });
+    expect(api.knowledgeTree).not.toHaveBeenCalled();
+    expect(screen.queryByRole("option", { name: /Project Plan/ })).toBeNull();
+  });
+
+  it("hides or scopes @chat mentions according to chatHistory capability", async () => {
+    const sessions = [sess("current", "Current", "a1"), sess("s1", "Own Chat", "a1"), sess("s2", "Other Chat", "a2")];
+    setup({
+      api: mockApi(),
+      sessionId: "current",
+      agentId: "a1",
+      sessions,
+      capabilities: { ...DEFAULT_AGENT_CAPABILITIES, chatHistory: "own" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    expect(await screen.findByRole("option", { name: /Own Chat/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /Other Chat/ })).toBeNull();
+
+    cleanup();
+    setup({
+      api: mockApi(),
+      sessionId: "current",
+      agentId: "a1",
+      sessions,
+      capabilities: { ...DEFAULT_AGENT_CAPABILITIES, chatHistory: "off" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    await screen.findByRole("option", { name: /Upload attachment/ });
+    expect(screen.queryByRole("option", { name: /Own Chat/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Other Chat/ })).toBeNull();
+  });
+
+  it("hides Library picker when library is off", async () => {
+    setup({
+      api: mockApi(),
+      sessionId: "current",
+      capabilities: { ...DEFAULT_AGENT_CAPABILITIES, library: "off" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    await screen.findByRole("option", { name: /Upload attachment/ });
+    expect(screen.queryByRole("option", { name: /Choose from Library/ })).toBeNull();
+  });
+
+  it("restricts file uploads to text and images when sandbox is disabled", async () => {
+    const api = mockApi();
+    setup({
+      api,
+      sessionId: "current",
+      capabilities: { ...DEFAULT_AGENT_CAPABILITIES, sandbox: false },
+    });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput.getAttribute("accept")).toContain("image/png");
+
+    const pdf = new File(["%PDF-1.4"], "report.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput, { target: { files: [pdf] } });
+    expect(api.uploadAttachment).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toContain("Only text and image files can be attached");
+
+    const txt = new File(["hello"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(fileInput, { target: { files: [txt] } });
+    expect(api.uploadAttachment).toHaveBeenCalledWith("current", txt);
+  });
 });

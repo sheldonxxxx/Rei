@@ -1,30 +1,34 @@
 import { DEFAULT_SANDBOX_WHITELIST } from "@rei/network";
-import type {
-  Agent,
-  AgentSettingsPatch,
-  Approval,
-  Attachment,
-  ChatItem,
-  Companion,
-  EditLogEntry,
-  MessageMemory,
-  MessageMention,
-  MessagePart,
-  NotifyEvent,
-  NotifyPayload,
-  ProfileInput,
-  ReadMarker,
-  ReadMarkerResponse,
-  RunStatus,
-  SandboxNetworkMode,
-  Session,
-  SessionOrigin,
-  SessionReport,
-  SessionStatus,
-  TaintLabel,
-  Takeover,
-  ThinkingLevel,
-  TriggerMessage,
+import {
+  type Agent,
+  type AgentCapabilities,
+  type AgentCapabilitiesPatch,
+  type AgentSettingsPatch,
+  type Approval,
+  type Attachment,
+  type ChatItem,
+  type Companion,
+  DEFAULT_AGENT_CAPABILITIES,
+  type EditLogEntry,
+  type MessageMemory,
+  type MessageMention,
+  type MessagePart,
+  type NotifyEvent,
+  type NotifyPayload,
+  type ProfileInput,
+  type ReadMarker,
+  type ReadMarkerResponse,
+  type RunStatus,
+  resolveAgentCapabilities,
+  type SandboxNetworkMode,
+  type Session,
+  type SessionOrigin,
+  type SessionReport,
+  type SessionStatus,
+  type TaintLabel,
+  type Takeover,
+  type ThinkingLevel,
+  type TriggerMessage,
 } from "@rei/protocol";
 import type { BranchEntryRef, BranchRow } from "../conversation/branches.ts";
 import type { InputRole } from "../conversation/ledger.ts";
@@ -140,6 +144,7 @@ interface AgentRow {
   network_mode: SandboxNetworkMode;
   allowed_connector_ids: string | null;
   can_create_triggers_for_other_agents: number;
+  capabilities_json: string | null;
   default_profile: string;
   instructions: string;
   home_session_id: string | null;
@@ -236,18 +241,35 @@ const toSession = (r: SessionRow, takeover: Takeover | null = null): Session => 
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
-const toAgent = (r: AgentRow): Agent => ({
-  id: r.id,
-  name: r.name,
-  avatar: r.avatar,
-  model: r.model,
-  thinkingLevel: r.thinking_level,
-  networkMode: r.network_mode,
-  allowedConnectorIds: r.allowed_connector_ids === null ? null : JSON.parse(r.allowed_connector_ids),
-  canCreateTriggersForOtherAgents: r.can_create_triggers_for_other_agents === 1,
-  defaultProfile: canonicalProfile(r.default_profile),
-  homeSessionId: r.home_session_id ?? "",
-});
+const parseCapabilities = (raw: string | null): AgentCapabilitiesPatch | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as AgentCapabilitiesPatch) : null;
+  } catch {
+    return null;
+  }
+};
+
+const toAgent = (r: AgentRow): Agent => {
+  const capabilities = resolveAgentCapabilities(
+    parseCapabilities(r.capabilities_json),
+    r.can_create_triggers_for_other_agents === 1,
+  );
+  return {
+    id: r.id,
+    name: r.name,
+    avatar: r.avatar,
+    model: r.model,
+    thinkingLevel: r.thinking_level,
+    networkMode: r.network_mode,
+    allowedConnectorIds: r.allowed_connector_ids === null ? null : JSON.parse(r.allowed_connector_ids),
+    canCreateTriggersForOtherAgents: capabilities.triggers === "all",
+    capabilities,
+    defaultProfile: canonicalProfile(r.default_profile),
+    homeSessionId: r.home_session_id ?? "",
+  };
+};
 
 export { type RunRow, TERMINAL_RUN, toRun } from "../conversation/runs.ts";
 
@@ -781,11 +803,46 @@ export class AppStore {
     return !!agent && (agent.allowedConnectorIds == null || agent.allowedConnectorIds.includes(connectorId));
   }
 
+  agentCapabilities(agentId: string): AgentCapabilities {
+    const row = this.getAgentRow(agentId);
+    if (!row) return { ...DEFAULT_AGENT_CAPABILITIES };
+    return resolveAgentCapabilities(
+      parseCapabilities(row.capabilities_json),
+      row.can_create_triggers_for_other_agents === 1,
+    );
+  }
+
   updateAgentSettings(agentId: string, patch: AgentSettingsPatch): Agent | undefined {
     return this.tx(() => {
       const row = this.getAgentRow(agentId);
       if (!row) return undefined;
       const now = this.clock.now();
+      const currentCaps = resolveAgentCapabilities(
+        parseCapabilities(row.capabilities_json),
+        row.can_create_triggers_for_other_agents === 1,
+      );
+      const hasCapChange = patch.capabilities !== undefined || patch.canCreateTriggersForOtherAgents !== undefined;
+      let nextCaps = currentCaps;
+      if (hasCapChange) {
+        nextCaps = resolveAgentCapabilities(
+          {
+            ...currentCaps,
+            ...(patch.capabilities ?? {}),
+            ...(patch.capabilities?.triggers === undefined && patch.canCreateTriggersForOtherAgents !== undefined
+              ? {
+                  triggers: patch.canCreateTriggersForOtherAgents
+                    ? "all"
+                    : currentCaps.triggers === "all"
+                      ? "own"
+                      : currentCaps.triggers,
+                }
+              : {}),
+          },
+          false,
+        );
+      }
+      const nextCapsJson = hasCapChange ? JSON.stringify(nextCaps) : undefined;
+      const nextLegacyTrigger = hasCapChange ? Number(nextCaps.triggers === "all") : undefined;
       const fields: [string, string, string | number | null, string | number | null | undefined][] = [
         ["name", "name", row.name, patch.name],
         [
@@ -805,9 +862,13 @@ export class AppStore {
           "canCreateTriggersForOtherAgents",
           "can_create_triggers_for_other_agents",
           row.can_create_triggers_for_other_agents,
-          patch.canCreateTriggersForOtherAgents === undefined
-            ? undefined
-            : Number(patch.canCreateTriggersForOtherAgents),
+          nextLegacyTrigger,
+        ],
+        [
+          "capabilities",
+          "capabilities_json",
+          row.capabilities_json,
+          nextCapsJson === undefined || nextCapsJson === JSON.stringify(currentCaps) ? undefined : nextCapsJson,
         ],
         [
           "defaultProfile",

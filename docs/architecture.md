@@ -50,5 +50,6 @@ Agents are built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works
 - [Storage and retrieval](storage.md): why data lives in SQLite, Garage and Qdrant.
 - [Sandbox network](sandbox-network.md): per-agent network modes.
 - [Client contract](contract.md): the API every client speaks.
+- [Knowledge MCP access](knowledge-mcp.md): scoped external MCP access to Knowledge pages.
 - [Architecture decision records](adr/): the reasoning behind the shape.
 - [`GLOSSARY.md`](../GLOSSARY.md): the domain vocabulary used throughout the code.

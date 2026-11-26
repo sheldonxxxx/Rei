@@ -342,6 +342,7 @@ describe("Settings window", () => {
       "Capabilities",
       "Triggers",
       "Permissions",
+      "MCP",
       "Backups",
       "Usage",
     ]);
@@ -669,6 +670,7 @@ describe("Settings window", () => {
         "Capabilities",
         "Triggers",
         "Permissions",
+        "MCP",
         "Backups",
         "Usage",
       ]);

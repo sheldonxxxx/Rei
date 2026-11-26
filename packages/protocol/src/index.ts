@@ -4,16 +4,23 @@
 export * from "./api.ts";
 export * from "./backup.ts";
 export * from "./browser.ts";
+export * from "./capabilities.ts";
 export * from "./contract/index.ts";
 export type * from "./entities.ts";
 export { ATTACHMENT_MAX_BYTES, MESSAGE_MAX_ATTACHMENT_BYTES, MESSAGE_MAX_ATTACHMENTS } from "./entities.ts";
 export type { FilePreviewKind } from "./file-preview.ts";
-export { filePreview, TEXT_PREVIEW_MAX_BYTES } from "./file-preview.ts";
+export { filePreview, INLINE_IMAGE_MEDIA_TYPES, inlineAttachmentKind, TEXT_PREVIEW_MAX_BYTES } from "./file-preview.ts";
 export type { McpResultMedia } from "./gateway.ts";
 export * from "./gateway.ts";
 export type * from "./imports.ts";
 export type {
+  CreateKnowledgeMcpTokenRequest,
   KnowledgeActor,
+  KnowledgeMcpAllowedPage,
+  KnowledgeMcpPermissions,
+  KnowledgeMcpSecretResponse,
+  KnowledgeMcpToken,
+  KnowledgeMcpTokensResponse,
   KnowledgeMeaningStatus,
   KnowledgeOverview,
   KnowledgePage,
@@ -22,6 +29,7 @@ export type {
   KnowledgeSearchHit,
   KnowledgeTreeNode,
   PageReference,
+  UpdateKnowledgeMcpTokenRequest,
 } from "./knowledge.ts";
 export type {
   FileReference,

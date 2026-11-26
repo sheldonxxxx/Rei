@@ -1,4 +1,5 @@
 import type { SessionBrowser, Takeover } from "./browser.ts";
+import type { AgentCapabilities } from "./capabilities.ts";
 import type { FileReference } from "./library.ts";
 import type { MemorySuggestion, MessageMemory } from "./memory.ts";
 import type { SandboxNetworkMode } from "./network.ts";
@@ -44,6 +45,8 @@ export interface Agent {
   allowedConnectorIds?: string[] | null;
   /** Whether this agent can create, change, pause and delete the triggers of other agents. Defaults to false. */
   canCreateTriggersForOtherAgents?: boolean;
+  /** Per-agent capability switches (workspace, web, browser, library, images, knowledge, memory, history, triggers, delegation). */
+  capabilities?: AgentCapabilities;
   /** The agent's pinned home chat (the "Dot"). */
   homeSessionId: SessionId;
 }

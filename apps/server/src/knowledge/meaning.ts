@@ -379,9 +379,11 @@ export class KnowledgeMeaning {
     const config = this.#d.fusion ?? KNOWLEDGE_FUSION;
     // An unknown or trashed subtree fails here, before the model is asked anything.
     let allowed = knowledge.searchPages(options);
+    if (allowed && allowed.size === 0) return [];
     const meaning = await this.#meaningSections(query, allowed);
     // Everything after the await is synchronous, and a page trashed while the query was embedded is dropped.
     allowed = knowledge.searchPages(options);
+    if (allowed && allowed.size === 0) return [];
     const keyword = knowledge.keywordSections(query, allowed, config.top);
     const live = meaning.filter(
       (m) => knowledge.page(m.pageId)?.trashed_at === null && (!allowed || allowed.has(m.pageId)),

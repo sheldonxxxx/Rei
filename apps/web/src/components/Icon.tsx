@@ -27,6 +27,7 @@ import {
   FileText,
   Flag,
   Folder,
+  FolderOpen,
   GitBranch,
   Globe,
   GripVertical,
@@ -54,6 +55,7 @@ import {
   Pencil,
   Pin,
   Plane,
+  Plug,
   Plus,
   Presentation,
   Puzzle,
@@ -84,6 +86,7 @@ const ICONS = {
   spreadsheet: FileSpreadsheet,
   presentation: Presentation,
   folder: Folder,
+  folderOpen: FolderOpen,
 
   terminal: SquareTerminal,
   compose: SquarePen,
@@ -157,6 +160,7 @@ const ICONS = {
   image: ImageIcon,
   info: Info,
   archive: Archive,
+  plug: Plug,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

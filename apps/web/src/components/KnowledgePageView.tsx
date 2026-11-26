@@ -591,11 +591,14 @@ function HistoryDialog({
                 <span className="flex items-center gap-1.5">
                   <span className="truncate font-medium">{r.actor.name}</span>
                   {i === 0 && <Badge variant="secondary">Current</Badge>}
-                  {r.external && (
-                    <Tip label="Written by a chat that had read outside content">
-                      <Icon name="globe" size={12} className="text-attention-text" />
-                    </Tip>
-                  )}
+                  {r.external &&
+                    (r.actor.kind === "mcp" ? (
+                      <Badge variant="attention">External</Badge>
+                    ) : (
+                      <Tip label="Written by a chat that had read outside content">
+                        <Icon name="globe" size={12} className="text-attention-text" />
+                      </Tip>
+                    ))}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {ago(r.updatedAt)}
@@ -1162,7 +1165,11 @@ function RevisionDialog({
           </p>
         </DialogHeader>
         {revision.external && (
-          <DialogWarning>This version was written by a chat that had read outside content.</DialogWarning>
+          <DialogWarning>
+            {revision.actor.kind === "mcp"
+              ? "This version was written through an external MCP token."
+              : "This version was written by a chat that had read outside content."}
+          </DialogWarning>
         )}
         <div className="flex flex-col gap-1">
           <strong>{revision.title}</strong>

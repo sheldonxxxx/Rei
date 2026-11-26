@@ -26,6 +26,7 @@ import type {
   CreateAgentRequest,
   CreateAgentResponse,
   CreateConnectorRequest,
+  CreateKnowledgeMcpTokenRequest,
   CreateSessionRequest,
   CreateSessionResponse,
   CreateTriggerRequest,
@@ -54,6 +55,9 @@ import type {
   HistorySearchResponse,
   ImportSkillRequest,
   IndexStatusResponse,
+  KnowledgeMcpSecretResponse,
+  KnowledgeMcpToken,
+  KnowledgeMcpTokensResponse,
   KnowledgeOverview,
   KnowledgePageDetail,
   KnowledgeRevision,
@@ -125,6 +129,7 @@ import type {
   UpdateContextSettingsRequest,
   UpdateDeviceNotificationsRequest,
   UpdateFirstTimeSetupRequest,
+  UpdateKnowledgeMcpTokenRequest,
   UpdateMemoryExtractionRequest,
   UpdateMemoryLineRequest,
   UpdateModelSettingsRequest,
@@ -389,6 +394,14 @@ export function createApi(options: ApiOptions = {}) {
     purgeKnowledgePage: (id: string) =>
       request<{ deleted: number }>("DELETE", `/api/knowledge/pages/${enc(id)}`, { confirm: true }),
     knowledgeMarkdownUrl: (id: string) => `/api/knowledge/pages/${enc(id)}/markdown`,
+    listKnowledgeMcpTokens: () => request<KnowledgeMcpTokensResponse>("GET", "/api/knowledge/mcp/tokens"),
+    createKnowledgeMcpToken: (body: CreateKnowledgeMcpTokenRequest) =>
+      post<KnowledgeMcpSecretResponse>("/api/knowledge/mcp/tokens", body),
+    updateKnowledgeMcpToken: (id: string, body: UpdateKnowledgeMcpTokenRequest) =>
+      request<{ token: KnowledgeMcpToken }>("PATCH", `/api/knowledge/mcp/tokens/${enc(id)}`, body),
+    rotateKnowledgeMcpToken: (id: string) =>
+      post<KnowledgeMcpSecretResponse>(`/api/knowledge/mcp/tokens/${enc(id)}/rotate`),
+    revokeKnowledgeMcpToken: (id: string) => request<OkResponse>("DELETE", `/api/knowledge/mcp/tokens/${enc(id)}`),
     listFiles: (query: Record<string, string> = {}) =>
       request<LibraryList>("GET", `/api/files?${new URLSearchParams(query)}`),
     getFile: (id: string) => request<LibraryDetail>("GET", `/api/files/${enc(id)}`),

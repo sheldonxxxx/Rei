@@ -20,7 +20,7 @@ import type { Same } from "./same.ts";
 
 export const KnowledgeActorSchema = named(
   "KnowledgeActor",
-  obj({ kind: oneOf(["user", "agent"]), id: nullable(str()), name: str() }),
+  obj({ kind: oneOf(["user", "agent", "mcp"]), id: nullable(str()), name: str() }),
 );
 true satisfies Same<Static<typeof KnowledgeActorSchema>, KnowledgeActor>;
 

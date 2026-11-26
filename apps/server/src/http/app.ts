@@ -77,6 +77,7 @@ import {
   importLookupRoute,
   importSessionRoute,
   importSkillRoute,
+  inlineAttachmentKind,
   legacyPresenceRoute,
   listAgentsRoute,
   listApprovalsRoute,
@@ -206,6 +207,9 @@ import type { BackgroundJob, BackgroundTaskService } from "../background/service
 import type { BlobStore } from "../blobs/blob-store.ts";
 import type { BrowserService } from "../browser/service.ts";
 import type { TakeoverService } from "../browser/takeover-service.ts";
+import { knowledgeMcpRoutes } from "../knowledge/mcp-routes.ts";
+import { mountKnowledgeMcpServer } from "../knowledge/mcp-server.ts";
+import { KNOWLEDGE_MCP_ENDPOINT_PATH, type KnowledgeMcpTokenStore } from "../knowledge/mcp-tokens.ts";
 import { knowledgeRoutes } from "../knowledge/routes.ts";
 import type { KnowledgeService } from "../knowledge/service.ts";
 import { libraryRoutes } from "../library/routes.ts";
@@ -288,6 +292,8 @@ export interface AppDeps {
   memory?: MemoryService;
   /** Knowledge: shared long-term pages. */
   knowledge?: KnowledgeService;
+  /** Knowledge MCP access tokens. */
+  knowledgeMcpTokens?: KnowledgeMcpTokenStore;
   /** Backups (Settings > Backups). */
   backup?: BackupService;
   /** Receives signed outside events (POST /api/events/:source); without it every source is unknown. */
@@ -483,6 +489,9 @@ export function createApp(deps: AppDeps): Hono {
   // about it is checked by the route, in a fixed order (events/receive.ts).
   const isEvent = (c: Context): boolean =>
     c.req.method === "POST" && /^\/api\/events\/[^/]+\/?$/.test(new URL(c.req.url).pathname);
+  // Knowledge MCP authenticates with its own scoped bearer token (rei_kmcp_...), not user cookies or device tokens.
+  const isKnowledgeMcp = (c: Context): boolean =>
+    new URL(c.req.url).pathname.replace(/\/+$/, "") === KNOWLEDGE_MCP_ENDPOINT_PATH;
   app.use("/api/*", async (c, next) => {
     c.header("cache-control", "no-store");
     for (const [name, value] of Object.entries(securityHeaders(API_CSP))) c.header(name, value);
@@ -499,7 +508,7 @@ export function createApp(deps: AppDeps): Hono {
     // credential, or a native app naming itself in the client header (its sign-in has no credential yet), proves the
     // request is not cross-site, and only the web app's cookie requests need the CSRF header.
     const nativeHeader = NATIVE_CLIENT_KINDS.includes(parseClientId(c.req.header(CLIENT_HEADER))?.kind ?? "web");
-    if (isEvent(c)) return next();
+    if (isEvent(c) || isKnowledgeMcp(c)) return next();
     if (MUTATING.has(c.req.method) && bearer(c) === undefined && !nativeHeader && c.req.header(CSRF_HEADER) !== "1") {
       throw new HttpError(403, "csrf", `Missing ${CSRF_HEADER} header.`);
     }
@@ -514,6 +523,8 @@ export function createApp(deps: AppDeps): Hono {
   const contract = { checkResponses: deps.checkContract === true };
   libraryRoutes(app, deps, contract);
   knowledgeRoutes(app, deps, contract);
+  knowledgeMcpRoutes(app, deps, contract);
+  mountKnowledgeMcpServer(app, deps);
   if (deps.plugins) pluginRoutes(app, deps.plugins, contract);
 
   /** A path parameter of the matched route (always present for a route that declares it). */
@@ -719,6 +730,7 @@ export function createApp(deps: AppDeps): Hono {
     if (b.networkMode !== undefined) settings.networkMode = b.networkMode;
     if (b.canCreateTriggersForOtherAgents !== undefined)
       settings.canCreateTriggersForOtherAgents = b.canCreateTriggersForOtherAgents;
+    if (b.capabilities !== undefined) settings.capabilities = b.capabilities;
     if (b.allowedConnectorIds !== undefined) {
       if (b.allowedConnectorIds?.some((id) => !id.trim()))
         throw badRequest("bad_request", "Connectors must be null or a list of connector IDs.");
@@ -1087,9 +1099,21 @@ export function createApp(deps: AppDeps): Hono {
   mountRoute(app, uploadAttachmentRoute, contract, async (c) => {
     if (!deps.attachments) throw new HttpError(503, "unavailable", "Uploads are unavailable.");
     const id = param(c, "id");
-    if (!store.getSessionRow(id)) throw notFound("That session does not exist.");
+    const session = store.getSessionRow(id);
+    if (!session) throw notFound("That session does not exist.");
     const attachments = deps.attachments;
-    return { attachment: await withUpload(c, (file) => attachments.upload(id, file)) };
+    const sandbox = store.agentCapabilities(session.agent_id).sandbox;
+    return {
+      attachment: await withUpload(c, (file) => {
+        if (!sandbox && inlineAttachmentKind({ name: file.name, mediaType: file.type }) === null) {
+          throw badRequest(
+            "unsupported_attachment",
+            "This agent has Sandbox disabled and only accepts text and image attachments.",
+          );
+        }
+        return attachments.upload(id, file);
+      }),
+    };
   });
   // Importing past conversations (docs/importing.md): a file of a chat about to be imported belongs to no chat yet.
   mountRoute(app, importFileRoute, contract, async (c) => {
@@ -1173,6 +1197,17 @@ export function createApp(deps: AppDeps): Hono {
         all.reduce((n, f) => n + f.size, 0) > MESSAGE_MAX_ATTACHMENT_BYTES
       )
         throw badRequest("bad_request", "Choose at most 10 distinct files totaling at most 2 GiB.");
+      const sessionRow = store.getSessionRow(id)!;
+      if (!store.agentCapabilities(sessionRow.agent_id).sandbox) {
+        for (const f of all) {
+          if (inlineAttachmentKind(f) === null) {
+            throw badRequest(
+              "unsupported_attachment",
+              "This agent has Sandbox disabled and only supports text and image attachments.",
+            );
+          }
+        }
+      }
       selected = { ...selected, attachments: all };
     }
     const result = await adapter.send({

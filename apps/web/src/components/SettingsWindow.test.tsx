@@ -122,4 +122,37 @@ describe("SettingsWindow leaving with unsaved changes", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
   });
+
+  it("renders the MCP settings section when route is mcp and opens New MCP token in-pane without a stacked dialog", async () => {
+    const api = {
+      listKnowledgeMcpTokens: vi.fn().mockResolvedValue({ endpointPath: "/api/mcp/knowledge", tokens: [] }),
+      knowledgeTree: vi.fn().mockResolvedValue({ pages: [] }),
+    };
+    render(
+      <SettingsWindow
+        api={api as never}
+        agents={[]}
+        companion={null}
+        sessions={[]}
+        route={{ section: "mcp", id: null }}
+        wide
+        memoryRev={0 as never}
+        pageRev={{} as never}
+        onClose={vi.fn()}
+        onLogout={() => {}}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "MCP" })).toBeTruthy();
+    expect(await screen.findByText(/No MCP tokens yet/)).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "New token" }));
+    expect(await screen.findByRole("heading", { name: "New MCP token" })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+
+    // Dirty check also warns before closing Settings when editing a new token.
+    fireEvent.change(screen.getByLabelText("Token name"), { target: { value: "Unsaved token" } });
+    fireEvent.click(closeButton());
+    expect(await screen.findByText("Discard unsaved changes?")).toBeTruthy();
+  });
 });

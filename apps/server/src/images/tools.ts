@@ -114,7 +114,10 @@ export function createImageExtension(
           );
           const rows: AttachmentRow[] = [];
           let total = 0;
+          const libraryOff = store.agentCapabilities(session.agent_id).library === "off";
           for (const ref of args.references ?? []) {
+            if (ref.type === "library" && libraryOff)
+              throw new Error("File Library access is disabled for this agent.");
             const row =
               ref.type === "attachment"
                 ? attachments.accessible(ref.attachmentId, session.id)

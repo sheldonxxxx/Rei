@@ -36,6 +36,7 @@ import { CompanionSetting } from "./CompanionSetting.tsx";
 import { DevicesSettings } from "./DevicesSettings.tsx";
 import type { IconName } from "./Icon.tsx";
 import { Icon } from "./Icon.tsx";
+import { KnowledgeMcpPage } from "./KnowledgeMcpPage.tsx";
 import { MemoryPage } from "./MemoryPage.tsx";
 import { ModelSettingsPage } from "./ModelSettingsPage.tsx";
 import { NotificationSettings } from "./NotificationSettings.tsx";
@@ -63,6 +64,7 @@ const SECTIONS: Record<SettingsSection, { label: string; icon: IconName }> = {
   models: { label: "Models", icon: "brain" },
   runtime: { label: "Runtime", icon: "sparkle" },
   permissions: { label: "Permissions", icon: "shield" },
+  mcp: { label: "MCP", icon: "plug" },
   backups: { label: "Backups", icon: "archive" },
 };
 
@@ -255,6 +257,8 @@ function SettingsWindowBody({
       <RuntimeSettingsPage api={api} />
     ) : section === "permissions" ? (
       <PermissionsPage api={api} agents={agents} sessions={sessions} />
+    ) : section === "mcp" ? (
+      <KnowledgeMcpPage api={api} />
     ) : section === "backups" ? (
       <BackupSettingsPage api={api} />
     ) : null;

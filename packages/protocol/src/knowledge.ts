@@ -3,9 +3,9 @@ import type { KnowledgeMetadata } from "./knowledge-source.ts";
 export type { KnowledgeMetadata } from "./knowledge-source.ts";
 // Knowledge (GLOSSARY.md): shared long-term pages. Nested pages only; the body is Markdown.
 
-/** Who wrote something: the user, or an agent (named as it is now; a removed agent keeps its id). */
+/** Who wrote something: the user, an agent, or an external MCP token (named as it is now; a removed actor keeps its id). */
 export interface KnowledgeActor {
-  kind: "user" | "agent";
+  kind: "user" | "agent" | "mcp";
   id: string | null;
   name: string;
 }
@@ -122,4 +122,52 @@ export interface KnowledgeOverview {
 /** A page referenced from a chat message. The agent reads the latest revision. */
 export interface PageReference {
   pageId: string;
+}
+
+export interface KnowledgeMcpPermissions {
+  read: boolean;
+  write: boolean;
+  delete: boolean;
+}
+
+export interface KnowledgeMcpAllowedPage {
+  pageId: string;
+  title: string | null;
+  path: string | null;
+  status: "live" | "trashed" | "missing";
+}
+
+export interface KnowledgeMcpToken {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  enabled: boolean;
+  permissions: KnowledgeMcpPermissions;
+  allowedPages: KnowledgeMcpAllowedPage[];
+  createdAt: number;
+  updatedAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface KnowledgeMcpTokensResponse {
+  endpointPath: string;
+  tokens: KnowledgeMcpToken[];
+}
+
+export interface CreateKnowledgeMcpTokenRequest {
+  name: string;
+  permissions?: { read?: boolean; write?: boolean; delete?: boolean };
+  allowedPageIds?: string[];
+}
+
+export interface UpdateKnowledgeMcpTokenRequest {
+  name?: string;
+  enabled?: boolean;
+  permissions?: { read?: boolean; write?: boolean; delete?: boolean };
+  allowedPageIds?: string[];
+}
+
+export interface KnowledgeMcpSecretResponse {
+  token: KnowledgeMcpToken;
+  secret: string;
 }

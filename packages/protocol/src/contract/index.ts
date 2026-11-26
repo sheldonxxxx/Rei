@@ -8,6 +8,7 @@ export * from "./errors.ts";
 export { openApiDocument, streamSchemaDocument } from "./generate.ts";
 export * from "./imports.ts";
 export * from "./knowledge.ts";
+export * from "./knowledge-mcp.ts";
 export * from "./memory.ts";
 export * from "./operations.ts";
 export * from "./registry.ts";

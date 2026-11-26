@@ -1,4 +1,4 @@
-import type { KnowledgeOverview, KnowledgePageDetail, KnowledgeTreeNode } from "@rei/protocol";
+import type { KnowledgeActor, KnowledgeOverview, KnowledgePageDetail, KnowledgeTreeNode } from "@rei/protocol";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createApi } from "../api/client.ts";
@@ -32,7 +32,7 @@ const overview: KnowledgeOverview = {
   pageCount: 2,
   meaning: { state: "indexing", sections: 10, embedded: 7, lastError: null },
 };
-const page = (revision: number, body: string): KnowledgePageDetail => ({
+const page = (revision: number, body: string, actor: KnowledgeActor = agent): KnowledgePageDetail => ({
   page: {
     metadata: { tags: [] },
     id: "p1",
@@ -44,9 +44,9 @@ const page = (revision: number, body: string): KnowledgePageDetail => ({
     pinned: false,
     inbox: false,
     external: true,
-    createdBy: agent,
+    createdBy: actor,
     createdAt: 1000,
-    updatedBy: agent,
+    updatedBy: actor,
     updatedAt: 2000,
     activityAt: 2000,
     trashedAt: null,
@@ -64,7 +64,7 @@ const page = (revision: number, body: string): KnowledgePageDetail => ({
       revision,
       title: "Training plan",
       description: "",
-      actor: agent,
+      actor,
       sessionId: null,
       sessionTitle: null,
       runId: null,
@@ -77,9 +77,9 @@ const page = (revision: number, body: string): KnowledgePageDetail => ({
 });
 const BODY = "> [!TIP]\n> Warm up first\n\n- [ ] Easy 5k @Rei 📅 2020-01-01\n- [x] Rest\n\nSee [deck](file:f_gone).";
 
-function setup(handlers: { save?: (body: unknown) => Response; body?: string } = {}) {
+function setup(handlers: { save?: (body: unknown) => Response; body?: string; actor?: KnowledgeActor } = {}) {
   const calls: { method: string; path: string; body: unknown }[] = [];
-  let current = page(1, handlers.body ?? BODY);
+  let current = page(1, handlers.body ?? BODY, handlers.actor);
   const api = createApi({
     fetch: async (url, init) => {
       const path = String(url);
@@ -135,6 +135,15 @@ function setup(handlers: { save?: (body: unknown) => Response; body?: string } =
 const props = { rev: 0, changedPageId: null, agents: [], defaultAgentId: "a1", onAsk: vi.fn(async () => {}) };
 
 describe("Knowledge UI", () => {
+  it("shows MCP attribution and an external badge in page history", async () => {
+    const { api } = setup({ actor: { kind: "mcp", id: "kmcp_1", name: "Research client" } });
+    render(<KnowledgePage api={api} pageId="p1" {...props} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Updated by Research client/ }));
+    const history = screen.getByRole("dialog", { name: "History" });
+    expect(within(history).getByRole("button", { name: /Research client Current External/ })).toBeTruthy();
+  });
+
   it("shows the overview: totals, recent pages and this week per writer", async () => {
     const { api } = setup();
     render(<KnowledgePage api={api} pageId={null} {...props} />);
@@ -287,6 +296,13 @@ describe("Knowledge UI", () => {
     await waitFor(() =>
       expect(onAsk).toHaveBeenCalledWith({ id: "p1", title: "Training plan" }, "Am I on track?", "a1"),
     );
+  });
+
+  it("includes an MCP access shortcut link to /settings/mcp in the header", async () => {
+    const { api } = setup();
+    render(<KnowledgePage api={api} pageId={null} {...props} />);
+    const link = await screen.findByRole("link", { name: "MCP access" });
+    expect(link.getAttribute("href")).toBe("/settings/mcp");
   });
 });
 

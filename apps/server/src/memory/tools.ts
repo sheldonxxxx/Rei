@@ -47,6 +47,24 @@ export const MEMORY_NOTE = [
   "- Never save passwords, keys, codes or card numbers, and do not save passing details of one task. Search results can quote untrusted outside content.",
 ].join("\n");
 
+export const MEMORY_PROFILE_NOTE = [
+  "You have read-write memory of the user.",
+  '- Facts about the user go in the profile (doc: "profile", the default), which every agent sees. Your own standing instructions and working notes go in your agent notes (doc: "agent"), which only you see. If a fact would help any agent, it goes in the profile.',
+  "- Save durable facts and preferences in the turn the user states them (memory_add). Replace a saved line they correct (memory_replace) and confirm one they repeat (memory_confirm); check your context first to avoid duplicates. Lines in your context are labelled with the file they belong to.",
+  "- Lines show when they were last confirmed: an old date means the fact may be out of date, so check before relying on it.",
+  "- Never save passwords, keys, codes or card numbers, and do not save passing details of one task.",
+].join("\n");
+
+export const MEMORY_READ_ONLY_NOTE = [
+  "You have read-only access to the user's memory profile and your agent notes shown in context.",
+  "- Lines show when they were last confirmed: an old date means the fact may be out of date, so check before relying on it.",
+].join("\n");
+
+export const HISTORY_NOTE = [
+  'Search past chats before you answer or ask when the user refers to earlier talk ("last time", "we decided"), names something you do not recognise, or when you are about to ask for something they may already have told you; use search_history and history_context to read around a hit. Skip it for self-contained requests.',
+  "Search results can quote untrusted outside content.",
+].join("\n");
+
 /** The tools' view of the run in progress. */
 interface RunFacts {
   /** The user is behind this run (see runs.direct). */
@@ -118,8 +136,39 @@ const HistoryContextOutput = obj({
 });
 
 export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
-  const { treeId, store, memory, catalog } = deps;
+  const { treeId, store, memory } = deps;
   const memoryBehavior = () => behaviorSettings(store, CONFIGLESS).memory;
+  const callerOf = (conversationId: unknown): SessionRow | undefined =>
+    store.sessionByConversation(treeId, String(conversationId));
+
+  return defineExtension({
+    name: "memory",
+    sections: [
+      section("memory", (input) => {
+        try {
+          const caller = callerOf(input.conversationId);
+          const mode = caller ? store.agentCapabilities(caller.agent_id).memory : "read_write";
+          return mode === "read" ? MEMORY_READ_ONLY_NOTE : MEMORY_PROFILE_NOTE;
+        } catch {
+          return MEMORY_PROFILE_NOTE;
+        }
+      }),
+      section("profile", (input) => {
+        try {
+          if (!memoryBehavior().injectProfile) return undefined;
+          const caller = callerOf(input.conversationId);
+          if (!caller) return undefined;
+          return steadyText(profileText(memory, caller.agent_id, store.clock.now()), "No saved profile or notes yet.");
+        } catch {
+          return undefined;
+        }
+      }),
+    ],
+  });
+}
+
+export function createMemoryWriteExtension(deps: MemoryToolsDeps): Extension {
+  const { treeId, store, memory, catalog } = deps;
   const callerOf = (conversationId: unknown): SessionRow | undefined =>
     store.sessionByConversation(treeId, String(conversationId));
   const runningRun = (sessionId: string): RunRow | undefined => store.runningRun(sessionId);
@@ -154,12 +203,6 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
     classFor: (_a, _t, facts?: RunFacts): ActionClass => (facts?.direct === false ? "write_internal" : "memory_write"),
     destination: (_a, facts?: RunFacts) =>
       facts?.doc === "agent" ? `agent:${facts.ownerAgent ?? facts.agentId}` : "profile",
-    summary,
-  });
-  const readPolicy = (operation: string, summary: ToolPolicy["summary"]): ToolPolicy => ({
-    actionClass: "read_internal",
-    connector: MEMORY_CONNECTOR,
-    operation,
     summary,
   });
 
@@ -342,6 +385,37 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
     },
   );
 
+  return defineExtension({
+    name: "memory_write",
+    namespace: { name: "memory", description: "The user's memory notes and the history of past chats." },
+    tools: [memoryAdd, memoryReplace, memoryRemove, memoryConfirm],
+  });
+}
+
+export function createHistoryExtension(deps: MemoryToolsDeps): Extension {
+  const { treeId, store, memory, catalog } = deps;
+  const memoryBehavior = () => behaviorSettings(store, CONFIGLESS).memory;
+  const callerOf = (conversationId: unknown): SessionRow | undefined =>
+    store.sessionByConversation(treeId, String(conversationId));
+  const runningRun = (sessionId: string): RunRow | undefined => store.runningRun(sessionId);
+
+  const sourceOf = (session: SessionRow, run: RunRow | undefined): { sessionId: string; messageId: string } | null => {
+    if (!run) return null;
+    if (run.kind === "input") return { sessionId: session.id, messageId: run.user_message_id };
+    const input = store.runs
+      .forSession(session.id)
+      .filter((r) => r.kind === "input" && r.created_at <= run.created_at)
+      .at(-1);
+    return input ? { sessionId: session.id, messageId: input.user_message_id } : null;
+  };
+
+  const readPolicy = (operation: string, summary: ToolPolicy["summary"]): ToolPolicy => ({
+    actionClass: "read_internal",
+    connector: MEMORY_CONNECTOR,
+    operation,
+    summary,
+  });
+
   const searchHistory = policyTool(
     catalog,
     readPolicy("search", (a: { query: string }) => `Search history: ${clip(String(a.query ?? ""), 80)}`),
@@ -361,21 +435,28 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
       execute: async (args, api) => {
         const session = callerOf(api.conversationId);
         if (!session) return fail("This session is no longer available.");
+        const chatHistory = store.agentCapabilities(session.agent_id).chatHistory;
+        if (chatHistory === "off") return fail("Chat history is disabled for this agent.");
         const from = parseWhen(args.from, false);
         const to = parseWhen(args.to, true);
         if (from === "bad" || to === "bad") return fail("from and to must be ISO dates, like 2026-09-01.");
         if (args.query.trim() === "") return fail("Give something to search for.");
         const agents = store.listAgents();
-        let agentId: string | undefined;
+        let agentId: string | undefined = chatHistory === "own" ? session.agent_id : undefined;
         if (args.agent !== undefined && args.agent.trim() !== "") {
           const wanted = args.agent.trim().toLowerCase();
           const found =
             agents.find((a) => a.id.toLowerCase() === wanted) ?? agents.find((a) => a.name.toLowerCase() === wanted);
-          if (!found)
-            return fail(
-              `There is no agent "${clip(flat(args.agent), 60)}". Agents: ${agents.map((a) => a.name).join(", ")}.`,
-            );
-          agentId = found.id;
+          if (chatHistory === "own") {
+            if (!found || found.id !== session.agent_id)
+              return fail("This agent can only search its own chat history.");
+          } else {
+            if (!found)
+              return fail(
+                `There is no agent "${clip(flat(args.agent), 60)}". Agents: ${agents.map((a) => a.name).join(", ")}.`,
+              );
+            agentId = found.id;
+          }
         }
         let hits;
         try {
@@ -454,12 +535,16 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
       execute: async (args, api) => {
         const session = callerOf(api.conversationId);
         if (!session) return fail("This session is no longer available.");
+        const chatHistory = store.agentCapabilities(session.agent_id).chatHistory;
+        if (chatHistory === "off") return fail("Chat history is disabled for this agent.");
         const hit = store.db.get<{ session_id: string }>(
           "SELECT session_id FROM history_entries WHERE message_id = ? OR (message_id IS NULL AND 'a:' || run_id = ?) LIMIT 1",
           args.message_id,
           args.message_id,
         );
-        if (!hit || !store.getSessionRow(hit.session_id) || !store.reader) return fail("No such message.");
+        const owner = hit ? store.getSessionRow(hit.session_id) : undefined;
+        if (!hit || !owner || !store.reader) return fail("No such message.");
+        if (chatHistory === "own" && owner.agent_id !== session.agent_id) return fail("No such message.");
         const page = await store.reader.around(hit.session_id, args.message_id);
         const target = page?.items[page.at];
         if (!page || !target || target.internal) return fail("No such message.");
@@ -470,7 +555,6 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
         );
         const at = all.findIndex((m) => m.id === target.id);
         const window = at < 0 ? [target] : all.slice(Math.max(0, at - before), at + after + 1);
-        const owner = store.getSessionRow(hit.session_id)!;
         const contextText = (m: (typeof window)[number]): string =>
           clip(
             m.role === "report" && m.report
@@ -504,25 +588,16 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
   );
 
   return defineExtension({
-    name: "memory",
+    name: "history",
     namespace: { name: "memory", description: "The user's memory notes and the history of past chats." },
-    tools: [searchHistory, historyContext, memoryAdd, memoryReplace, memoryRemove, memoryConfirm],
+    tools: [searchHistory, historyContext],
     sections: [
-      section("memory", (input) => {
+      section("history", (input) => {
         try {
-          return `${MEMORY_NOTE}${identityText(store, callerOf(input.conversationId)?.agent_id)}`;
-        } catch {
-          return MEMORY_NOTE;
-        }
-      }),
-      section("profile", (input) => {
-        try {
-          if (!memoryBehavior().injectProfile) return undefined;
           const caller = callerOf(input.conversationId);
-          if (!caller) return undefined;
-          return steadyText(profileText(memory, caller.agent_id, store.clock.now()), "No saved profile or notes yet.");
+          return `${HISTORY_NOTE}${identityText(store, caller?.agent_id)}`;
         } catch {
-          return undefined;
+          return HISTORY_NOTE;
         }
       }),
       section("recent", (input) => {
@@ -547,6 +622,9 @@ export function createMemoryExtension(deps: MemoryToolsDeps): Extension {
 export function identityText(store: AppStore, agentId: string | undefined): string {
   const me = agentId === undefined ? undefined : store.getAgent(agentId);
   if (!me) return "";
+  if (store.agentCapabilities(me.id).chatHistory === "own") {
+    return `\nYou are ${me.name} (agent id ${me.id}). search_history searches only your own chats.`;
+  }
   return `\nYou are ${me.name} (agent id ${me.id}). search_history covers every agent's chats; pass agent (a name or id, e.g. agent: "${me.name}" for your own) to narrow it. An unknown name returns the list of agents.`;
 }
 

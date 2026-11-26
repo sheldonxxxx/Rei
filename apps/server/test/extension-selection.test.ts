@@ -50,14 +50,25 @@ function sectionsOf(payload: string): Map<string, string> {
 const ALWAYS_ON = ["chat_references", "chat_format", "untrusted_content", "recall_router"];
 
 describe("extensionDrift", () => {
-  const installed = ["clock", "chat_format", "untrusted_content", "sessions", "web", "trigger_run", "policy"];
+  const installed = [
+    "clock",
+    "chat_format",
+    "untrusted_content",
+    "sessions",
+    "home_events",
+    "web",
+    "trigger_run",
+    "policy",
+  ];
 
   it("wants every installed extension, in install order, minus the origin's drops", () => {
     expect(extensionDrift(installed, [], "home").want).toEqual(installed.filter((n) => n !== "trigger_run"));
-    expect(extensionDrift(installed, [], "trigger").want).toEqual(installed.filter((n) => n !== "sessions"));
+    expect(extensionDrift(installed, [], "trigger").want).toEqual(
+      installed.filter((n) => n !== "sessions" && n !== "home_events"),
+    );
     for (const origin of ["user", "fork", "spawned", undefined])
       expect(extensionDrift(installed, [], origin).want).toEqual(
-        installed.filter((n) => n !== "sessions" && n !== "trigger_run"),
+        installed.filter((n) => n !== "sessions" && n !== "home_events" && n !== "trigger_run"),
       );
   });
 
@@ -100,7 +111,12 @@ describe("an existing conversation gets the extensions its origin selects when i
     expect(names).not.toContain("trigger_run");
     expect(names.at(-1)).toBe("policy");
     const [line] = aligned(server);
-    expect(line).toMatchObject({ level: "info", treeId: tree.id, sessionId: a, removed: "sessions+trigger_run" });
+    expect(line).toMatchObject({
+      level: "info",
+      treeId: tree.id,
+      sessionId: a,
+      removed: "sessions+home_events+trigger_run",
+    });
     expect(String(line!.added).split("+").sort()).toEqual([...ALWAYS_ON].sort());
 
     // The next model request has the section again.

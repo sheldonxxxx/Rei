@@ -51,7 +51,7 @@ describe("browser panel: watching", () => {
     expect(ws().url).toMatch(/^ws:\/\/.+\/api\/sessions\/s1\/browser\/live$/);
     await connect(false);
     expect(screen.getByRole("status").textContent).toBe("Live");
-    expect(screen.getByText("Watching")).toBeTruthy();
+    expect(screen.queryByText("Watching")).toBeNull();
     expect(screen.getByRole("button", { name: "Take over" })).toBeTruthy();
     // The address bar is always there, so the layout does not change on takeover; it is inert until you are in control.
     expect((screen.getByLabelText("Address") as HTMLInputElement).disabled).toBe(true);

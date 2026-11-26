@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord/context";
 import type { WorkspaceManager } from "../exec/workspaces.ts";
 import type { LibraryService } from "../library/service.ts";
-import type { SessionRow } from "../store/store.ts";
+import type { AppStore, SessionRow } from "../store/store.ts";
 import { fromBase64Url } from "../util/encoding.ts";
 import type { BrowserUploadFile } from "./driver.ts";
 
@@ -47,10 +47,12 @@ finally:
 export async function readUploadSource(
   source: UploadSource,
   session: SessionRow,
-  deps: { library?: LibraryService; workspaces?: WorkspaceManager },
+  deps: { store?: AppStore; library?: LibraryService; workspaces?: WorkspaceManager },
   context: Context,
 ): Promise<BrowserUploadFile> {
+  const caps = deps.store?.agentCapabilities(session.agent_id);
   if (source.type === "library") {
+    if (caps && caps.library === "off") throw new Error("File Library access is disabled for this agent.");
     const library = deps.library;
     if (!library) throw new Error("The Library is unavailable.");
     const file = library.resolve(source);
@@ -62,6 +64,7 @@ export async function readUploadSource(
     return { name: file.name, mediaType: file.mediaType, bytes };
   }
 
+  if (caps && !caps.sandbox) throw new Error("Sandbox access is disabled for this agent.");
   const parts = source.path.split("/");
   if (parts.some((part) => !part || part === "." || part === ".." || /[\\\0]/.test(part)))
     throw new Error("Use a relative path inside this agent's sandbox workspace.");

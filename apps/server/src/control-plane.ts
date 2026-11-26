@@ -21,6 +21,7 @@ import { WorkspaceManager } from "./exec/workspaces.ts";
 import { createApp } from "./http/app.ts";
 import type { WebAssets } from "./http/assets.ts";
 import type { ImageWorker } from "./images/worker.ts";
+import { KnowledgeMcpTokenStore } from "./knowledge/mcp-tokens.ts";
 import { KNOWLEDGE_FUSION, KnowledgeMeaning } from "./knowledge/meaning.ts";
 import { KnowledgeService } from "./knowledge/service.ts";
 import { LibraryService } from "./library/service.ts";
@@ -248,6 +249,8 @@ export interface ControlPlane {
   memory: MemoryService;
   /** Knowledge: shared long-term pages. */
   knowledge: KnowledgeService;
+  /** Knowledge MCP tokens (Settings → MCP). */
+  knowledgeMcpTokens: KnowledgeMcpTokenStore;
   memoryMaintenance: BackgroundMemoryReview;
   background: BackgroundTaskService;
   /** The file store: SQLite's ledger of the objects, the worker that deletes them, and the service itself. */
@@ -360,6 +363,7 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
   const library = new LibraryService(store, attachments);
   attachments.library = library;
   const knowledge = new KnowledgeService(store);
+  const knowledgeMcpTokens = new KnowledgeMcpTokenStore({ db, knowledge, clock, log });
   const recorder = new StepRecorder(db, deps.traceBlobs, clock, log);
   const sessionHost: SessionHostRef = { current: undefined };
   const browserRef: BrowserRef = { current: undefined };
@@ -661,6 +665,7 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
     log,
     memory,
     knowledge,
+    knowledgeMcpTokens,
     triggers: { store: triggerStore, scheduler: triggerScheduler, catalog },
     skills: skillStore,
     traceBlobs: deps.traceBlobs,
@@ -686,6 +691,7 @@ export async function createControlPlane(deps: ControlPlaneDeps): Promise<Contro
     browser,
     memory,
     knowledge,
+    knowledgeMcpTokens,
     memoryMaintenance,
     background,
     storage: { registry, maintenance: storage, objects: deps.fileObjects },

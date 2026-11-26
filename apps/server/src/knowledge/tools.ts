@@ -9,13 +9,19 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { defineExtension, section } from "@earendil-works/pi-durable";
 import { arr, bool, int, num, obj, opt, str } from "@earendil-works/pi-schema";
 import type { TaintLabel } from "@rei/protocol";
-import { estimateTokens } from "../memory/text.ts";
 import { MODEL_AND_SCRIPTS } from "../pi/callers.ts";
 import { policyTool, type ToolCatalog } from "../pi/policy-ext.ts";
 import { toJson } from "../pi/structured.ts";
 import type { AppStore, SessionRow } from "../store/store.ts";
 import { HttpError } from "../util/errors.ts";
-import { findSection, outline, sections, sectionText } from "./markdown.ts";
+import {
+  formatKnowledgePageLine,
+  formatKnowledgeRead,
+  formatLinkReport,
+  KNOWLEDGE_CLIP,
+  KNOWLEDGE_FLAT,
+  KnowledgeEditOpSchema,
+} from "./format.ts";
 import { age, type EditOp, KnowledgeConflict, type KnowledgeService, type PageRow, type Writer } from "./service.ts";
 
 export const KNOWLEDGE_CONNECTOR = "knowledge";
@@ -28,14 +34,20 @@ export const KNOWLEDGE_NOTE = [
   "Find things by browsing from the list below first (knowledge_browse, then knowledge_read with a section), and use knowledge_search when the place is unclear.",
 ].join(" ");
 
+export const KNOWLEDGE_READ_ONLY_NOTE = [
+  "Knowledge is the shared long-term layer above chat history: nested pages kept by the user and other agents. You have read-only access to Knowledge.",
+  "Read before you start. Before research, planning or project work that may have come up before, run knowledge_search and build on what is there; skip it for self-contained questions.",
+  "Find things by browsing from the list below first (knowledge_browse, then knowledge_read with a section), and use knowledge_search when the place is unclear.",
+].join(" ");
+
 type ToolText = { output: { type: "text"; text: string }[]; isError?: true; structuredOutput?: JsonValue };
 const ok = (text: string, structuredOutput?: unknown): ToolText => ({
   output: [{ type: "text", text }],
   ...(structuredOutput !== undefined ? { structuredOutput: toJson(structuredOutput) } : {}),
 });
 const fail = (text: string): ToolText => ({ isError: true, output: [{ type: "text", text }] });
-const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-const flat = (text: string): string => text.replace(/\s+/g, " ").trim();
+const clip = KNOWLEDGE_CLIP;
+const flat = KNOWLEDGE_FLAT;
 /** A link the model can paste into its reply: chat renders `page:` links as page chips. */
 const pageLink = (page: { id: string; title: string }): string =>
   `Link: [${flat(page.title).replace(/[[\]]/g, "")}](page:${page.id})`;
@@ -90,53 +102,12 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
   const { treeId, store, knowledge, catalog } = deps;
   const callerOf = (conversationId: unknown): SessionRow | undefined =>
     store.sessionByConversation(treeId, String(conversationId));
-  const writerOf = (session: SessionRow, callId: string | undefined): Writer => {
-    const run = store.runningRun(session.id);
-    let taint: TaintLabel[] = [];
-    try {
-      taint = JSON.parse(session.taint) as TaintLabel[];
-    } catch {
-      taint = [];
-    }
-    return {
-      actor: session.agent_id,
-      sessionId: session.id,
-      runId: run?.id ?? null,
-      taint,
-      ...(callId ? { callKey: `${session.id}:${callId}` } : {}),
-    };
-  };
   const readInto = (session: SessionRow, page: PageRow): void => {
     const labels = knowledge.taintOf(page);
     if (labels.length > 0) store.addTaint(session.id, labels);
   };
   const now = () => store.clock.now();
-  const line = (p: PageRow, indent: number): string => {
-    const n = knowledge.childCount(p.id);
-    const flags = [p.system === "inbox" ? "inbox" : "", p.locked ? "locked" : "", p.pinned ? "pinned" : ""].filter(
-      Boolean,
-    );
-    return `${"  ".repeat(indent)}${p.title} (${p.id})${p.description ? ` — ${clip(flat(p.description), 100)}` : ""}${n > 0 ? ` · ${n} ${n === 1 ? "child" : "children"}` : ""} · ${age(now() - p.updated_at)} by ${knowledge.actorName(p.updated_by)}${flags.length ? ` · ${flags.join(", ")}` : ""}`;
-  };
-  /** Section links this write left pointing nowhere: other pages' links to removed headings, and this page's own. */
-  const linkReport = (pageId: string, before: string | null): string => {
-    const notes: string[] = [];
-    const broken = before === null ? [] : knowledge.sectionLinksBrokenBy(pageId, before);
-    if (broken.length > 0)
-      notes.push(
-        `Section links that now point nowhere (the heading was renamed or removed; they open the page at the top): ${broken
-          .map((b) => `${knowledge.path(b.page.id)} (${b.page.id}) → ${b.anchors.map((a) => `#${a}`).join(", ")}`)
-          .join("; ")}. Fix those pages, or keep a heading with that text.`,
-      );
-    const dangling = knowledge.danglingSectionLinks(pageId);
-    if (dangling.length > 0)
-      notes.push(
-        `These links name a section the target page does not have, so they open its top: ${dangling
-          .map((d) => `page:${d.pageId}#${d.anchor}`)
-          .join(", ")}. Read the target's outline for its #slugs.`,
-      );
-    return notes.length > 0 ? `\n${notes.join("\n")}` : "";
-  };
+  const line = (p: PageRow, indent: number): string => formatKnowledgePageLine(p, indent, knowledge, now());
   const explain = (error: unknown): ToolText => {
     if (error instanceof KnowledgeConflict)
       return fail(
@@ -237,74 +208,15 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
         return guard(() => {
           const page = knowledge.live(args.pageId);
           readInto(session, page);
-          const budget = args.maxTokens ?? 1_500;
-          const head = [
-            `${knowledge.path(page.id)} (${page.id}) · revision ${page.revision} · updated ${age(now() - page.updated_at)} by ${knowledge.actorName(page.updated_by)}${page.locked ? " · locked for agents (append only)" : ""}`,
-          ];
-          head.push(`Tags: ${(JSON.parse(page.metadata_json) as { tags: string[] }).tags.join(", ") || "(none)"}`);
-          if (page.description) head.push(`Description: ${page.description}`);
-          const outlineLines = outline(page.body);
-          if (outlineLines.length > 0) head.push(`Outline: ${outlineLines.map((l) => l.trim()).join(" · ")}`);
-          let text: string;
-          let tail = "";
-          if (args.section) {
-            const s = findSection(page.body, args.section);
-            text = sectionText(page.body, s);
-          } else {
-            text = page.body;
-          }
-          if (estimateTokens(text) > budget) {
-            if (args.section) {
-              const cut = cutToBudget(text, budget);
-              text = cut;
-              tail = "[cut: the section is longer than maxTokens; raise maxTokens to read the rest]";
-            } else {
-              const all = sections(page.body);
-              const parts: string[] = [];
-              let used = 0;
-              let next: (typeof all)[number] | undefined;
-              for (const s of all) {
-                const own = page.body.split("\n").slice(s.start, s.ownEnd).join("\n");
-                const cost = estimateTokens(own);
-                if (used + cost > budget && parts.length > 0) {
-                  next = s;
-                  break;
-                }
-                parts.push(used + cost > budget ? cutToBudget(own, budget - used) : own);
-                used += cost;
-              }
-              text = parts.join("\n");
-              tail = next
-                ? `[cut at §${next.index} ${next.heading} — read on with section: "§${next.index}"]`
-                : "[cut: raise maxTokens to read the rest]";
-            }
-          }
-          const children = knowledge.children(page.id, 15);
-          const moreChildren = knowledge.childCount(page.id) > children.length;
-          const out = [...head, "---", text.trim() === "" ? "(empty page)" : text.trim()];
-          if (tail) out.push(tail);
-          if (children.length > 0)
-            out.push(
-              "---",
-              `Child pages: ${children.map((c) => `${c.title} (${c.id})`).join(" · ")}${moreChildren ? " · …" : ""}`,
-            );
-          return ok(out.join("\n"), {
-            pageId: page.id,
+          const formatted = formatKnowledgeRead({
+            page,
             path: knowledge.path(page.id),
-            title: page.title,
-            revision: page.revision,
-            updatedAt: page.updated_at,
-            updatedBy: knowledge.actorName(page.updated_by),
-            locked: !!page.locked,
-            tags: (JSON.parse(page.metadata_json) as { tags: string[] }).tags,
-            description: page.description ?? "",
-            outline: outlineLines.map((l) => l.trim()),
-            text: text.trim(),
-            truncated: tail !== "",
-            ...(tail ? { note: tail } : {}),
-            children: children.map((c) => ({ id: c.id, title: c.title })),
-            moreChildren,
+            ...(args.section !== undefined ? { section: args.section } : {}),
+            ...(args.maxTokens !== undefined ? { maxTokens: args.maxTokens } : {}),
+            knowledge,
+            now: now(),
           });
+          return ok(formatted.textOutput, formatted.structured);
         });
       },
     },
@@ -377,31 +289,65 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
     },
   );
 
-  const OpSchema = obj({
-    op: StringEnum([
-      "append",
-      "append_to_section",
-      "replace_section",
-      "insert_section_after",
-      "replace_text",
-      "set_task",
-      "set_title",
-      "set_description",
-      "set_metadata",
-      "add_tags",
-      "remove_tags",
-    ]),
-    text: opt(str({ description: "append, append_to_section, replace_section, insert_section_after." })),
-    section: opt(str({ description: '§n, #slug, heading text, or path; "top" is the text before the first heading.' })),
-    old: opt(str({ description: "replace_text: the exact text now on the page (must occur once)." })),
-    new: opt(str({ description: "replace_text: what replaces it." })),
-    task: opt(str({ description: "set_task: the task's text (or a unique part of it)." })),
-    done: opt(bool({ description: "set_task: true ticks, false unticks." })),
-    title: opt(str()),
-    description: opt(str()),
-    metadata: opt(obj({ tags: arr(str(), { maxItems: 20 }) })),
-    tags: opt(arr(str(), { maxItems: 20 })),
+  return defineExtension({
+    name: "knowledge",
+    namespace: { name: "knowledge", description: "The user's Knowledge pages: browse, read, search and write." },
+    tools: [browse, read, search],
+    sections: [
+      section("knowledge", (input) => {
+        const session = callerOf(input.conversationId);
+        const mode = session ? store.agentCapabilities(session.agent_id).knowledge : "read_write";
+        const note = mode === "read" ? KNOWLEDGE_READ_ONLY_NOTE : KNOWLEDGE_NOTE;
+        try {
+          const pointer = knowledge.pointer(now());
+          return pointer ? `${note}\n${pointer}` : note;
+        } catch {
+          return note;
+        }
+      }),
+    ],
   });
+}
+
+export function createKnowledgeWriteExtension(deps: KnowledgeToolsDeps): Extension {
+  const { treeId, store, knowledge, catalog } = deps;
+  const callerOf = (conversationId: unknown): SessionRow | undefined =>
+    store.sessionByConversation(treeId, String(conversationId));
+  const writerOf = (session: SessionRow, callId: string | undefined): Writer => {
+    const run = store.runningRun(session.id);
+    let taint: TaintLabel[] = [];
+    try {
+      taint = JSON.parse(session.taint) as TaintLabel[];
+    } catch {
+      taint = [];
+    }
+    return {
+      actor: session.agent_id,
+      sessionId: session.id,
+      runId: run?.id ?? null,
+      taint,
+      ...(callId ? { callKey: `${session.id}:${callId}` } : {}),
+    };
+  };
+  /** Section links this write left pointing nowhere: other pages' links to removed headings, and this page's own. */
+  const linkReport = (pageId: string, before: string | null): string => formatLinkReport(pageId, before, knowledge);
+  const explain = (error: unknown): ToolText => {
+    if (error instanceof KnowledgeConflict)
+      return fail(
+        `${error.message}\n---\n${clip(error.current, 3_000)}\n---\nRetry with baseRevision: ${error.revision}.`,
+      );
+    if (error instanceof HttpError) return fail(error.message);
+    throw error;
+  };
+  const guard = (run: () => ToolText): ToolText => {
+    try {
+      return run();
+    } catch (error) {
+      return explain(error);
+    }
+  };
+
+  const OpSchema = KnowledgeEditOpSchema;
 
   const write = policyTool(
     catalog,
@@ -531,32 +477,8 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
   );
 
   return defineExtension({
-    name: "knowledge",
+    name: "knowledge_write",
     namespace: { name: "knowledge", description: "The user's Knowledge pages: browse, read, search and write." },
-    tools: [browse, read, search, write],
-    sections: [
-      section("knowledge", () => {
-        try {
-          const pointer = knowledge.pointer(now());
-          return pointer ? `${KNOWLEDGE_NOTE}\n${pointer}` : KNOWLEDGE_NOTE;
-        } catch {
-          return KNOWLEDGE_NOTE;
-        }
-      }),
-    ],
+    tools: [write],
   });
-}
-
-/** The first part of `text` that fits `budget` estimated tokens, ending at a line break where possible. */
-function cutToBudget(text: string, budget: number): string {
-  let lo = 0;
-  let hi = text.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (estimateTokens(text.slice(0, mid)) <= budget) lo = mid;
-    else hi = mid - 1;
-  }
-  const cut = text.slice(0, lo);
-  const nl = cut.lastIndexOf("\n");
-  return `${nl > cut.length * 0.6 ? cut.slice(0, nl) : cut}…`;
 }

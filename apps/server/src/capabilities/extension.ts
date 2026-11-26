@@ -5,8 +5,10 @@
 
 import type { Extension } from "@earendil-works/pi-durable";
 import { defineExtension, section } from "@earendil-works/pi-durable";
+import { DEFAULT_AGENT_CAPABILITIES } from "@rei/protocol";
 import { policyTool, type ToolCatalog } from "../pi/policy-ext.ts";
 import { steadyText } from "../pi/steady-section.ts";
+import { agentAllowsGroup } from "./agent-access.ts";
 import { DEFERRED_GROUPS } from "./groups.ts";
 import { type ConnectorToolLookup, type SearchDeps, searchCapabilitiesTool } from "./search.ts";
 
@@ -55,7 +57,8 @@ export function createCapabilitiesExtension(deps: CapabilitiesDeps): Extension {
   /** The index for one agent; undefined when there is nothing to load. */
   const index = (agentId: string): string | undefined => {
     const parts: string[] = [];
-    const present = groups.deferredGroups();
+    const caps = store.agentCapabilities?.(agentId) ?? DEFAULT_AGENT_CAPABILITIES;
+    const present = groups.deferredGroups().filter((g) => agentAllowsGroup(caps, g));
     if (present.length > 0)
       parts.push(
         "Deferred tool groups (one search or load brings the whole group):",
