@@ -142,7 +142,7 @@ export function createSkillsExtension(deps: SkillToolsDeps): Extension {
               ]
             : []),
         ];
-        lines.push(await mirror(skill, session.id, api.env, context));
+        lines.push(await mirror(skill, session, api.env, context));
         return ok(lines.join("\n").trim());
       },
     },
@@ -151,13 +151,14 @@ export function createSkillsExtension(deps: SkillToolsDeps): Extension {
   /** Copies the skill's files into the sandbox (when there is one); says where, or why not. Never throws. */
   async function mirror(
     skill: { name: string; files: SkillFile[] },
-    sessionId: string,
+    session: SessionRow,
     env: ExecutionEnv | undefined,
     context: Context,
   ): Promise<string> {
-    if (!env) return "There is no sandbox, so its scripts can't be run; read its other files with read_skill_file.";
+    if (!env || !store.agentCapabilities(session.agent_id).sandbox)
+      return "There is no sandbox, so its scripts can't be run; read its other files with read_skill_file.";
     // Workers share the workspace, but loading/updating a skill must not remove another worker's running scripts.
-    const dir = `${env.cwd}/.skills/${skill.name}/${sessionId}`;
+    const dir = `${env.cwd}/.skills/${skill.name}/${session.id}`;
     try {
       await writeSkillFiles(env, dir, skill.files, context);
     } catch {

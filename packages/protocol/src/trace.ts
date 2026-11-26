@@ -328,6 +328,7 @@ export interface AgentSettingsPatch {
   /** Null allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
   canCreateTriggersForOtherAgents?: boolean;
+  capabilities?: import("./capabilities.ts").AgentCapabilitiesPatch;
   /** The agent's system instructions; applied from its next model call. */
   instructions?: string;
 }

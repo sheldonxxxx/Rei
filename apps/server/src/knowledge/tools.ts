@@ -34,6 +34,12 @@ export const KNOWLEDGE_NOTE = [
   "Find things by browsing from the list below first (knowledge_browse, then knowledge_read with a section), and use knowledge_search when the place is unclear.",
 ].join(" ");
 
+export const KNOWLEDGE_READ_ONLY_NOTE = [
+  "Knowledge is the shared long-term layer above chat history: nested pages kept by the user and other agents. You have read-only access to Knowledge.",
+  "Read before you start. Before research, planning or project work that may have come up before, run knowledge_search and build on what is there; skip it for self-contained questions.",
+  "Find things by browsing from the list below first (knowledge_browse, then knowledge_read with a section), and use knowledge_search when the place is unclear.",
+].join(" ");
+
 type ToolText = { output: { type: "text"; text: string }[]; isError?: true; structuredOutput?: JsonValue };
 const ok = (text: string, structuredOutput?: unknown): ToolText => ({
   output: [{ type: "text", text }],
@@ -283,6 +289,30 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
     },
   );
 
+  return defineExtension({
+    name: "knowledge",
+    namespace: { name: "knowledge", description: "The user's Knowledge pages: browse, read, search and write." },
+    tools: [browse, read, search],
+    sections: [
+      section("knowledge", (input) => {
+        const session = callerOf(input.conversationId);
+        const mode = session ? store.agentCapabilities(session.agent_id).knowledge : "read_write";
+        const note = mode === "read" ? KNOWLEDGE_READ_ONLY_NOTE : KNOWLEDGE_NOTE;
+        try {
+          const pointer = knowledge.pointer(now());
+          return pointer ? `${note}\n${pointer}` : note;
+        } catch {
+          return note;
+        }
+      }),
+    ],
+  });
+}
+
+export function createKnowledgeWriteExtension(deps: KnowledgeToolsDeps): Extension {
+  const { treeId, store, knowledge, catalog } = deps;
+  const callerOf = (conversationId: unknown): SessionRow | undefined =>
+    store.sessionByConversation(treeId, String(conversationId));
   const writerOf = (session: SessionRow, callId: string | undefined): Writer => {
     const run = store.runningRun(session.id);
     let taint: TaintLabel[] = [];
@@ -301,6 +331,21 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
   };
   /** Section links this write left pointing nowhere: other pages' links to removed headings, and this page's own. */
   const linkReport = (pageId: string, before: string | null): string => formatLinkReport(pageId, before, knowledge);
+  const explain = (error: unknown): ToolText => {
+    if (error instanceof KnowledgeConflict)
+      return fail(
+        `${error.message}\n---\n${clip(error.current, 3_000)}\n---\nRetry with baseRevision: ${error.revision}.`,
+      );
+    if (error instanceof HttpError) return fail(error.message);
+    throw error;
+  };
+  const guard = (run: () => ToolText): ToolText => {
+    try {
+      return run();
+    } catch (error) {
+      return explain(error);
+    }
+  };
 
   const OpSchema = KnowledgeEditOpSchema;
 
@@ -432,18 +477,8 @@ export function createKnowledgeExtension(deps: KnowledgeToolsDeps): Extension {
   );
 
   return defineExtension({
-    name: "knowledge",
+    name: "knowledge_write",
     namespace: { name: "knowledge", description: "The user's Knowledge pages: browse, read, search and write." },
-    tools: [browse, read, search, write],
-    sections: [
-      section("knowledge", () => {
-        try {
-          const pointer = knowledge.pointer(now());
-          return pointer ? `${KNOWLEDGE_NOTE}\n${pointer}` : KNOWLEDGE_NOTE;
-        } catch {
-          return KNOWLEDGE_NOTE;
-        }
-      }),
-    ],
+    tools: [write],
   });
 }

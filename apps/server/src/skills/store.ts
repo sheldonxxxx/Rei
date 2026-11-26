@@ -5,7 +5,14 @@ import { GLOBAL_STREAM } from "../store/events.ts";
 import type { AppStore } from "../store/store.ts";
 import { Invalid, notFound } from "../util/errors.ts";
 import { newId } from "../util/ids.ts";
-import { browserSkill, isBuiltInId, isBuiltInName, knowledgeSkill } from "./builtins.ts";
+import {
+  BROWSER_SKILL_ID,
+  browserSkill,
+  isBuiltInId,
+  isBuiltInName,
+  KNOWLEDGE_SKILL_ID,
+  knowledgeSkill,
+} from "./builtins.ts";
 import { parseSkillMd, SKILL_MD, validateFiles } from "./parse.ts";
 
 interface SkillRow {
@@ -80,6 +87,13 @@ export class SkillStore {
     if (agentId === undefined || r.agents_json === null) return true;
     return (JSON.parse(r.agents_json) as string[]).includes(agentId);
   }
+  #builtinVisible(id: string, agentId: string | undefined): boolean {
+    if (agentId === undefined || typeof this.app.agentCapabilities !== "function") return true;
+    const caps = this.app.agentCapabilities(agentId);
+    if (id === BROWSER_SKILL_ID) return caps.browser;
+    if (id === KNOWLEDGE_SKILL_ID) return caps.knowledge === "read_write";
+    return true;
+  }
 
   /** Newest first. With an agent id: only what that agent sees. */
   list(agentId?: string): SkillSummary[] {
@@ -87,7 +101,10 @@ export class SkillStore {
       .all<SkillRow>("SELECT * FROM skills ORDER BY updated_at DESC, id DESC")
       .filter((r) => this.#visible(r, agentId) && (agentId === undefined || this.available?.(r.id, agentId) !== false))
       .map((r) => this.#summary(r));
-    return [...this.#builtins.map((s) => ({ ...s.skill })), ...saved];
+    return [
+      ...this.#builtins.filter((s) => this.#builtinVisible(s.skill.id, agentId)).map((s) => ({ ...s.skill })),
+      ...saved,
+    ];
   }
   get(id: string, version?: number): SkillResponse | undefined {
     const builtin = this.#builtins.find((s) => s.skill.id === id);
@@ -112,7 +129,7 @@ export class SkillStore {
     agentId?: string,
     options: { exact?: boolean } = {},
   ): { id: string; name: string; description: string; version: number; files: SkillFile[] } | undefined {
-    const builtin = this.#builtins.find((s) => s.skill.name === name);
+    const builtin = this.#builtins.find((s) => s.skill.name === name && this.#builtinVisible(s.skill.id, agentId));
     if (builtin) return { ...builtin.skill, files: structuredClone(builtin.files) };
     const visible = (r: SkillRow) =>
       this.#visible(r, agentId) && (agentId === undefined || this.available?.(r.id, agentId) !== false);

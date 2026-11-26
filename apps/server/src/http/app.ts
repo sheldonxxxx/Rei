@@ -77,6 +77,7 @@ import {
   importLookupRoute,
   importSessionRoute,
   importSkillRoute,
+  inlineAttachmentKind,
   legacyPresenceRoute,
   listAgentsRoute,
   listApprovalsRoute,
@@ -729,6 +730,7 @@ export function createApp(deps: AppDeps): Hono {
     if (b.networkMode !== undefined) settings.networkMode = b.networkMode;
     if (b.canCreateTriggersForOtherAgents !== undefined)
       settings.canCreateTriggersForOtherAgents = b.canCreateTriggersForOtherAgents;
+    if (b.capabilities !== undefined) settings.capabilities = b.capabilities;
     if (b.allowedConnectorIds !== undefined) {
       if (b.allowedConnectorIds?.some((id) => !id.trim()))
         throw badRequest("bad_request", "Connectors must be null or a list of connector IDs.");
@@ -1097,9 +1099,21 @@ export function createApp(deps: AppDeps): Hono {
   mountRoute(app, uploadAttachmentRoute, contract, async (c) => {
     if (!deps.attachments) throw new HttpError(503, "unavailable", "Uploads are unavailable.");
     const id = param(c, "id");
-    if (!store.getSessionRow(id)) throw notFound("That session does not exist.");
+    const session = store.getSessionRow(id);
+    if (!session) throw notFound("That session does not exist.");
     const attachments = deps.attachments;
-    return { attachment: await withUpload(c, (file) => attachments.upload(id, file)) };
+    const sandbox = store.agentCapabilities(session.agent_id).sandbox;
+    return {
+      attachment: await withUpload(c, (file) => {
+        if (!sandbox && inlineAttachmentKind({ name: file.name, mediaType: file.type }) === null) {
+          throw badRequest(
+            "unsupported_attachment",
+            "This agent has Sandbox disabled and only accepts text and image attachments.",
+          );
+        }
+        return attachments.upload(id, file);
+      }),
+    };
   });
   // Importing past conversations (docs/importing.md): a file of a chat about to be imported belongs to no chat yet.
   mountRoute(app, importFileRoute, contract, async (c) => {
@@ -1183,6 +1197,17 @@ export function createApp(deps: AppDeps): Hono {
         all.reduce((n, f) => n + f.size, 0) > MESSAGE_MAX_ATTACHMENT_BYTES
       )
         throw badRequest("bad_request", "Choose at most 10 distinct files totaling at most 2 GiB.");
+      const sessionRow = store.getSessionRow(id)!;
+      if (!store.agentCapabilities(sessionRow.agent_id).sandbox) {
+        for (const f of all) {
+          if (inlineAttachmentKind(f) === null) {
+            throw badRequest(
+              "unsupported_attachment",
+              "This agent has Sandbox disabled and only supports text and image attachments.",
+            );
+          }
+        }
+      }
       selected = { ...selected, attachments: all };
     }
     const result = await adapter.send({

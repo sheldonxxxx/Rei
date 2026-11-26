@@ -880,6 +880,8 @@ export class PiAdapter implements SessionHost {
     agent?: string;
   }): Promise<ToolText> {
     const { caller } = input;
+    const delegation = this.#store.agentCapabilities(caller.agent_id).delegation;
+    if (delegation === "off") return fail("Worker delegation is disabled for this agent.");
     const brief = input.brief.trim();
     if (brief === "") return fail("The brief is empty. Say what the session should do.");
     let agentId = caller.agent_id;
@@ -892,6 +894,8 @@ export class PiAdapter implements SessionHost {
         return fail(
           `Unknown agent "${input.agent.trim()}". Available agents: ${agents.map((a) => `${a.name} (${a.id})`).join(", ")}.`,
         );
+      if (delegation === "own" && found.id !== caller.agent_id)
+        return fail("This agent can only start worker sessions using itself.");
       agentId = found.id;
     }
     const given = input.title?.replace(/\s+/g, " ").trim();

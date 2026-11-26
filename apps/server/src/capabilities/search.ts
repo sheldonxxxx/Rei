@@ -5,11 +5,12 @@
 
 import type { Agent, ToolRegistration } from "@earendil-works/pi-durable";
 import { arr, obj, opt, str } from "@earendil-works/pi-schema";
-import type { CapabilitySearchDetails, LoadReason } from "@rei/protocol";
+import { type CapabilitySearchDetails, DEFAULT_AGENT_CAPABILITIES, type LoadReason } from "@rei/protocol";
 import { behaviorSettings, CONFIGLESS } from "../pi/behavior-settings.ts";
 import type { PluginService } from "../plugins/service.ts";
 import type { SkillStore } from "../skills/store.ts";
 import type { AppStore } from "../store/store.ts";
+import { agentAllowsGroup, agentAllowsTool } from "./agent-access.ts";
 import { DEFERRED_GROUPS, type ToolGroups } from "./groups.ts";
 import { clearing, minCoverage, queryTerms, type RankDocument, type RankedDocument, rank, tokenize } from "./rank.ts";
 
@@ -130,9 +131,11 @@ export function searchCapabilitiesTool(deps: SearchDeps) {
       if (query !== "") details.query = query;
 
       const all = await api.agent(context as never);
-      // A tree registers the tools of every agent it has; this agent sees only its own connectors' tools.
+      const caps = store.agentCapabilities?.(session.agent_id) ?? DEFAULT_AGENT_CAPABILITIES;
+      // A tree registers the tools of every agent it has; this agent sees only its own connectors' tools and enabled built-ins.
       const visible = (t: { name: string }) =>
-        !deps.connectors?.info(t.name) || deps.connectors.visibleTo?.(t.name, session.agent_id) !== false;
+        (!deps.connectors?.info(t.name) || deps.connectors.visibleTo?.(t.name, session.agent_id) !== false) &&
+        agentAllowsTool(caps, t.name);
       const agent = { deferred: all.deferred.filter(visible), tools: all.tools.filter(visible) };
       const deferred = new Map(agent.deferred.map((t) => [t.name, t]));
       const offered = new Set(agent.tools.map((t) => t.name));
@@ -153,7 +156,7 @@ export function searchCapabilitiesTool(deps: SearchDeps) {
       // Exact names: a group, a tool of a deferred group (its whole group), or a connector tool.
       for (const name of load) {
         const group = groups.toolsOf(name).length > 0 ? name : groups.groupOf(name);
-        if (group && groups.isDeferred(group)) addGroup(group, "load");
+        if (group && groups.isDeferred(group) && agentAllowsGroup(caps, group)) addGroup(group, "load");
         else if (deferred.has(name) || (offered.has(name) && deps.connectors?.info(name))) add(name, "load");
         else if (offered.has(name)) details.alreadyLoaded.push(name);
         else details.notFound.push(name);

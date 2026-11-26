@@ -5,7 +5,7 @@
 
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { JsonValue } from "@earendil-works/chord/json";
-import { InboxDoc, type InboxState } from "@earendil-works/pi-durable";
+import { InboxDoc, type InboxState, type UserInput } from "@earendil-works/pi-durable";
 import type {
   Attachment,
   MessageMention,
@@ -176,7 +176,11 @@ export class ConversationCommands {
         const prep = this.#d.skills;
         if (!prep) throw new HttpError(503, "unavailable", "Skills are unavailable.");
         const resolved = prep.resolve(row.agent_id, input.selectedSkills, await trees.contextWindowOf(row.id));
-        skillBlocks = await prep.prepare(resolved, { treeId: row.tree_id, runId });
+        skillBlocks = await prep.prepare(resolved, {
+          treeId: row.tree_id,
+          runId,
+          sandbox: store.agentCapabilities(row.agent_id).sandbox,
+        });
         skills = resolved.map(({ id, version, name }) => ({ id, version, name }));
       }
       const ctx = store.runContext(row, {
@@ -216,7 +220,7 @@ export class ConversationCommands {
         ...(firstUser ? { firstUser: true } : {}),
       };
       const keys = input.onceKey !== undefined ? [input.onceKey] : [];
-      let content = input.modelText ?? input.text;
+      let content: UserInput = input.modelText ?? input.text;
       if (attachments && (input.attachments?.length || input.mentions?.length)) {
         try {
           content = await attachments.modelInput(
@@ -254,8 +258,18 @@ export class ConversationCommands {
           return { runId, messageId: userItemId(runId), created: true };
         }
       }
-      if (skillBlocks.length) content = `${skillBlocks.join("\n\n")}\n\n${content}`;
-      record.inputDigest = inputDigest(content);
+      if (skillBlocks.length) {
+        const prefix = `${skillBlocks.join("\n\n")}\n\n`;
+        content =
+          typeof content === "string"
+            ? `${prefix}${content}`
+            : content[0]?.type === "text"
+              ? [{ ...content[0], text: `${prefix}${content[0].text}` }, ...content.slice(1)]
+              : [{ type: "text", text: prefix.trimEnd() }, ...content];
+      }
+      const digestText =
+        typeof content === "string" ? content : content.map((p) => (p.type === "text" ? p.text : "")).join("");
+      record.inputDigest = inputDigest(digestText);
       await trees.prepareCall(tree, ts);
       const admitted = await ts.conv.commit(async (tx) => {
         const ledger = await tx.doc(CommandsDoc, ts.conv.id);

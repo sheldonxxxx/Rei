@@ -33,7 +33,7 @@ export interface InstrumentDeps {
   maxInputTokens?: number;
   maxOutputTokens?: number;
   /** Set and true: OpenAI Responses calls search with OpenAI's built-in tool, and web_search is not offered. */
-  nativeSearch?: () => boolean;
+  nativeSearch?: (info: CallInfo) => boolean;
   recorder: StepRecorder;
   /** Called for every model call; the tree this wrapper belongs to knows its session and the run in flight. */
   resolveCall(options: Record<string, unknown>, completion: boolean): CallInfo;
@@ -184,7 +184,8 @@ export function instrumentModels(inner: Models, deps: InstrumentDeps): Models {
           ),
         };
       deps.beforeCall?.();
-      const native = deps.nativeSearch?.() === true && model.provider === "openai" && model.api === "openai-responses";
+      const native =
+        deps.nativeSearch?.(info) === true && model.provider === "openai" && model.api === "openai-responses";
       const offered = offeredTools({ tools: context.tools ?? [], messages: context.messages })?.filter(
         (name) => !(native && name === NATIVE_SEARCH_REPLACES),
       );

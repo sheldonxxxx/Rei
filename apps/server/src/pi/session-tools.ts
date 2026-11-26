@@ -42,6 +42,18 @@ export const DELEGATION_NOTE = [
   "- Call dismiss_event when nothing in the result is worth the user's attention (for example a routine check that found no change, or the user cancelled or replaced the request): the notice stays and you stay silent.",
 ].join("\n");
 
+export const DELEGATION_OWN_NOTE = [
+  "In this home chat, you can run work in separate worker sessions using your own agent.",
+  "- Use start_session with a clear brief for substantial multi-step work (research, long writing, anything that takes many steps). Answer small requests directly.",
+  "- After starting a session, tell the user in one sentence what you started and end your turn. Do not do the same work yourself, and do not check on it while it runs: it works on its own and posts one report back to this chat when it finishes, which starts your next turn. A session whose run fails posts no report: it shows as failed, and reports once a Continue finishes the work.",
+  "- Use list_sessions, message_session and cancel_session when the user asks about a session you started, or wants to change or cancel it.",
+  "- Workers share your sandbox workspace, so include the context it needs in the brief.",
+  "Reports arrive as messages that start with [Session report]. The user sees each report only as a one-line notice (the session finished, with a link), not its result, so your reply is how they hear the answer:",
+  "- Always make it self-contained. When the answer is short (a fact or two), give it directly in a sentence or two, as if you had looked it up yourself. When it is longer, give the points that matter most for the user's request and mention that the full result is in the session; do not paste the whole result.",
+  "- Add more only to connect it to earlier conversation, flag problems or gaps, or ask for a decision.",
+  "- Call dismiss_event when nothing in the result is worth the user's attention (for example a routine check that found no change, or the user cancelled or replaced the request): the notice stays and you stay silent.",
+].join("\n");
+
 /** Kept separate from the session-management extension, which only home conversations select. */
 export function createSessionRoleExtension(treeId: string, store: AppStore): Extension {
   return defineExtension({
@@ -50,8 +62,12 @@ export function createSessionRoleExtension(treeId: string, store: AppStore): Ext
       section("session_role", (input) => {
         const caller = store.sessionByConversation(treeId, String(input.conversationId));
         if (!caller) return undefined;
-        if (caller.origin === "home")
-          return "This is your home chat. Talk with the user, coordinate your workers, and use their reports to answer the user.";
+        if (caller.origin === "home") {
+          const delegation = store.agentCapabilities(caller.agent_id).delegation;
+          return delegation === "off"
+            ? "This is your home chat. Talk with the user and complete requests directly using your tools. Worker delegation is disabled for this agent."
+            : "This is your home chat. Talk with the user, coordinate your workers, and use their reports to answer the user.";
+        }
         // A fork of a worker remains a worker even though its origin is now 'fork'.
         if (caller.origin === "spawned" || caller.depth > 0)
           return "This is a worker session. Complete the assigned brief yourself using your tools. Do not delegate to another session. Your final answer is the result; assigned runs report it back to the home chat automatically. State what you completed and any remaining limitations.";
@@ -180,9 +196,42 @@ export function createSessionExtension(
     },
   );
 
+  return defineExtension({
+    name: "sessions",
+    namespace: { name: "sessions", description: "Sessions you started, and chats you can read." },
+    tools: [startSession, messageSession, cancelSession, listSessions],
+    sections: [
+      section("delegation", (input) => {
+        const caller = callerOf(input.conversationId);
+        if (caller?.origin !== "home") return undefined;
+        return store.agentCapabilities(caller.agent_id).delegation === "own" ? DELEGATION_OWN_NOTE : DELEGATION_NOTE;
+      }),
+      // The sessions this one started, so "the hotel session" can be resolved without a tool call.
+      section("sessions", (input) => {
+        try {
+          const caller = callerOf(input.conversationId);
+          if (!caller) return undefined;
+          return sessionsText(store.childrenOf(caller.id), caller.origin === "home");
+        } catch {
+          return undefined;
+        }
+      }),
+    ],
+  });
+}
+
+/** Kept separate from `sessions` so a home chat with worker delegation off can still dismiss trigger events. */
+export function createHomeEventsExtension(treeId: string, store: AppStore, catalog: ToolCatalog): Extension {
+  const callerOf = (conversationId: unknown): SessionRow | undefined =>
+    store.sessionByConversation(treeId, String(conversationId));
   const dismissEvent = policyTool(
     catalog,
-    internal("write_internal", "event.dismiss", () => "Keep a background event silent"),
+    {
+      actionClass: "write_internal",
+      connector: "sessions",
+      operation: "event.dismiss",
+      summary: () => "Keep a background event silent",
+    },
     {
       name: "dismiss_event",
       callers: MODEL_ONLY,
@@ -204,26 +253,10 @@ export function createSessionExtension(
       },
     },
   );
-
   return defineExtension({
-    name: "sessions",
+    name: "home_events",
     namespace: { name: "sessions", description: "Sessions you started, and chats you can read." },
-    tools: [startSession, messageSession, cancelSession, listSessions, dismissEvent],
-    sections: [
-      section("delegation", (input) =>
-        callerOf(input.conversationId)?.origin === "home" ? DELEGATION_NOTE : undefined,
-      ),
-      // The sessions this one started, so "the hotel session" can be resolved without a tool call.
-      section("sessions", (input) => {
-        try {
-          const caller = callerOf(input.conversationId);
-          if (!caller) return undefined;
-          return sessionsText(store.childrenOf(caller.id), caller.origin === "home");
-        } catch {
-          return undefined;
-        }
-      }),
-    ],
+    tools: [dismissEvent],
   });
 }
 

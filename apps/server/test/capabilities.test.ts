@@ -68,8 +68,8 @@ describe("tool groups", () => {
 
   it("drops the session tools outside the home chat and report() outside trigger runs", () => {
     expect(droppedExtensions("home")).toEqual(["trigger_run"]);
-    expect(droppedExtensions("trigger")).toEqual(["sessions"]);
-    expect(droppedExtensions("user")).toEqual(["sessions", "trigger_run"]);
+    expect(droppedExtensions("trigger")).toEqual(["sessions", "home_events"]);
+    expect(droppedExtensions("user")).toEqual(["sessions", "home_events", "trigger_run"]);
   });
 });
 

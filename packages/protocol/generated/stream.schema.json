@@ -497,6 +497,9 @@
         "canCreateTriggersForOtherAgents": {
           "type": "boolean"
         },
+        "capabilities": {
+          "$ref": "#/$defs/AgentCapabilities"
+        },
         "homeSessionId": {
           "type": "string",
           "description": "The agent's pinned home chat."
@@ -514,6 +517,79 @@
       ],
       "additionalProperties": false,
       "title": "Agent"
+    },
+    "AgentCapabilities": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "type": "boolean"
+        },
+        "web": {
+          "type": "boolean"
+        },
+        "browser": {
+          "type": "boolean"
+        },
+        "library": {
+          "enum": [
+            "off",
+            "read",
+            "read_write"
+          ]
+        },
+        "images": {
+          "type": "boolean"
+        },
+        "knowledge": {
+          "enum": [
+            "off",
+            "read",
+            "read_write"
+          ]
+        },
+        "memory": {
+          "enum": [
+            "off",
+            "read",
+            "read_write"
+          ]
+        },
+        "chatHistory": {
+          "enum": [
+            "off",
+            "own",
+            "all"
+          ]
+        },
+        "triggers": {
+          "enum": [
+            "off",
+            "own",
+            "all"
+          ]
+        },
+        "delegation": {
+          "enum": [
+            "off",
+            "own",
+            "all"
+          ]
+        }
+      },
+      "required": [
+        "sandbox",
+        "web",
+        "browser",
+        "library",
+        "images",
+        "knowledge",
+        "memory",
+        "chatHistory",
+        "triggers",
+        "delegation"
+      ],
+      "additionalProperties": false,
+      "title": "AgentCapabilities"
     },
     "Approval": {
       "type": "object",

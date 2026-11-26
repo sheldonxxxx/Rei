@@ -83,7 +83,11 @@ export function createChatContextExtension(treeId: string, store: AppStore, cata
             const caller = store.sessionByConversation(treeId, String(api.conversationId));
             const target = store.getSessionRow(args.session_id);
             const fail = (text: string) => ({ isError: true as const, output: [{ type: "text" as const, text }] });
-            if (!caller || !target) return fail("That chat is unavailable.");
+            if (!caller) return fail("That chat is unavailable.");
+            const chatHistory = store.agentCapabilities(caller.agent_id).chatHistory;
+            if (chatHistory === "off") return fail("Chat history is disabled for this agent.");
+            if (!target) return fail("That chat is unavailable.");
+            if (chatHistory === "own" && target.agent_id !== caller.agent_id) return fail("That chat is unavailable.");
             if (!store.reader) return fail("That chat is unavailable.");
             const reader = store.reader;
             const shown = (items: readonly ChatItem[]) =>

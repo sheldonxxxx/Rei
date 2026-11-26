@@ -16,6 +16,7 @@ import {
   union,
 } from "@earendil-works/pi-schema";
 import type { SessionBrowser, Takeover } from "../browser.ts";
+import { READ_WRITE_ACCESS, SCOPE_ACCESS } from "../capabilities.ts";
 import type {
   Agent,
   Approval,
@@ -74,6 +75,36 @@ export const GrantLengthSchema = oneOf(["once", "session", "web_session", "agent
 
 // ---- agents ---------------------------------------------------------------------------------------------------------
 
+export const ReadWriteAccessSchema = oneOf(READ_WRITE_ACCESS);
+export const ScopeAccessSchema = oneOf(SCOPE_ACCESS);
+export const AgentCapabilitiesSchema = named(
+  "AgentCapabilities",
+  obj({
+    sandbox: bool(),
+    web: bool(),
+    browser: bool(),
+    library: ReadWriteAccessSchema,
+    images: bool(),
+    knowledge: ReadWriteAccessSchema,
+    memory: ReadWriteAccessSchema,
+    chatHistory: ScopeAccessSchema,
+    triggers: ScopeAccessSchema,
+    delegation: ScopeAccessSchema,
+  }),
+);
+export const AgentCapabilitiesPatchSchema = obj({
+  sandbox: opt(bool()),
+  web: opt(bool()),
+  browser: opt(bool()),
+  library: opt(ReadWriteAccessSchema),
+  images: opt(bool()),
+  knowledge: opt(ReadWriteAccessSchema),
+  memory: opt(ReadWriteAccessSchema),
+  chatHistory: opt(ScopeAccessSchema),
+  triggers: opt(ScopeAccessSchema),
+  delegation: opt(ScopeAccessSchema),
+});
+
 export const AgentSchema = named(
   "Agent",
   obj({
@@ -86,6 +117,7 @@ export const AgentSchema = named(
     defaultProfile: ProfileNameSchema,
     allowedConnectorIds: opt(nullable(arr(str()))),
     canCreateTriggersForOtherAgents: opt(bool()),
+    capabilities: opt(AgentCapabilitiesSchema),
     homeSessionId: str({ description: "The agent's pinned home chat." }),
   }),
 );

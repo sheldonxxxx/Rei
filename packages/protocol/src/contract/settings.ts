@@ -63,7 +63,7 @@ import { SANDBOX_NETWORK_MODES, type SandboxNetworkSettings, type UpdateSandboxN
 import { THINKING_LEVELS } from "../thinking.ts";
 import { OkSchema } from "./auth.ts";
 import { defineRoute } from "./define.ts";
-import { AgentSchema, ProfileInputSchema, SessionSchema } from "./entities.ts";
+import { AgentCapabilitiesPatchSchema, AgentSchema, ProfileInputSchema, SessionSchema } from "./entities.ts";
 import type { Same } from "./same.ts";
 
 const ThinkingLevelSchema = oneOf(THINKING_LEVELS);
@@ -93,6 +93,7 @@ export const UpdateAgentRequestSchema = obj({
   defaultProfile: opt(ProfileInputSchema),
   allowedConnectorIds: opt(nullable(arr(str({ minLength: 1, maxLength: 200 }), { maxItems: 1000 }))),
   canCreateTriggersForOtherAgents: opt(bool()),
+  capabilities: opt(AgentCapabilitiesPatchSchema),
   instructions: opt(str()),
 });
 true satisfies Same<Static<typeof UpdateAgentRequestSchema>, UpdateAgentRequest>;

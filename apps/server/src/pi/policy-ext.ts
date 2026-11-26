@@ -6,7 +6,17 @@ import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
 import type { Extension, HookApi, JsonObject, SignalKey, ToolRegistration } from "@earendil-works/pi-durable";
 import { defineExtension, defineTool, hook, section, ToolTask } from "@earendil-works/pi-durable";
 import { str } from "@earendil-works/pi-schema";
-import type { ActionClass, Approval, Grant, GrantLength, StepDecision, TaintLabel, TriggerAllow } from "@rei/protocol";
+import {
+  type ActionClass,
+  type Approval,
+  DEFAULT_AGENT_CAPABILITIES,
+  type Grant,
+  type GrantLength,
+  type StepDecision,
+  type TaintLabel,
+  type TriggerAllow,
+} from "@rei/protocol";
+import { agentAllowsTool } from "../capabilities/agent-access.ts";
 import { argsPreview, canonicalJson, canonicalProfile, type Decision, decide, isTainted } from "../policy/decision.ts";
 import type { ApprovalDraft, ApprovalRow, ApprovalStore } from "../store/approvals.ts";
 import type { AppStore, SessionRow } from "../store/store.ts";
@@ -715,6 +725,17 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
           // A hook that runs again after a crash finds what it already decided to let through.
           const saved = await api.memo(POLICY_MEMO, context);
           if (saved !== undefined) {
+            if (
+              session &&
+              !agentAllowsTool(store.agentCapabilities?.(session.agent_id) ?? DEFAULT_AGENT_CAPABILITIES, policyName)
+            ) {
+              return blocked(
+                `Blocked: ${policyName} is disabled for this agent.`,
+                "deny",
+                tool?.actionClass ?? "read_internal",
+                oneLine(),
+              );
+            }
             if (!tool?.binding) return undefined;
             try {
               await revalidate(call.name, args, saved, String(api.taskId), String(api.conversationId), context);
@@ -737,6 +758,10 @@ export function createPolicyExtension(deps: PolicyDeps): Extension {
             return { block: text };
           }
           if (!session) return { block: "Blocked: this session is no longer available." };
+          const agentCaps = store.agentCapabilities?.(session.agent_id) ?? DEFAULT_AGENT_CAPABILITIES;
+          if (!agentAllowsTool(agentCaps, policyName)) {
+            return blocked(`Blocked: ${policyName} is disabled for this agent.`, "deny", tool.actionClass, oneLine());
+          }
           const running = store.runningRun(session.id);
           const retryRequest = running?.request_id.startsWith("approval:") ? running.request_id.slice(9) : undefined;
           const retryApproval = retryRequest ? approvals.row(retryRequest) : undefined;
