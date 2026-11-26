@@ -620,11 +620,7 @@ export function BrowserPanel({ id, api, session, startSignal, onClose, layout = 
               <p className={cn("live-hint m-0 text-sm text-muted-foreground", focus && "hidden")}>
                 Connecting your controls…
               </p>
-            ) : (
-              <>
-                <p className={cn("live-hint m-0 text-sm text-muted-foreground", focus && "hidden")}>Watching</p>
-              </>
-            )}
+            ) : null}
           </div>
         )}
       </aside>
