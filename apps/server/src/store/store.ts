@@ -143,6 +143,7 @@ interface AgentRow {
   thinking_level: ThinkingLevel;
   network_mode: SandboxNetworkMode;
   allowed_connector_ids: string | null;
+  allowed_knowledge_page_ids: string | null;
   can_create_triggers_for_other_agents: number;
   capabilities_json: string | null;
   default_profile: string;
@@ -264,6 +265,7 @@ const toAgent = (r: AgentRow): Agent => {
     thinkingLevel: r.thinking_level,
     networkMode: r.network_mode,
     allowedConnectorIds: r.allowed_connector_ids === null ? null : JSON.parse(r.allowed_connector_ids),
+    allowedKnowledgePageIds: r.allowed_knowledge_page_ids === null ? null : JSON.parse(r.allowed_knowledge_page_ids),
     canCreateTriggersForOtherAgents: capabilities.triggers === "all",
     capabilities,
     defaultProfile: canonicalProfile(r.default_profile),
@@ -812,6 +814,17 @@ export class AppStore {
     );
   }
 
+  agentAllowedKnowledgePageIds(agentId: string): string[] | null {
+    const row = this.getAgentRow(agentId);
+    if (!row || row.allowed_knowledge_page_ids === null) return null;
+    try {
+      const parsed = JSON.parse(row.allowed_knowledge_page_ids);
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : null;
+    } catch {
+      return null;
+    }
+  }
+
   updateAgentSettings(agentId: string, patch: AgentSettingsPatch): Agent | undefined {
     return this.tx(() => {
       const row = this.getAgentRow(agentId);
@@ -854,6 +867,16 @@ export class AppStore {
             : patch.allowedConnectorIds === null
               ? null
               : JSON.stringify(patch.allowedConnectorIds),
+        ],
+        [
+          "allowedKnowledgePageIds",
+          "allowed_knowledge_page_ids",
+          row.allowed_knowledge_page_ids,
+          patch.allowedKnowledgePageIds === undefined
+            ? undefined
+            : patch.allowedKnowledgePageIds === null
+              ? null
+              : JSON.stringify(patch.allowedKnowledgePageIds),
         ],
         ["model", "model", row.model, patch.model],
         ["thinkingLevel", "thinking_level", row.thinking_level, patch.thinkingLevel],

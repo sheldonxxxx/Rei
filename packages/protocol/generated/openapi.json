@@ -274,6 +274,19 @@
               }
             ]
           },
+          "allowedKnowledgePageIds": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "canCreateTriggersForOtherAgents": {
             "type": "boolean"
           },
@@ -6378,6 +6391,22 @@
                           "maxLength": 200
                         },
                         "maxItems": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "allowedKnowledgePageIds": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 100
                       },
                       {
                         "type": "null"

@@ -1,12 +1,30 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { arr, bool, obj, opt, str } from "@earendil-works/pi-schema";
 import { estimateTokens } from "../memory/text.ts";
-import { findSection, outline, sections, sectionText } from "./markdown.ts";
+import { findSection, outline, refs, sections, sectionText } from "./markdown.ts";
 import { age, type KnowledgeService, type PageRow } from "./service.ts";
 
 export const KNOWLEDGE_CLIP = (text: string, max: number): string =>
   text.length > max ? `${text.slice(0, max - 1)}…` : text;
 export const KNOWLEDGE_FLAT = (text: string): string => text.replace(/\s+/g, " ").trim();
+
+export const inaccessibleKnowledgePage = (pageId: string): string =>
+  `Page ${pageId} is not accessible or does not exist.`;
+
+/** Rejects newly introduced `page:` links pointing outside `allowedPageIds` without revealing target existence. */
+export function checkKnowledgePageLinks(
+  body: string,
+  selfId: string | null,
+  existingLinks: ReadonlySet<string> | null,
+  allowedPageIds: ReadonlySet<string>,
+): string | undefined {
+  for (const id of refs(body).pages) {
+    if (id === selfId) continue;
+    if (existingLinks?.has(id)) continue;
+    if (!allowedPageIds.has(id)) return inaccessibleKnowledgePage(id);
+  }
+  return undefined;
+}
 
 /** Shared operation schema for section/tag/property Knowledge edits (used by agent tools and MCP). */
 export const KnowledgeEditOpSchema = obj({

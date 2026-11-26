@@ -22,6 +22,7 @@ import {
   parseKnowledgeSource,
   tagKey,
 } from "@rei/protocol/knowledge-source";
+import type { Db } from "../db/db.ts";
 import { bigramTokens, ftsText, queryTerms } from "../memory/keyword.ts";
 import { estimateTokens } from "../memory/text.ts";
 import { GLOBAL_STREAM } from "../store/events.ts";
@@ -215,6 +216,34 @@ const parseTaint = (json: string): TaintLabel[] => {
   }
 };
 
+/** Dynamic subtree scope resolved from a list of granted root page IDs. */
+export interface KnowledgeScope {
+  /** All configured root page IDs (including any trashed or missing pages). */
+  grantedRootIds: Set<string>;
+  /** Configured root page IDs that currently exist and are live. */
+  liveRootIds: Set<string>;
+  /** Live root page IDs not descended from another live root in this scope, ordered by activity. */
+  effectiveRootIds: string[];
+  /** Union of every live root and all of its live descendants. */
+  allowedPageIds: Set<string>;
+}
+
+/** Whether `pageId` is a live Knowledge page within `allowedRootIds` or their live descendants. */
+export function isKnowledgePageInScope(db: Db, pageId: string, allowedRootIds: readonly string[]): boolean {
+  if (allowedRootIds.length === 0) return false;
+  const row = db.get<{ ok: number }>(
+    `WITH RECURSIVE sub(id) AS (
+       SELECT id FROM knowledge_pages WHERE id IN (SELECT value FROM json_each(?)) AND trashed_at IS NULL
+       UNION
+       SELECT p.id FROM knowledge_pages p JOIN sub ON p.parent_id = sub.id WHERE p.trashed_at IS NULL
+     )
+     SELECT 1 AS ok FROM sub WHERE id = ? LIMIT 1`,
+    JSON.stringify(allowedRootIds),
+    pageId,
+  );
+  return row !== undefined;
+}
+
 /** One indexed section of a page: the unit both rankings work in. */
 export interface KnowledgeSection {
   pageId: string;
@@ -332,6 +361,52 @@ export class KnowledgeService {
       out.unshift(p);
     }
     return out.map((p) => p.title).join(" › ");
+  }
+
+  resolveScope(rootIds: readonly string[]): KnowledgeScope {
+    const grantedRootIds = new Set(rootIds);
+    const liveRoots: PageRow[] = [];
+    const liveRootIds = new Set<string>();
+    for (const id of grantedRootIds) {
+      const page = this.page(id);
+      if (page && page.trashed_at === null) {
+        liveRootIds.add(id);
+        liveRoots.push(page);
+      }
+    }
+    if (liveRootIds.size === 0) {
+      return {
+        grantedRootIds,
+        liveRootIds,
+        effectiveRootIds: [],
+        allowedPageIds: new Set(),
+      };
+    }
+
+    const effectiveRootIds = liveRoots
+      .filter((root) => {
+        const properAncestors = this.ancestry(root.id).slice(0, -1);
+        return !properAncestors.some((a) => liveRootIds.has(a.id));
+      })
+      .sort((a, b) => b.activity_at - a.activity_at || b.id.localeCompare(a.id))
+      .map((r) => r.id);
+
+    const rows = this.#db.all<{ id: string }>(
+      `WITH RECURSIVE sub(id) AS (
+         SELECT id FROM knowledge_pages WHERE id IN (SELECT value FROM json_each(?)) AND trashed_at IS NULL
+         UNION
+         SELECT p.id FROM knowledge_pages p JOIN sub ON p.parent_id = sub.id WHERE p.trashed_at IS NULL
+       )
+       SELECT id FROM sub`,
+      JSON.stringify([...liveRootIds]),
+    );
+
+    return {
+      grantedRootIds,
+      liveRootIds,
+      effectiveRootIds,
+      allowedPageIds: new Set(rows.map((r) => r.id)),
+    };
   }
   #descendants(id: string, includeTrashed = false): PageRow[] {
     return this.#db.all<PageRow>(
@@ -1225,8 +1300,48 @@ export class KnowledgeService {
 
   // ---- summaries ---------------------------------------------------------------------------------------------------
 
-  /** The prompt pointer: top-level pages, then pinned and recently updated pages at any depth. About 500 tokens at most. */
-  pointer(now: number): string {
+  /** The prompt pointer: top-level (or scoped allowed) pages, then pinned and recently updated pages at any depth. About 500 tokens at most. */
+  pointer(now: number, scope?: KnowledgeScope | null): string {
+    if (scope) {
+      const roots = scope.effectiveRootIds
+        .slice(0, 10)
+        .map((id) => this.page(id))
+        .filter((p): p is PageRow => !!p && p.trashed_at === null);
+      if (roots.length === 0) {
+        return "Knowledge — scoped to allowed folders (no live folders are currently allowed).";
+      }
+      const lines = [
+        "Knowledge — shared long-term pages (scoped to allowed folders; read and write with the knowledge_* tools):",
+        `Allowed folders: ${roots.map((p) => (p.description ? `${p.title} (${p.id}) — ${clip(p.description, 80)}` : `${p.title} (${p.id})`)).join(" · ")}`,
+      ];
+      const pinned = this.#db
+        .all<PageRow>("SELECT * FROM knowledge_pages WHERE pinned = 1 AND trashed_at IS NULL ORDER BY updated_at DESC")
+        .filter((p) => scope.allowedPageIds.has(p.id))
+        .slice(0, 5);
+      const recent = this.#db
+        .all<PageRow>(
+          "SELECT * FROM knowledge_pages WHERE trashed_at IS NULL AND system IS NULL ORDER BY updated_at DESC",
+        )
+        .filter((p) => scope.allowedPageIds.has(p.id))
+        .slice(0, 12);
+      const listed = new Set<string>();
+      const entries: string[] = [];
+      for (const p of [...pinned, ...recent]) {
+        if (listed.has(p.id) || entries.length >= 8 + pinned.length) continue;
+        listed.add(p.id);
+        entries.push(
+          `- ${p.pinned === 1 ? "📌 " : ""}${this.scopedPath(p.id, scope.allowedPageIds)} (${p.id}) · ${age(now - p.updated_at)} by ${this.actorName(p.updated_by)}`,
+        );
+      }
+      if (entries.length > 0) lines.push("Pinned and recently updated:", ...entries);
+      let text = lines.join("\n");
+      while (estimateTokens(text) > 550 && lines.length > 3) {
+        lines.pop();
+        text = lines.join("\n");
+      }
+      return text;
+    }
+
     const top = this.children(null, 10);
     if (top.length === 0) return "";
     const lines = [

@@ -736,6 +736,33 @@ export function createApp(deps: AppDeps): Hono {
         throw badRequest("bad_request", "Connectors must be null or a list of connector IDs.");
       settings.allowedConnectorIds = b.allowedConnectorIds === null ? null : [...new Set(b.allowedConnectorIds)];
     }
+    if (b.allowedKnowledgePageIds !== undefined) {
+      if (b.allowedKnowledgePageIds === null) {
+        settings.allowedKnowledgePageIds = null;
+      } else {
+        const seen = new Set<string>();
+        const normalized: string[] = [];
+        for (const rawId of b.allowedKnowledgePageIds) {
+          const trimmed = rawId.trim();
+          if (!trimmed) throw badRequest("bad_request", "Allowed folder IDs must be non-empty strings.");
+          if (seen.has(trimmed)) continue;
+          seen.add(trimmed);
+          normalized.push(trimmed);
+        }
+        if (normalized.length > 100)
+          throw badRequest("bad_request", "At most 100 allowed folders may be assigned per agent.");
+        if (deps.knowledge) {
+          const existing = new Set(store.agentAllowedKnowledgePageIds(id) ?? []);
+          for (const pageId of normalized) {
+            if (existing.has(pageId)) continue;
+            const page = deps.knowledge.page(pageId);
+            if (!page || page.trashed_at !== null)
+              throw badRequest("bad_request", `Page ${pageId} is not a live Knowledge page.`);
+          }
+        }
+        settings.allowedKnowledgePageIds = normalized;
+      }
+    }
     if (b.instructions !== undefined) {
       if (b.instructions.length > INSTRUCTIONS_MAX)
         throw badRequest("bad_request", `Instructions must be text of at most ${INSTRUCTIONS_MAX} characters.`);

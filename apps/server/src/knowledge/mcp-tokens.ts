@@ -11,7 +11,9 @@ import { randomBytes, sha256Hex, toBase64Url } from "../util/encoding.ts";
 import { badRequest, notFound } from "../util/errors.ts";
 import { newId } from "../util/ids.ts";
 import type { Logger } from "../util/log.ts";
-import type { KnowledgeService, PageRow } from "./service.ts";
+import type { KnowledgeScope, KnowledgeService } from "./service.ts";
+
+export type KnowledgeMcpScope = KnowledgeScope;
 
 export const KNOWLEDGE_MCP_TOKEN_PREFIX = "rei_kmcp_";
 export const KNOWLEDGE_MCP_ENDPOINT_PATH = "/api/mcp/knowledge";
@@ -44,17 +46,6 @@ export interface AuthenticatedMcpToken {
   createdAt: number;
   updatedAt: number;
   lastUsedAt: number | null;
-}
-
-export interface KnowledgeMcpScope {
-  /** All configured root page IDs on the token (including any trashed or missing pages). */
-  grantedRootIds: Set<string>;
-  /** Configured root page IDs that currently exist and are live. */
-  liveRootIds: Set<string>;
-  /** Live root page IDs not descended from another live root on this token, ordered by activity. */
-  effectiveRootIds: string[];
-  /** Union of every live root and all of its live descendants. */
-  allowedPageIds: Set<string>;
 }
 
 export interface KnowledgeMcpTokenStoreDeps {
@@ -314,49 +305,7 @@ export class KnowledgeMcpTokenStore {
   }
 
   resolveScope(tokenId: string): KnowledgeMcpScope {
-    const grantedRootIds = new Set(this.#rootIds(tokenId));
-    const liveRoots: PageRow[] = [];
-    const liveRootIds = new Set<string>();
-    for (const id of grantedRootIds) {
-      const page = this.#knowledge.page(id);
-      if (page && page.trashed_at === null) {
-        liveRootIds.add(id);
-        liveRoots.push(page);
-      }
-    }
-    if (liveRootIds.size === 0) {
-      return {
-        grantedRootIds,
-        liveRootIds,
-        effectiveRootIds: [],
-        allowedPageIds: new Set(),
-      };
-    }
-
-    const effectiveRootIds = liveRoots
-      .filter((root) => {
-        const properAncestors = this.#knowledge.ancestry(root.id).slice(0, -1);
-        return !properAncestors.some((a) => liveRootIds.has(a.id));
-      })
-      .sort((a, b) => b.activity_at - a.activity_at || b.id.localeCompare(a.id))
-      .map((r) => r.id);
-
-    const rows = this.#db.all<{ id: string }>(
-      `WITH RECURSIVE sub(id) AS (
-         SELECT id FROM knowledge_pages WHERE id IN (SELECT value FROM json_each(?)) AND trashed_at IS NULL
-         UNION
-         SELECT p.id FROM knowledge_pages p JOIN sub ON p.parent_id = sub.id WHERE p.trashed_at IS NULL
-       )
-       SELECT id FROM sub`,
-      JSON.stringify([...liveRootIds]),
-    );
-
-    return {
-      grantedRootIds,
-      liveRootIds,
-      effectiveRootIds,
-      allowedPageIds: new Set(rows.map((r) => r.id)),
-    };
+    return this.#knowledge.resolveScope(this.#rootIds(tokenId));
   }
 
   actorLabel(tokenId: string): string {

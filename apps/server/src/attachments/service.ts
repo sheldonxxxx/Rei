@@ -7,6 +7,7 @@ import { createNodePhotonImages } from "@earendil-works/pi-durable/images/node";
 import type { Attachment, Message, MessageContext, MessageMention } from "@rei/protocol";
 import { ATTACHMENT_MAX_BYTES, filePreview, inlineAttachmentKind } from "@rei/protocol";
 import type { WorkspaceManager } from "../exec/workspaces.ts";
+import { isKnowledgePageInScope } from "../knowledge/service.ts";
 import type { LibraryService } from "../library/service.ts";
 import type { ConnectorToolDirectory } from "../mcp/connector-tools.ts";
 import { type FileObjectStore, StorageError } from "../storage/file-object-store.ts";
@@ -443,6 +444,7 @@ export class AttachmentService {
       throw badRequest("bad_request", "Invalid mentions.");
     const session = this.store.getSessionRow(sessionId);
     const caps = session ? this.store.agentCapabilities(session.agent_id) : undefined;
+    const allowedKnowledgeRoots = session ? this.store.agentAllowedKnowledgePageIds(session.agent_id) : null;
     let end = 0;
     for (const value of (mentions ?? []) as unknown[]) {
       if (!value || typeof value !== "object") throw badRequest("bad_request", "Invalid mention.");
@@ -470,6 +472,8 @@ export class AttachmentService {
       if (m.kind === "page") {
         if (caps?.knowledge === "off") throw badRequest("bad_mention", "Knowledge is disabled for this agent.");
         if (!this.store.db.get("SELECT 1 FROM knowledge_pages WHERE id = ? AND trashed_at IS NULL", m.id))
+          throw badRequest("bad_mention", "The mentioned page is unavailable.");
+        if (allowedKnowledgeRoots !== null && !isKnowledgePageInScope(this.store.db, m.id, allowedKnowledgeRoots))
           throw badRequest("bad_mention", "The mentioned page is unavailable.");
       }
       end = m.end;
@@ -505,6 +509,7 @@ export class AttachmentService {
   ): Promise<UserInput> {
     const session = this.store.getSessionRow(message.sessionId);
     const caps = session ? this.store.agentCapabilities(session.agent_id) : undefined;
+    const allowedKnowledgeRoots = session ? this.store.agentAllowedKnowledgePageIds(session.agent_id) : null;
     const context: string[] = [];
     const imageBlocks: ImageContent[] = [];
     for (const m of message.mentions ?? []) {
@@ -523,6 +528,13 @@ export class AttachmentService {
         if (caps?.knowledge === "off") {
           context.push(
             `Referenced Knowledge page ${JSON.stringify(m.label)} (page ID ${JSON.stringify(m.id)}): Knowledge is disabled for this agent.`,
+          );
+        } else if (
+          allowedKnowledgeRoots !== null &&
+          !isKnowledgePageInScope(this.store.db, m.id, allowedKnowledgeRoots)
+        ) {
+          context.push(
+            `Referenced Knowledge page ${JSON.stringify(m.label)} (page ID ${JSON.stringify(m.id)}): outside this agent's allowed Knowledge folders.`,
           );
         } else {
           context.push(

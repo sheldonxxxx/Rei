@@ -92,6 +92,7 @@ export const UpdateAgentRequestSchema = obj({
   networkMode: opt(oneOf(SANDBOX_NETWORK_MODES)),
   defaultProfile: opt(ProfileInputSchema),
   allowedConnectorIds: opt(nullable(arr(str({ minLength: 1, maxLength: 200 }), { maxItems: 1000 }))),
+  allowedKnowledgePageIds: opt(nullable(arr(str({ minLength: 1, maxLength: 200 }), { maxItems: 100 }))),
   canCreateTriggersForOtherAgents: opt(bool()),
   capabilities: opt(AgentCapabilitiesPatchSchema),
   instructions: opt(str()),

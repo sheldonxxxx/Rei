@@ -327,6 +327,8 @@ export interface AgentSettingsPatch {
   defaultProfile?: ProfileInput;
   /** Null allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
+  /** Null allows all Knowledge; a list limits access to those pages and their live descendants; empty disables pages. */
+  allowedKnowledgePageIds?: string[] | null;
   canCreateTriggersForOtherAgents?: boolean;
   capabilities?: import("./capabilities.ts").AgentCapabilitiesPatch;
   /** The agent's system instructions; applied from its next model call. */

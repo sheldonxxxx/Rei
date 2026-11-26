@@ -19,7 +19,7 @@ import {
   SELECTED_SKILLS_MAX,
 } from "@rei/protocol";
 import type { KeyboardEvent, ReactNode, Ref } from "react";
-import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
 import { Input } from "@/components/primitives/input.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -88,6 +88,7 @@ interface Props {
   agentId?: string | undefined;
   capabilities?: AgentCapabilities | undefined;
   allowedConnectorIds?: string[] | null;
+  allowedKnowledgePageIds?: string[] | null;
 }
 interface Choice {
   kind: "upload" | "library" | "connector" | "chat" | "page" | "command" | "skill";
@@ -119,6 +120,7 @@ export function Composer({
   agentId,
   capabilities,
   allowedConnectorIds,
+  allowedKnowledgePageIds,
 }: Props) {
   const caps = resolveAgentCapabilities(capabilities);
   const [restored, setRestored] = useState(!sessionId || typeof indexedDB === "undefined");
@@ -372,6 +374,26 @@ export function Composer({
           }),
         ].filter((c) => !query || `${c.label} ${c.skill?.description ?? c.detail}`.toLocaleLowerCase().includes(query))
       : [];
+  const allowedPageSet = useMemo(() => {
+    if (allowedKnowledgePageIds == null) return null;
+    const allowedRoots = new Set(allowedKnowledgePageIds);
+    const byId = new Map(pages.map((p) => [p.id, p]));
+    const inScope = new Set<string>();
+    for (const p of pages) {
+      let cur: KnowledgeTreeNode | undefined = p;
+      const seen = new Set<string>();
+      while (cur && !seen.has(cur.id)) {
+        if (allowedRoots.has(cur.id)) {
+          inScope.add(p.id);
+          break;
+        }
+        seen.add(cur.id);
+        cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+      }
+    }
+    return inScope;
+  }, [pages, allowedKnowledgePageIds]);
+
   const contextChoices: Choice[] = [
     {
       kind: "upload" as const,
@@ -420,7 +442,11 @@ export function Composer({
     ...(caps.knowledge === "off"
       ? []
       : pages
-          .filter((p) => !query || `${p.title} ${p.description}`.toLocaleLowerCase().includes(query))
+          .filter(
+            (p) =>
+              (!allowedPageSet || allowedPageSet.has(p.id)) &&
+              (!query || `${p.title} ${p.description}`.toLocaleLowerCase().includes(query)),
+          )
           .slice(0, query ? 8 : 5)
           .map(
             (p): Choice => ({

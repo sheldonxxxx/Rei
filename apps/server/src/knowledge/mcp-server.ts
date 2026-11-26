@@ -8,9 +8,11 @@ import type { AppDeps } from "../http/app.ts";
 import type { Clock } from "../util/clock.ts";
 import { HttpError, Invalid } from "../util/errors.ts";
 import {
+  checkKnowledgePageLinks,
   formatKnowledgePageLine,
   formatKnowledgeRead,
   formatLinkReport,
+  inaccessibleKnowledgePage,
   KNOWLEDGE_CLIP,
   KnowledgeEditOpSchema,
 } from "./format.ts";
@@ -48,7 +50,8 @@ type ToolAnswer = {
 
 const okText = (text: string): ToolAnswer => ({ content: [{ type: "text", text }] });
 const errText = (text: string): ToolAnswer => ({ isError: true, content: [{ type: "text", text }] });
-const inaccessible = (pageId: string): string => `Page ${pageId} is not accessible or does not exist.`;
+const inaccessible = inaccessibleKnowledgePage;
+const checkPageLinks = checkKnowledgePageLinks;
 
 function isAllowedOrigin(origin: string, reqUrl: string, publicUrl?: string): boolean {
   return origin === new URL(reqUrl).origin || (publicUrl !== undefined && origin === new URL(publicUrl).origin);
@@ -63,20 +66,6 @@ function hasFlag(token: AuthenticatedMcpToken, flag: ToolFlag): boolean {
     case "delete":
       return token.canDelete;
   }
-}
-
-function checkPageLinks(
-  body: string,
-  selfId: string | null,
-  existingLinks: ReadonlySet<string> | null,
-  allowedPageIds: ReadonlySet<string>,
-): string | undefined {
-  for (const id of refs(body).pages) {
-    if (id === selfId) continue;
-    if (existingLinks?.has(id)) continue;
-    if (!allowedPageIds.has(id)) return inaccessible(id);
-  }
-  return undefined;
 }
 
 function formatError(error: unknown): ToolAnswer {
