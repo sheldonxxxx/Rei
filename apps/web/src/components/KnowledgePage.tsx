@@ -16,7 +16,7 @@ import { Input } from "@/components/primitives/input.tsx";
 import { Label } from "@/components/primitives/label.tsx";
 import type { Api } from "../api/client.ts";
 import { describeError } from "../api/client.ts";
-import { knowledgeHref, navigate, useMediaQuery } from "../lib/route.ts";
+import { knowledgeHref, MCP_PATH, navigate, useMediaQuery } from "../lib/route.ts";
 import { ago } from "../lib/time.ts";
 import { ConfirmDialog, DialogError } from "./dialogParts.tsx";
 import { Icon } from "./Icon.tsx";
@@ -144,6 +144,13 @@ export function KnowledgePage({
             Knowledge
           </a>
           <SearchBox key={pageId ?? "overview"} api={api} />
+          <Tip label="MCP access">
+            <Button asChild variant="ghost" size="icon-sm" className="max-sm:size-11">
+              <a href={MCP_PATH} aria-label="MCP access">
+                <Icon name="plug" size={16} />
+              </a>
+            </Button>
+          </Tip>
           <Button
             type="button"
             size="sm"

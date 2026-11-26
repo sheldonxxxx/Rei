@@ -1693,7 +1693,8 @@
           "kind": {
             "enum": [
               "user",
-              "agent"
+              "agent",
+              "mcp"
             ]
           },
           "id": {
@@ -1717,6 +1718,125 @@
         ],
         "additionalProperties": false,
         "title": "KnowledgeActor"
+      },
+      "KnowledgeMcpAllowedPage": {
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "live",
+              "trashed",
+              "missing"
+            ]
+          }
+        },
+        "required": [
+          "pageId",
+          "title",
+          "path",
+          "status"
+        ],
+        "additionalProperties": false,
+        "title": "KnowledgeMcpAllowedPage"
+      },
+      "KnowledgeMcpPermissions": {
+        "type": "object",
+        "properties": {
+          "read": {
+            "type": "boolean"
+          },
+          "write": {
+            "type": "boolean"
+          },
+          "delete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "read",
+          "write",
+          "delete"
+        ],
+        "additionalProperties": false,
+        "title": "KnowledgeMcpPermissions"
+      },
+      "KnowledgeMcpToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tokenPrefix": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/KnowledgeMcpPermissions"
+          },
+          "allowedPages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeMcpAllowedPage"
+            }
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tokenPrefix",
+          "enabled",
+          "permissions",
+          "allowedPages",
+          "createdAt",
+          "updatedAt",
+          "lastUsedAt"
+        ],
+        "additionalProperties": false,
+        "title": "KnowledgeMcpToken"
       },
       "KnowledgeMetadata": {
         "type": "object",
@@ -15343,6 +15463,627 @@
                   },
                   "required": [
                     "pages"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/knowledge/mcp/tokens": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "List Knowledge MCP access tokens.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "endpointPath": {
+                      "type": "string"
+                    },
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/KnowledgeMcpToken"
+                      }
+                    }
+                  },
+                  "required": [
+                    "endpointPath",
+                    "tokens"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      },
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Create a Knowledge MCP access token (returns the secret once).",
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "$ref": "#/components/schemas/KnowledgeMcpToken"
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "secret"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "permissions": {
+                    "type": "object",
+                    "properties": {
+                      "read": {
+                        "type": "boolean"
+                      },
+                      "write": {
+                        "type": "boolean"
+                      },
+                      "delete": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "allowedPageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/mcp/tokens/{id}": {
+      "patch": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Update a Knowledge MCP token's name, status, permissions, or allowed folders.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "$ref": "#/components/schemas/KnowledgeMcpToken"
+                    }
+                  },
+                  "required": [
+                    "token"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "permissions": {
+                    "type": "object",
+                    "properties": {
+                      "read": {
+                        "type": "boolean"
+                      },
+                      "write": {
+                        "type": "boolean"
+                      },
+                      "delete": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "allowedPageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Revoke a Knowledge MCP token.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Stable machine-readable code, e.g. bad_request, unauthenticated, not_found."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "One sentence for the user."
+                        },
+                        "issues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer",
+                                "description": "One-based source line, when known."
+                              },
+                              "column": {
+                                "type": "integer",
+                                "description": "One-based source column, when known."
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "Present on validation failures."
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "x-rei-protocol": 1
+      }
+    },
+    "/api/knowledge/mcp/tokens/{id}/rotate": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Rotate a Knowledge MCP token's secret (returns the new secret once).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "$ref": "#/components/schemas/KnowledgeMcpToken"
+                    },
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "secret"
                   ],
                   "additionalProperties": false
                 }

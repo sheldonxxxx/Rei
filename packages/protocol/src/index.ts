@@ -13,7 +13,13 @@ export type { McpResultMedia } from "./gateway.ts";
 export * from "./gateway.ts";
 export type * from "./imports.ts";
 export type {
+  CreateKnowledgeMcpTokenRequest,
   KnowledgeActor,
+  KnowledgeMcpAllowedPage,
+  KnowledgeMcpPermissions,
+  KnowledgeMcpSecretResponse,
+  KnowledgeMcpToken,
+  KnowledgeMcpTokensResponse,
   KnowledgeMeaningStatus,
   KnowledgeOverview,
   KnowledgePage,
@@ -22,6 +28,7 @@ export type {
   KnowledgeSearchHit,
   KnowledgeTreeNode,
   PageReference,
+  UpdateKnowledgeMcpTokenRequest,
 } from "./knowledge.ts";
 export type {
   FileReference,

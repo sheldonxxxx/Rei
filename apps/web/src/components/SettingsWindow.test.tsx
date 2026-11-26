@@ -122,4 +122,26 @@ describe("SettingsWindow leaving with unsaved changes", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.queryByText("Discard unsaved changes?")).toBeNull();
   });
+
+  it("renders the MCP settings section when route is mcp", async () => {
+    const api = {
+      listKnowledgeMcpTokens: vi.fn().mockResolvedValue({ endpointPath: "/api/mcp/knowledge", tokens: [] }),
+    };
+    render(
+      <SettingsWindow
+        api={api as never}
+        agents={[]}
+        companion={null}
+        sessions={[]}
+        route={{ section: "mcp", id: null }}
+        wide
+        memoryRev={0 as never}
+        pageRev={{} as never}
+        onClose={vi.fn()}
+        onLogout={() => {}}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "MCP" })).toBeTruthy();
+    expect(await screen.findByText(/No MCP tokens yet/)).toBeTruthy();
+  });
 });

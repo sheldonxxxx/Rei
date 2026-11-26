@@ -50,6 +50,8 @@ describe("Workers-safety", () => {
       spec === "@mozilla/readability" ||
       spec === "yaml" ||
       spec === "fflate" ||
+      // The SDK root contains the Web Standard server and supplies a workerd shim. Keep Node adapters excluded.
+      spec === "@modelcontextprotocol/server" ||
       TIKTOKEN_ENTRIES.includes(spec);
     for (const file of portable) {
       for (const spec of importsOf(readFileSync(file, "utf8"))) {

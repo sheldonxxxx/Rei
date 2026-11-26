@@ -1018,6 +1018,34 @@ CREATE TABLE IF NOT EXISTS device_notification_muted (
       ) WITHOUT ROWID;
 `;
 
+/** Knowledge MCP tokens (docs/knowledge-mcp.md). Additive and idempotent, like PASSKEY_SCHEMA. */
+const KNOWLEDGE_MCP_SCHEMA = `
+CREATE TABLE IF NOT EXISTS knowledge_mcp_tokens (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_prefix TEXT NOT NULL,
+  can_read INTEGER NOT NULL DEFAULT 0 CHECK (can_read IN (0, 1)),
+  can_write INTEGER NOT NULL DEFAULT 0 CHECK (can_write IN (0, 1)),
+  can_delete INTEGER NOT NULL DEFAULT 0 CHECK (can_delete IN (0, 1)),
+  disabled_at INTEGER,
+  revoked_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_mcp_token_roots (
+  token_id TEXT NOT NULL REFERENCES knowledge_mcp_tokens(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (token_id, page_id)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS knowledge_mcp_token_roots_page
+  ON knowledge_mcp_token_roots (page_id);
+`;
+
 export const SCHEMA_VERSION = 20;
 /**
  * The oldest schema this release upgrades in place. Each release upgrades a database from at least the previous minor
@@ -1210,6 +1238,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
       db.exec(SESSION_IMPORTS_SCHEMA);
       db.exec(BACKUP_SCHEMA);
       db.exec(NOTIFY_DEVICE_SCHEMA);
+      db.exec(KNOWLEDGE_MCP_SCHEMA);
       if (
         !db
           .all<{ name: string }>("PRAGMA table_info(agents)")
@@ -1242,6 +1271,7 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
     db.exec(SESSION_IMPORTS_SCHEMA);
     db.exec(BACKUP_SCHEMA);
     db.exec(NOTIFY_DEVICE_SCHEMA);
+    db.exec(KNOWLEDGE_MCP_SCHEMA);
     db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     return true;
   });

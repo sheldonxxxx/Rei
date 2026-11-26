@@ -100,6 +100,8 @@ export interface Writer {
   taint?: readonly TaintLabel[];
   /** A replayed tool call with this key returns the first call's answer instead of writing again. */
   callKey?: string;
+  /** Checks the final Markdown against the previous body before persisting an edit. */
+  validateBody?: (body: string, previousBody: string) => void;
 }
 
 export type EditOp =
@@ -173,6 +175,7 @@ export interface KnowledgeSearchOptions {
   under?: string;
   tags?: string[];
   limit?: number;
+  allowedPageIds?: ReadonlySet<string>;
 }
 /** Shared source validation errors remain structured over HTTP. */
 function validated<T>(run: () => T): T {
@@ -225,6 +228,8 @@ export class KnowledgeService {
   readonly store: AppStore;
   /** Meaning search, when the server runs one (set after construction, like the Library's attachments). */
   meaning: KnowledgeMeaning | undefined;
+  /** Resolves an external MCP token id (`mcp:<id>`) to its display label (including revoked tokens). */
+  mcpActorLabel: ((tokenId: string) => string) | undefined;
 
   constructor(store: AppStore) {
     this.store = store;
@@ -317,6 +322,17 @@ export class KnowledgeService {
       .map((p) => p.title)
       .join(" › ");
   }
+  /** Path starting from the outermost contiguous in-scope ancestor, never revealing outside titles. */
+  scopedPath(id: string, allowedPageIds: ReadonlySet<string>): string {
+    const chain = this.ancestry(id);
+    const out: PageRow[] = [];
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const p = chain[i]!;
+      if (!allowedPageIds.has(p.id)) break;
+      out.unshift(p);
+    }
+    return out.map((p) => p.title).join(" › ");
+  }
   #descendants(id: string, includeTrashed = false): PageRow[] {
     return this.#db.all<PageRow>(
       `WITH RECURSIVE sub(id) AS (SELECT id FROM knowledge_pages WHERE parent_id = ?
@@ -393,10 +409,15 @@ export class KnowledgeService {
 
   actorName(actor: string): string {
     if (actor === "user") return "you";
+    if (actor.startsWith("mcp:")) return this.mcpActorLabel?.(actor.slice(4)) ?? "an MCP client";
     return this.store.getAgent(actor)?.name ?? "an agent";
   }
   #actor(actor: string): KnowledgeActor {
     if (actor === "user") return { kind: "user", id: null, name: "You" };
+    if (actor.startsWith("mcp:")) {
+      const id = actor.slice(4);
+      return { kind: "mcp", id, name: this.mcpActorLabel?.(id) ?? "Removed token" };
+    }
     return { kind: "agent", id: actor, name: this.store.getAgent(actor)?.name ?? "Removed agent" };
   }
 
@@ -838,6 +859,7 @@ export class KnowledgeService {
             throw new Invalid(`Unknown edit op "${(o as { op: string }).op}".`);
         }
       }
+      w.validateBody?.(body, page.body);
       this.#checkBody(body, page.id);
       if (
         title === page.title &&
@@ -904,8 +926,9 @@ export class KnowledgeService {
       this.#parentOk(parentId, page.id);
       const now = this.#now();
       this.#db.run(
-        "UPDATE knowledge_pages SET parent_id = ?, updated_by = ?, updated_at = ? WHERE id = ?",
+        "UPDATE knowledge_pages SET parent_id = ?, taint = ?, updated_by = ?, updated_at = ? WHERE id = ?",
         parentId,
+        w.taint?.length ? this.#mergeTaint(page, w) : page.taint,
         w.actor,
         now,
         page.id,
@@ -917,17 +940,30 @@ export class KnowledgeService {
   }
 
   /** Moves the page and its live subtree to Trash, as one action that a restore undoes. */
-  trashPage(pageId: string, w: Writer): number {
+  trashPage(pageId: string, w: Writer, validateSubtree?: (pages: readonly PageRow[]) => void): number {
     return this.store.tx(() => {
       const page = this.live(pageId);
       if (page.system === INBOX) throw new Invalid("Inbox cannot be moved to Trash.");
       if (w.actor !== "user" && page.locked === 1)
         throw new Invalid("The user locked this page for agents; it cannot be trashed.");
       const pages = [page, ...this.#descendants(page.id)];
+      validateSubtree?.(pages);
       if (pages.some((p) => p.system === INBOX)) throw new Invalid("Inbox cannot be moved to Trash.");
       const now = this.#now();
       for (const p of pages) {
-        this.#db.run("UPDATE knowledge_pages SET trashed_at = ?, trash_root = ? WHERE id = ?", now, page.id, p.id);
+        if (w.taint?.length) {
+          this.#db.run(
+            "UPDATE knowledge_pages SET trashed_at = ?, trash_root = ?, taint = ?, updated_by = ?, updated_at = ? WHERE id = ?",
+            now,
+            page.id,
+            this.#mergeTaint(p, w),
+            w.actor,
+            now,
+            p.id,
+          );
+        } else {
+          this.#db.run("UPDATE knowledge_pages SET trashed_at = ?, trash_root = ? WHERE id = ?", now, page.id, p.id);
+        }
         this.#unindex(p.id);
       }
       this.#changed(page.id);
@@ -971,6 +1007,7 @@ export class KnowledgeService {
         );
         this.#db.run("DELETE FROM knowledge_revisions WHERE page_id = ?", g.id);
         this.#db.run("DELETE FROM knowledge_links WHERE from_id = ?", g.id);
+        this.#db.run("DELETE FROM knowledge_mcp_token_roots WHERE page_id = ?", g.id);
         this.#unindex(g.id);
         this.#db.run("DELETE FROM knowledge_pages WHERE id = ?", g.id);
       }
@@ -1063,6 +1100,7 @@ export class KnowledgeService {
   search(query: string, options: KnowledgeSearchOptions = {}): KnowledgeSearchHit[] {
     const limit = Math.max(1, Math.min(options.limit ?? 8, 30));
     const allowed = this.searchPages(options);
+    if (allowed && allowed.size === 0) return [];
     if (!query.trim())
       return this.#db
         .all<PageRow>("SELECT * FROM knowledge_pages WHERE trashed_at IS NULL ORDER BY updated_at DESC, id DESC")
@@ -1088,18 +1126,22 @@ export class KnowledgeService {
     return new Set([root.id, ...this.#descendants(root.id).map((p) => p.id)]);
   }
 
-  /** Recomputed after asynchronous embedding too: SQLite owns liveness, subtree and tag membership. */
+  /** Recomputed after asynchronous embedding too: SQLite owns liveness, subtree, tag and token-scope membership. */
   searchPages(options: KnowledgeSearchOptions): Set<string> | undefined {
+    const scope = options.allowedPageIds;
+    if (scope !== undefined && scope.size === 0) return new Set();
     const under = this.subtree(options.under);
+    const allowed = scope ? (under ? new Set([...under].filter((id) => scope.has(id))) : new Set(scope)) : under;
+    if (allowed !== undefined && allowed.size === 0) return allowed;
     const tags = validated(() => normalizeTags(options.tags ?? [])).map(tagKey);
-    if (!tags.length) return under;
+    if (!tags.length) return allowed;
     const rows = this.#db.all<{ id: string }>(
       `SELECT p.id FROM knowledge_pages p WHERE p.trashed_at IS NULL AND
       (SELECT COUNT(*) FROM knowledge_page_tags t WHERE t.page_id = p.id AND t.tag IN (SELECT value FROM json_each(?))) = ?`,
       JSON.stringify(tags),
       tags.length,
     );
-    return new Set(rows.filter((r) => !under || under.has(r.id)).map((r) => r.id));
+    return new Set(rows.filter((r) => !allowed || allowed.has(r.id)).map((r) => r.id));
   }
   tagSuggestions(): string[] {
     const rows = this.#db.all<{ tag: string; label: string }>(

@@ -40,6 +40,7 @@ export type SettingsSection =
   | "runtime"
   | "providers"
   | "permissions"
+  | "mcp"
   | "backups";
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "general",
@@ -51,12 +52,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "plugins",
   "triggers",
   "permissions",
+  "mcp",
   "backups",
   "usage",
 ];
 
 export const SETTINGS_PATH = "/settings";
 export const PERMISSIONS_PATH = `${SETTINGS_PATH}/permissions`;
+export const MCP_PATH = `${SETTINGS_PATH}/mcp`;
 export const MEMORY_PATH = `${SETTINGS_PATH}/memory`;
 export const TRIGGERS_PATH = `${SETTINGS_PATH}/triggers`;
 export const CONNECTORS_PATH = `${SETTINGS_PATH}/connectors`;

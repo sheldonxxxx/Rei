@@ -206,6 +206,9 @@ import type { BackgroundJob, BackgroundTaskService } from "../background/service
 import type { BlobStore } from "../blobs/blob-store.ts";
 import type { BrowserService } from "../browser/service.ts";
 import type { TakeoverService } from "../browser/takeover-service.ts";
+import { knowledgeMcpRoutes } from "../knowledge/mcp-routes.ts";
+import { mountKnowledgeMcpServer } from "../knowledge/mcp-server.ts";
+import { KNOWLEDGE_MCP_ENDPOINT_PATH, type KnowledgeMcpTokenStore } from "../knowledge/mcp-tokens.ts";
 import { knowledgeRoutes } from "../knowledge/routes.ts";
 import type { KnowledgeService } from "../knowledge/service.ts";
 import { libraryRoutes } from "../library/routes.ts";
@@ -288,6 +291,8 @@ export interface AppDeps {
   memory?: MemoryService;
   /** Knowledge: shared long-term pages. */
   knowledge?: KnowledgeService;
+  /** Knowledge MCP access tokens. */
+  knowledgeMcpTokens?: KnowledgeMcpTokenStore;
   /** Backups (Settings > Backups). */
   backup?: BackupService;
   /** Receives signed outside events (POST /api/events/:source); without it every source is unknown. */
@@ -483,6 +488,9 @@ export function createApp(deps: AppDeps): Hono {
   // about it is checked by the route, in a fixed order (events/receive.ts).
   const isEvent = (c: Context): boolean =>
     c.req.method === "POST" && /^\/api\/events\/[^/]+\/?$/.test(new URL(c.req.url).pathname);
+  // Knowledge MCP authenticates with its own scoped bearer token (rei_kmcp_...), not user cookies or device tokens.
+  const isKnowledgeMcp = (c: Context): boolean =>
+    new URL(c.req.url).pathname.replace(/\/+$/, "") === KNOWLEDGE_MCP_ENDPOINT_PATH;
   app.use("/api/*", async (c, next) => {
     c.header("cache-control", "no-store");
     for (const [name, value] of Object.entries(securityHeaders(API_CSP))) c.header(name, value);
@@ -499,7 +507,7 @@ export function createApp(deps: AppDeps): Hono {
     // credential, or a native app naming itself in the client header (its sign-in has no credential yet), proves the
     // request is not cross-site, and only the web app's cookie requests need the CSRF header.
     const nativeHeader = NATIVE_CLIENT_KINDS.includes(parseClientId(c.req.header(CLIENT_HEADER))?.kind ?? "web");
-    if (isEvent(c)) return next();
+    if (isEvent(c) || isKnowledgeMcp(c)) return next();
     if (MUTATING.has(c.req.method) && bearer(c) === undefined && !nativeHeader && c.req.header(CSRF_HEADER) !== "1") {
       throw new HttpError(403, "csrf", `Missing ${CSRF_HEADER} header.`);
     }
@@ -514,6 +522,8 @@ export function createApp(deps: AppDeps): Hono {
   const contract = { checkResponses: deps.checkContract === true };
   libraryRoutes(app, deps, contract);
   knowledgeRoutes(app, deps, contract);
+  knowledgeMcpRoutes(app, deps, contract);
+  mountKnowledgeMcpServer(app, deps);
   if (deps.plugins) pluginRoutes(app, deps.plugins, contract);
 
   /** A path parameter of the matched route (always present for a route that declares it). */

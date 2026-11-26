@@ -54,6 +54,7 @@ import {
   Pencil,
   Pin,
   Plane,
+  Plug,
   Plus,
   Presentation,
   Puzzle,
@@ -157,6 +158,7 @@ const ICONS = {
   image: ImageIcon,
   info: Info,
   archive: Archive,
+  plug: Plug,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

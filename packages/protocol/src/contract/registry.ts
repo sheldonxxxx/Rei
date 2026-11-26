@@ -5,6 +5,7 @@ import { chatRoutes } from "./chat.ts";
 import type { RouteContract, StreamContract } from "./define.ts";
 import { importRoutes } from "./imports.ts";
 import { knowledgeRoutes, libraryRoutes } from "./knowledge.ts";
+import { knowledgeMcpRoutes } from "./knowledge-mcp.ts";
 import { memoryRoutes } from "./memory.ts";
 import { operationRoutes } from "./operations.ts";
 import { sessionExtraRoutes } from "./sessions.ts";
@@ -24,6 +25,7 @@ export const CONTRACT_ROUTES: readonly AnyRouteContract[] = [
   ...settingsRoutes,
   ...memoryRoutes,
   ...knowledgeRoutes,
+  ...knowledgeMcpRoutes,
   ...libraryRoutes,
   ...capabilityRoutes,
   ...operationRoutes,
