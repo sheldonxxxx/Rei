@@ -53,7 +53,8 @@ CREATE TABLE agents (
       CHECK (thinking_level IN ('off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max')),
         network_mode TEXT NOT NULL DEFAULT 'block' CHECK (network_mode IN ('block', 'whitelist', 'any')),
         can_create_triggers_for_other_agents INTEGER NOT NULL DEFAULT 0 CHECK (can_create_triggers_for_other_agents IN (0, 1)),
-        capabilities_json TEXT);
+        capabilities_json TEXT,
+        allowed_knowledge_page_ids TEXT);
 
 CREATE TABLE session_trees (
         id TEXT PRIMARY KEY,
@@ -1249,6 +1250,8 @@ export function initializeDatabase(db: Db, now: () => number = () => Date.now())
           CHECK (can_create_triggers_for_other_agents IN (0, 1))`);
       if (!db.all<{ name: string }>("PRAGMA table_info(agents)").some((c) => c.name === "capabilities_json"))
         db.exec("ALTER TABLE agents ADD COLUMN capabilities_json TEXT");
+      if (!db.all<{ name: string }>("PRAGMA table_info(agents)").some((c) => c.name === "allowed_knowledge_page_ids"))
+        db.exec("ALTER TABLE agents ADD COLUMN allowed_knowledge_page_ids TEXT");
       return false;
     }
     if (version !== 0) throw new Error(refusal(version));

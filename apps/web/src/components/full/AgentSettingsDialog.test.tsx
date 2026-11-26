@@ -4,7 +4,16 @@ import type { Api } from "../../api/client.ts";
 import { agent } from "../../test/fixtures.ts";
 import { AgentSettingsDialog } from "./AgentSettingsDialog.tsx";
 
-function setup(allowedConnectorIds: string[] | null = null, fail = false, wide = true) {
+function setup(
+  allowedConnectorIds: string[] | null = null,
+  fail = false,
+  wide = true,
+  allowedKnowledgePageIds: string[] | null = null,
+  knowledgePages: { id: string; parentId: string | null; title: string }[] = [
+    { id: "pg_root", parentId: null, title: "Projects" },
+    { id: "pg_child", parentId: "pg_root", title: "Rei" },
+  ],
+) {
   const updateAgent = vi.fn().mockResolvedValue({});
   const getConnectors = fail
     ? vi.fn().mockRejectedValue(new Error("offline"))
@@ -14,11 +23,24 @@ function setup(allowedConnectorIds: string[] | null = null, fail = false, wide =
           { id: "calendar", name: "Calendar", status: "needs_auth" },
         ],
       });
+  const knowledgeTree = vi.fn().mockResolvedValue({
+    pages: knowledgePages.map((p) => ({
+      ...p,
+      description: "",
+      activityAt: 1000,
+      updatedAt: 1000,
+      updatedBy: { kind: "user", id: null, name: "You" },
+      locked: false,
+      pinned: false,
+      inbox: false,
+      childCount: knowledgePages.filter((c) => c.parentId === p.id).length,
+    })),
+  });
   render(
     <AgentSettingsDialog
-      agent={agent({ allowedConnectorIds })}
+      agent={agent({ allowedConnectorIds, allowedKnowledgePageIds })}
       wide={wide}
-      api={{ updateAgent, getConnectors } as unknown as Api}
+      api={{ updateAgent, getConnectors, knowledgeTree } as unknown as Api}
       onClose={() => {}}
       onChangeLook={() => {}}
     />,
@@ -133,4 +155,35 @@ it("restores all connectors and preserves an existing list on load failure", asy
   fireEvent.change(screen.getByLabelText("Usable connectors"), { target: { value: "all" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(update).toHaveBeenCalledWith(expect.any(String), { allowedConnectorIds: null }));
+});
+
+it("scopes Knowledge to selected folders, hides scope when Knowledge is off, and restores All Knowledge", async () => {
+  const update = setup();
+  goSection("Context & data");
+  expect(screen.getByLabelText("Knowledge scope")).toBeTruthy();
+
+  // Switch Knowledge to off -> scope control disappears.
+  fireEvent.change(screen.getByLabelText("Knowledge"), { target: { value: "off" } });
+  expect(screen.queryByLabelText("Knowledge scope")).toBeNull();
+
+  // Switch Knowledge back to read -> scope control reappears, select folder tree.
+  fireEvent.change(screen.getByLabelText("Knowledge"), { target: { value: "read" } });
+  fireEvent.change(screen.getByLabelText("Knowledge scope"), { target: { value: "selected" } });
+  const projectsCheckbox = await screen.findByRole("checkbox", { name: "Projects" });
+  fireEvent.click(projectsCheckbox);
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith(expect.any(String), {
+      allowedKnowledgePageIds: ["pg_root"],
+      capabilities: { knowledge: "read" },
+    }),
+  );
+
+  // Resetting an existing scoped agent back to All Knowledge sends null.
+  const updateReset = setup(null, false, true, ["pg_root"]);
+  goSection("Context & data");
+  expect((screen.getAllByLabelText("Knowledge scope").at(-1) as HTMLSelectElement).value).toBe("selected");
+  fireEvent.change(screen.getAllByLabelText("Knowledge scope").at(-1)!, { target: { value: "all" } });
+  fireEvent.click(screen.getAllByRole("button", { name: "Save" }).at(-1)!);
+  await waitFor(() => expect(updateReset).toHaveBeenCalledWith(expect.any(String), { allowedKnowledgePageIds: null }));
 });

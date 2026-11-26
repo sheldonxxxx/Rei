@@ -349,4 +349,25 @@ describe("composer agent capabilities", () => {
     fireEvent.change(fileInput, { target: { files: [txt] } });
     expect(api.uploadAttachment).toHaveBeenCalledWith("current", txt);
   });
+
+  it("restricts @page mentions to allowed Knowledge folders and their descendants", async () => {
+    const api = mockApi({
+      knowledgeTree: vi.fn().mockResolvedValue({
+        pages: [
+          { id: "p_root", parentId: null, title: "AlphaFolder", description: "Allowed root" },
+          { id: "p_child", parentId: "p_root", title: "BetaSpec", description: "In scope" },
+          { id: "p_other", parentId: null, title: "SecretPersonal", description: "Out of scope" },
+        ],
+      }),
+    });
+    setup({
+      api,
+      sessionId: "current",
+      allowedKnowledgePageIds: ["p_root"],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add attachments and context" }));
+    expect(await screen.findByRole("option", { name: /BetaSpec/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /AlphaFolder/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /SecretPersonal/ })).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import type {
   AgentCapabilitiesPatch,
   AgentInstructionsResponse,
   Connector,
+  KnowledgeTreeNode,
   ModelsResponse,
   ReadWriteAccess,
   ScopeAccess,
@@ -19,7 +20,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from "@rei/protocol";
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
 import { Checkbox } from "@/components/primitives/checkbox.tsx";
 import {
@@ -43,6 +44,7 @@ import { useMediaQuery } from "../../lib/route.ts";
 import { Avatar } from "../Avatar.tsx";
 import { DialogError } from "../dialogParts.tsx";
 import { Icon, type IconName } from "../Icon.tsx";
+import { indexKnowledgeTree, KnowledgeFolderTree } from "../KnowledgeFolderTree.tsx";
 import { PageShell } from "../PageShell.tsx";
 import { Tip } from "../Tip.tsx";
 
@@ -226,6 +228,12 @@ export function AgentSettingsDialog({ agent, mode = "agent", wide, api, onClose,
   const [allowedConnectorIds, setAllowedConnectorIds] = useState<string[] | null>(agent.allowedConnectorIds ?? null);
   const [connectors, setConnectors] = useState<Connector[] | null>(null);
   const [connectorsFailed, setConnectorsFailed] = useState(false);
+  const knowledgeScopeId = useId();
+  const [allowedKnowledgePageIds, setAllowedKnowledgePageIds] = useState<string[] | null>(
+    agent.allowedKnowledgePageIds ?? null,
+  );
+  const [knowledgeTreeNodes, setKnowledgeTreeNodes] = useState<KnowledgeTreeNode[] | null>(null);
+  const [knowledgeTreeError, setKnowledgeTreeError] = useState("");
   const nameId = useId();
   const modelId = useId();
   const effortId = useId();
@@ -311,6 +319,27 @@ export function AgentSettingsDialog({ agent, mode = "agent", wide, api, onClose,
     };
   }, [api, mode]);
 
+  useEffect(() => {
+    if (mode !== "agent" || capabilities.knowledge === "off" || allowedKnowledgePageIds === null) return;
+    if (knowledgeTreeNodes !== null || !api.knowledgeTree) return;
+    let cancelled = false;
+    api.knowledgeTree().then(
+      (res) => {
+        if (cancelled) return;
+        setKnowledgeTreeNodes(res.pages);
+        setKnowledgeTreeError("");
+      },
+      (e) => {
+        if (!cancelled) setKnowledgeTreeError(describeError(e));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [api, mode, capabilities.knowledge, allowedKnowledgePageIds, knowledgeTreeNodes]);
+
+  const knowledgeTree = useMemo(() => indexKnowledgeTree(knowledgeTreeNodes ?? []), [knowledgeTreeNodes]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: Reset scroll position when switching sections.
   useLayoutEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
@@ -326,6 +355,12 @@ export function AgentSettingsDialog({ agent, mode = "agent", wide, api, onClose,
       JSON.stringify(agent.allowedConnectorIds?.toSorted() ?? null)
   )
     patch.allowedConnectorIds = allowedConnectorIds;
+  if (
+    mode === "agent" &&
+    JSON.stringify(allowedKnowledgePageIds?.toSorted() ?? null) !==
+      JSON.stringify(agent.allowedKnowledgePageIds?.toSorted() ?? null)
+  )
+    patch.allowedKnowledgePageIds = allowedKnowledgePageIds;
   if (mode === "agent" && networkMode !== agent.networkMode) patch.networkMode = networkMode;
   if (mode === "agent") {
     const capPatch: AgentCapabilitiesPatch = {};
@@ -667,6 +702,37 @@ export function AgentSettingsDialog({ agent, mode = "agent", wide, api, onClose,
             optionLabel={(v) => READ_WRITE_LABEL[v]}
             onChange={(knowledge) => setCapabilities((c) => ({ ...c, knowledge }))}
           />
+          {capabilities.knowledge !== "off" && (
+            <SettingSelectRow
+              id={knowledgeScopeId}
+              label="Knowledge scope"
+              help={
+                allowedKnowledgePageIds === null
+                  ? "Allows all Knowledge pages, including folders created in the future."
+                  : "Restricts Knowledge tools, prompt context, and @page mentions to checked folders and their subpages."
+              }
+              value={allowedKnowledgePageIds === null ? "all" : "selected"}
+              disabled={busy}
+              options={["all", "selected"] as const}
+              optionLabel={(v) => (v === "all" ? "All Knowledge" : "Selected folders")}
+              className="sm:pl-4"
+              onChange={(v) => setAllowedKnowledgePageIds(v === "all" ? null : [])}
+            >
+              {allowedKnowledgePageIds !== null && (
+                <div className="pt-1 pb-5">
+                  <KnowledgeFolderTree
+                    tree={knowledgeTree}
+                    loading={knowledgeTreeNodes === null && !knowledgeTreeError}
+                    treeError={knowledgeTreeError}
+                    selectedIds={allowedKnowledgePageIds}
+                    busy={busy}
+                    emptySelectionNote="No allowed folders selected — this agent cannot access any Knowledge pages."
+                    onChange={setAllowedKnowledgePageIds}
+                  />
+                </div>
+              )}
+            </SettingSelectRow>
+          )}
           <SettingSelectRow
             id={memoryId}
             label="Memory"

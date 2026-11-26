@@ -43,6 +43,8 @@ export interface Agent {
   defaultProfile: ProfileName;
   /** Null or omitted allows all connectors; an empty list disables connector use. */
   allowedConnectorIds?: string[] | null;
+  /** Null or omitted allows all Knowledge; a list limits access to those pages and their live descendants; empty disables pages. */
+  allowedKnowledgePageIds?: string[] | null;
   /** Whether this agent can create, change, pause and delete the triggers of other agents. Defaults to false. */
   canCreateTriggersForOtherAgents?: boolean;
   /** Per-agent capability switches (workspace, web, browser, library, images, knowledge, memory, history, triggers, delegation). */

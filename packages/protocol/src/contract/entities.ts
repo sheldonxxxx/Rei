@@ -116,6 +116,7 @@ export const AgentSchema = named(
     networkMode: oneOf(SANDBOX_NETWORK_MODES),
     defaultProfile: ProfileNameSchema,
     allowedConnectorIds: opt(nullable(arr(str()))),
+    allowedKnowledgePageIds: opt(nullable(arr(str()))),
     canCreateTriggersForOtherAgents: opt(bool()),
     capabilities: opt(AgentCapabilitiesSchema),
     homeSessionId: str({ description: "The agent's pinned home chat." }),

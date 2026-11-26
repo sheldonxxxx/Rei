@@ -494,6 +494,19 @@
             }
           ]
         },
+        "allowedKnowledgePageIds": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "canCreateTriggersForOtherAgents": {
           "type": "boolean"
         },

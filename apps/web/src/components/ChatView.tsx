@@ -1161,6 +1161,7 @@ export function ChatView({
                   agentId={agent?.id}
                   capabilities={agent?.capabilities}
                   allowedConnectorIds={agent?.allowedConnectorIds}
+                  allowedKnowledgePageIds={agent?.allowedKnowledgePageIds}
                   onSend={send}
                   whenBusy={whenBusy}
                   onCompact={compact}
