@@ -8,7 +8,7 @@ Rei can expose selected parts of Knowledge to external MCP clients over Streamab
 2. Create a token with **New token**.
 3. Choose which Knowledge pages (folders) the token may access. Granting a page grants that live page and all of its live child pages.
 4. Enable **Read**, **Write**, or **Delete** as needed.
-5. Copy the generated `rei_kmcp_…` secret from the one-time reveal dialog. Rei stores only its SHA-256 hash and cannot show the secret again (rotate it to issue a replacement).
+5. Copy the generated `rei_kmcp_…` secret from the one-time reveal panel. Rei stores only its SHA-256 hash and cannot show the secret again (rotate it to issue a replacement).
 
 ## Security model
 

@@ -27,6 +27,7 @@ import {
   FileText,
   Flag,
   Folder,
+  FolderOpen,
   GitBranch,
   Globe,
   GripVertical,
@@ -85,6 +86,7 @@ const ICONS = {
   spreadsheet: FileSpreadsheet,
   presentation: Presentation,
   folder: Folder,
+  folderOpen: FolderOpen,
 
   terminal: SquareTerminal,
   compose: SquarePen,
