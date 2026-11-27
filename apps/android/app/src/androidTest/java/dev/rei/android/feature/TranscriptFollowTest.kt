@@ -167,4 +167,26 @@ class TranscriptFollowTest {
         compose.waitForIdle()
         assertEquals(first, compose.runOnIdle { list.layoutInfo.visibleItemsInfo.first().let { it.key to it.offset } })
     }
+
+    @Test
+    fun expandingATraceLetsGoOfTheEndSoItExpandsDownwardAndCollapsingResumes() {
+        show()
+        assertTrue(atEnd())
+        val anchor = position()
+        compose.runOnIdle {
+            follow.onTraceToggle(true)
+            replyHeight += 240
+        }
+        compose.waitForIdle()
+        assertFalse(compose.runOnIdle { follow.following })
+        assertEquals(anchor, position())
+
+        compose.runOnIdle {
+            follow.onTraceToggle(false)
+            replyHeight -= 240
+        }
+        compose.waitForIdle()
+        assertTrue(compose.runOnIdle { follow.following })
+        assertTrue(atEnd())
+    }
 }

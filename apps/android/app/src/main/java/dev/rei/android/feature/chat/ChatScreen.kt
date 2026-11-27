@@ -287,8 +287,8 @@ private fun Conversation(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize().nestedScroll(dismissKeyboardOnDrag),
                                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                                // A chat shorter than the screen sits at the bottom, by the composer.
-                                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
+                                // Top-aligned like web so expanding a trace always opens downward below its summary.
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 items(items, key = { it.key }, contentType = { it::class }) { item ->
                                     TranscriptRow(
@@ -305,6 +305,7 @@ private fun Conversation(
                                         onCopy = ::copy,
                                         onOpenBrowser = onOpenBrowser,
                                         onOpenPage = { opener?.openPage(it) },
+                                        onTraceToggle = follow::onTraceToggle,
                                     )
                                 }
                             }
@@ -546,6 +547,7 @@ private fun TranscriptRow(
     onCopy: (String) -> Unit,
     onOpenBrowser: () -> Unit,
     onOpenPage: (String) -> Unit,
+    onTraceToggle: (Boolean) -> Unit,
 ) {
     val opener = LocalWorkspaceOpener.current
     when (item) {
@@ -582,6 +584,7 @@ private fun TranscriptRow(
             waitingForApproval = state.waitingForAnswer && item.run.live,
             onInspect = { step -> onInspectStep(item.run.runId, step) },
             onOpenPage = onOpenPage,
+            onToggle = onTraceToggle,
         )
         is TranscriptItem.Approval -> item.message.approval?.let { approval ->
             ApprovalCard(approval = approval, onDecide = { approve, length, hours -> chat.decide(approval, approve, length, hours) }, agentName = agentName)

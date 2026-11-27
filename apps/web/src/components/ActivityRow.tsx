@@ -46,7 +46,9 @@ export function ActivityRow({
   /** A row that is shown but has nothing to open yet (a nested call the trace has not recorded). */
   disabled?: boolean | undefined;
   /** For a row that holds others (a script's nested calls): the toggle that shows or hides them. */
-  expand?: { open: boolean; onToggle: () => void; controls: string; label: string } | undefined;
+  expand?:
+    | { open: boolean; onToggle: (trigger?: HTMLElement | null) => void; controls: string; label: string }
+    | undefined;
   /** What sits under the row: its nested calls and approval cards. */
   children?: ReactNode;
 }) {
@@ -68,8 +70,8 @@ export function ActivityRow({
           {count && (
             <span className="activity-calls shrink-0 text-xs tabular-nums text-muted-foreground">· {count}</span>
           )}
-          {step.page && <PageChip page={step.page} link={!onOpen} />}
-          {step.web && <WebChip web={step.web} />}
+          {onOpen && step.page && <PageChip page={step.page} />}
+          {onOpen && step.web && <WebChip web={step.web} />}
         </span>
         {onOpen && (
           <span className="activity-meta mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
@@ -143,7 +145,7 @@ export function ActivityRow({
               aria-label={expand.label}
               aria-expanded={expand.open}
               aria-controls={expand.controls}
-              onClick={expand.onToggle}
+              onClick={(e) => expand.onToggle(e.currentTarget)}
             >
               <Icon name="chevron" size={14} />
             </Button>
@@ -157,28 +159,19 @@ export function ActivityRow({
   );
 }
 
-/** The Knowledge page a step read or wrote. Inside Inspect's row button it is a label, not a link. */
-function PageChip({ page, link }: { page: NonNullable<StepSummary["page"]>; link: boolean }) {
+/** The Knowledge page a step read or wrote, shown in Detail mode. Inside Inspect's row button it is a label, not a link. */
+function PageChip({ page }: { page: NonNullable<StepSummary["page"]> }) {
   const cls =
     "activity-page inline-flex min-w-0 max-w-56 shrink items-center gap-1 rounded-full border px-1.5 text-xs text-foreground no-underline";
-  const body = (
-    <>
+  return (
+    <span className={cls} title={page.trashed ? "In Trash" : undefined}>
       <Icon name="page" size={12} className="shrink-0" />
       <span className={cn("truncate", page.trashed && "line-through")}>{page.title}</span>
-    </>
-  );
-  return link && !page.trashed ? (
-    <a className={cn(cls, "hover:bg-muted")} href={`/knowledge/${encodeURIComponent(page.id)}`}>
-      {body}
-    </a>
-  ) : (
-    <span className={cls} title={page.trashed ? "In Trash" : undefined}>
-      {body}
     </span>
   );
 }
 
-/** The page a web_fetch read: its title and host, in both modes. */
+/** The page a web_fetch read: its title and host, in Detail mode. */
 function WebChip({ web }: { web: NonNullable<StepSummary["web"]> }) {
   return (
     <span

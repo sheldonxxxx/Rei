@@ -1,6 +1,6 @@
 # Tool activity
 
-Simple and Full modes use the same activity group and row components: a short label, static tool icon and status. Rows are open while the run is working and collapse under “Worked for …” when it completes. Failed and blocked calls remain expanded by default; running, stopped, failed and approval states come from recorded execution status. The user can expand or collapse the group at any time, and changing modes preserves that choice.
+Simple and Full modes use the same activity group and row components: a short label, static tool icon and status. Rows are open while the run is working and collapse under “Worked for …” when it completes. Failed and blocked calls remain expanded by default; running, stopped, failed and approval states come from recorded execution status. The user can expand or collapse the group at any time (expanding downward beneath the summary without jumping to the bottom), and changing modes preserves that choice.
 
 The group's heading says how the run ended, with its time: “Worked for 4.0 s”, “Failed after 2 min 34 s”, “Stopped after 5 s”. A failed run the user went on from with Continue reads “Interrupted after 2 min 34 s” instead: the Continue run has its own group and its own result, so the earlier failure is no longer the outcome (the trace marks it `continued`). Both groups sit under the message that was being answered, and Inspect on the reply opens the latest run. Its failed step stays marked when the group opens.
 
@@ -8,7 +8,7 @@ A call that Pi reports as parked (live status `sleeping` or `waiting`) reads “
 
 In Simple mode, a working run shows only its latest five rows. Expanding the group by hand while it works shows every row, and the group collapses again when the run completes, even if the user had expanded it during the run.
 
-Full mode adds model calls, step counts and side-effect counts. Each row shows its tool/model name, policy decision, tokens and timing as applicable beneath the activity description, and opens Inspect when clicked. Inspect uses the same row descriptions, icons and status styling, and the same description as the tool detail title. Simple mode shows only tool activity. Execution payloads load only when Inspect opens a step.
+Full mode adds model calls, step counts, side-effect counts, and Knowledge page and web source chips. Each row shows its tool/model name, policy decision, tokens and timing as applicable beneath the activity description, and opens Inspect when clicked. Inspect uses the same row descriptions, icons and status styling, and the same description as the tool detail title. Simple mode shows only quiet one-line tool activity without badges. Execution payloads load only when Inspect opens a step.
 
 Every policy-managed tool accepts an optional top-level `_activity` string. The `tool_activity` prompt section asks the model for a few words in the user's language describing the call, without secrets or claims of success. Labels are normalized to one line, limited to 120 characters and rendered as plain text. Calls without a label, including historical calls, fall back to the existing policy summary or tool name.
 
