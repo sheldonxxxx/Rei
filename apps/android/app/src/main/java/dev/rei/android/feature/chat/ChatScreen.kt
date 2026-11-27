@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -119,7 +120,6 @@ import dev.rei.android.ui.theme.MotionRegion
 import dev.rei.android.ui.theme.ReiShapes
 import dev.rei.android.ui.theme.ReiTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 /** The transcript's reading column on wide screens; matches the web's. */
@@ -173,11 +173,9 @@ private fun Conversation(
     LaunchedEffect(active) { chat.setVisible(active) }
     DisposableEffect(Unit) { onDispose { chat.setVisible(false) } }
 
-    val items = remember(state.messages, state.runs, state.detail?.generation, state.pending, state.busy) {
-        buildTranscript(state.messages, state.runs, state.detail?.generation, state.pending, state.busy)
+    val items = remember(state.messages, state.runs, state.pending, state.busy) {
+        buildTranscript(state.messages, state.runs, state.pending, state.busy)
     }
-    // The list is reversed (index 0 is the newest), so it opens at the bottom and older pages never move what you read.
-    val display = remember(items) { items.asReversed() }
     val outcomes = remember(state.messages) { state.messages.mapNotNull { it.approval }.associate { it.id to it.status } }
 
     // ---- sheets and dialogs --------------------------------------------------------------------------------------
@@ -196,36 +194,44 @@ private fun Conversation(
     var confirmFork by remember { mutableStateOf<Message?>(null) }
 
     // ---- scrolling -----------------------------------------------------------------------------------------------
-    val atBottom by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= 48 } }
-    var pinned by remember { mutableStateOf(true) }
+    val follow = rememberTranscriptFollow(listState, items.size)
+    val atEnd by remember { derivedStateOf { listState.layoutInfo.isAtEnd() } }
+    // While following, the end counts as on screen even in the frame before the list has caught up with new text.
+    val seesLatest = follow.following || atEnd
     var newBelow by remember { mutableStateOf(false) }
-    val scrolled by remember { derivedStateOf { listState.canScrollForward } }
+    val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
     val current by rememberUpdatedState(state)
-    val currentDisplay by rememberUpdatedState(display)
+    val currentItems by rememberUpdatedState(items)
 
-    // "Pinned" is decided when you stop scrolling, so content arriving under you never flips it by itself.
-    LaunchedEffect(listState) { snapshotFlow { listState.isScrollInProgress }.filter { !it }.collect { pinned = atBottom } }
-    LaunchedEffect(atBottom) {
-        chat.setAtBottom(atBottom)
-        if (atBottom) newBelow = false
-    }
     val latest = items.lastOrNull()
+    val latestReply = (latest as? TranscriptItem.Reply)?.message
     val latestStepCount = (latest as? TranscriptItem.Activity)?.run?.steps?.size ?: 0
-    val streamingChars = state.detail?.generation?.length ?: 0
-    LaunchedEffect(latest?.key, latestStepCount, streamingChars) {
-        val last = latest ?: return@LaunchedEffect
-        val mine = last is TranscriptItem.Pending || last is TranscriptItem.User
-        if (pinned || mine) {
-            if (streamingChars > 0 || motionScale == 0f) listState.scrollToItem(0)
-            else listState.animateScrollToItem(0)
-            pinned = true
-        } else {
-            newBelow = true
+    // New rows glide into view; a reply being written keeps up without animation.
+    val glide by rememberUpdatedState(motionScale != 0f && latestReply?.status != "streaming")
+    LaunchedEffect(follow) { follow.follow { glide } }
+    LaunchedEffect(seesLatest) {
+        chat.setAtBottom(seesLatest)
+        if (seesLatest) newBelow = false
+    }
+    LaunchedEffect(latest?.key, latestStepCount, latestReply?.text?.length) {
+        if (latest != null && !follow.following) newBelow = true
+    }
+    // A message of yours arriving at the end takes you there. The id is the same while sending and once sent.
+    val mine = when (latest) {
+        is TranscriptItem.Pending -> latest.send.requestId
+        is TranscriptItem.User -> latest.message.requestId ?: latest.message.id
+        else -> null
+    }
+    var seenMine by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(mine) {
+        if (mine != null && mine != seenMine) {
+            seenMine = mine
+            follow.resume()
         }
     }
     LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.let { it.visibleItemsInfo.lastOrNull()?.index to it.totalItemsCount } }.collect { (last, total) ->
-            if (last != null && total > 0 && last >= total - 3) {
+        snapshotFlow { listState.layoutInfo.let { it.visibleItemsInfo.firstOrNull()?.index to it.totalItemsCount } }.collect { (first, total) ->
+            if (first != null && total > 0 && first <= 2) {
                 if (current.olderAvailable) chat.loadOlder() else if (current.traceOlder != null) chat.loadOlderActivity()
             }
         }
@@ -233,9 +239,9 @@ private fun Conversation(
     LaunchedEffect(state.older.size) { if (state.older.isNotEmpty() && current.traceOlder != null) chat.loadOlderActivity() }
     LaunchedEffect(state.focus) {
         val target = state.focus ?: return@LaunchedEffect
-        val index = currentDisplay.indexOfFirst { it.key == target }
+        val index = currentItems.indexOfFirst { it.key == target }
         if (index >= 0) {
-            listState.scrollToItem(index, -(listState.layoutInfo.viewportSize.height / 3))
+            follow.show(index, -(listState.layoutInfo.viewportSize.height / 3))
             delay(1600)
         }
         chat.consumeFocus(target)
@@ -278,12 +284,12 @@ private fun Conversation(
                         CompositionLocalProvider(LocalPictureOpener provides { image = it }) {
                             LazyColumn(
                                 state = listState,
-                                reverseLayout = true,
                                 modifier = Modifier.fillMaxSize().nestedScroll(dismissKeyboardOnDrag),
                                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                // A chat shorter than the screen sits at the bottom, by the composer.
+                                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom),
                             ) {
-                                items(display, key = { it.key }, contentType = { it::class }) { item ->
+                                items(items, key = { it.key }, contentType = { it::class }) { item ->
                                     TranscriptRow(
                                         item = item,
                                         state = state,
@@ -300,11 +306,6 @@ private fun Conversation(
                                         onOpenPage = { opener?.openPage(it) },
                                     )
                                 }
-                                if (state.loadingOlder) item(key = "older") {
-                                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    }
-                                }
                             }
                         }
                     }
@@ -312,7 +313,7 @@ private fun Conversation(
                         !state.ready && state.streamError == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(28.dp))
                         }
-                        state.ready && display.isEmpty() -> EmptyChat(state)
+                        state.ready && items.isEmpty() -> EmptyChat(state)
                     }
                     Column(Modifier.align(Alignment.TopCenter).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (state.reconnecting) {
@@ -329,15 +330,18 @@ private fun Conversation(
                                 onAction = chat::retryStream,
                             )
                         }
+                        // Over the list, not in it: a row that comes and goes at the top would move what you are reading.
+                        if (state.loadingOlder) {
+                            CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally).size(20.dp), strokeWidth = 2.dp)
+                        }
                     }
                     val scope = rememberCoroutineScope()
-                    if (!atBottom) {
+                    if (!seesLatest) {
                         JumpToLatest(
                             newContent = newBelow,
                             onClick = {
-                                pinned = true
                                 newBelow = false
-                                scope.launch { listState.animateScrollToItem(0) }
+                                scope.launch { follow.jumpToEnd(animate = motionScale != 0f) }
                             },
                             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
                         )
@@ -553,6 +557,7 @@ private fun TranscriptRow(
         )
         is TranscriptItem.Reply -> {
             val message = item.message
+            val streaming = message.status == "streaming"
             AssistantBubble(
                 message = message,
                 text = message.text,
@@ -561,7 +566,8 @@ private fun TranscriptRow(
                 agentName = agentName,
                 onLongPress = { onLongPress(message) },
                 highlighted = state.focus == message.id,
-                actions = if (message.status == "failed") null else ReplyActions(
+                streaming = streaming,
+                actions = if (streaming || message.status == "failed") null else ReplyActions(
                     onCopy = { onCopy(message.text) },
                     onInspect = message.runId?.let { run -> { onInspectRun(run) } },
                 ),
@@ -589,15 +595,6 @@ private fun TranscriptRow(
             error = item.send.error?.asString(),
             onRetry = chat::retrySend,
             onDiscard = chat::discardPending,
-        )
-        is TranscriptItem.Streaming -> AssistantBubble(
-            message = null,
-            text = item.text,
-            api = api,
-            sessionId = sessionId,
-            agentName = agentName,
-            onLongPress = {},
-            streaming = true,
         )
         TranscriptItem.Thinking -> ThinkingLine(agentName)
     }

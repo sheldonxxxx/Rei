@@ -104,7 +104,7 @@ class ReiApiTest {
     fun gapReconnectsForSnapshotAndRemovedStopsStream() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(sse(
-                snapshot("one", 0) + event("patch", """{"epoch":"one","rev":1,"live":{"runId":"r1","generation":{"text":"Partial"}}}""") +
+                snapshot("one", 0) + event("patch", """{"epoch":"one","rev":1,"live":{"runId":"r1"}}""") +
                     event("patch", """{"epoch":"one","rev":3,"live":{"runId":null}}"""),
             ))
             server.enqueue(sse(snapshot("two", 0) + event("session.removed", """{"sessionId":"s1"}""")))
@@ -112,7 +112,7 @@ class ReiApiTest {
                 ReiApi(server.url("/").toString(), "token").stream("s1").toList()
             }
             assertEquals(4, events.size)
-            assertEquals("Partial", (events[1] as SessionEvent.Updated).detail.generation)
+            assertTrue((events[1] as SessionEvent.Updated).detail.busy)
             assertFalse((events[2] as SessionEvent.Updated).detail.busy)
             assertEquals(SessionEvent.Removed, events.last())
             repeat(2) {
