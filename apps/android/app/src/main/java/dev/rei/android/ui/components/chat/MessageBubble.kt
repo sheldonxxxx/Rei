@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import dev.rei.android.R
 import dev.rei.android.data.AttachmentRef
 import dev.rei.android.data.Message
+import dev.rei.android.data.ReplyError
 import dev.rei.android.data.MessagePart
 import dev.rei.android.data.ReiApi
 import dev.rei.android.ui.components.ReiIconButton
@@ -170,13 +172,12 @@ fun AssistantBubble(
     streaming: Boolean = false,
     highlighted: Boolean = false,
     actions: ReplyActions? = null,
-    onContinue: (() -> Unit)? = null,
     showDetails: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val flash = rememberFlash(highlighted)
     val colors = MaterialTheme.colorScheme
-    val failed = message?.status == "failed"
+    val failed = message?.status == "error"
     val parts = message?.parts.orEmpty()
     val hasContent = text.isNotBlank() || parts.isNotEmpty()
     val optionsLabel = stringResource(R.string.chat_msg_options)
@@ -223,18 +224,31 @@ fun AssistantBubble(
         }
         if (failed) {
             StatusBanner(
-                message?.error ?: stringResource(R.string.chat_msg_reply_failed),
+                replyErrorText(message?.error),
                 Modifier.padding(top = 4.dp).widthIn(max = 640.dp),
                 kind = StatusKind.Error,
-                actionLabel = if (onContinue != null) stringResource(R.string.chat_msg_continue) else null,
-                onAction = onContinue,
             )
-        } else if (message?.status == "cancelled") {
+        } else if (message?.status == "aborted") {
             Text(stringResource(R.string.chat_msg_stopped), Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         if (actions != null && hasContent && !streaming) ReplyActionRow(actions)
     }
 }
+
+/** The way on after a failed run. [error] is null when the reply above already says why it failed. */
+@Composable
+fun ContinueRun(error: ReplyError?, onContinue: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (error != null) StatusBanner(replyErrorText(error), Modifier.widthIn(max = 640.dp), kind = StatusKind.Error)
+        FilledTonalButton(onClick = onContinue, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.chat_msg_continue)) }
+    }
+}
+
+/** The server's sentence, except where the app has its own wording for a stable code (as on web). */
+@Composable
+private fun replyErrorText(error: ReplyError?): String =
+    if (error?.code == "loop_guard") stringResource(R.string.chat_msg_loop_guard)
+    else error?.message?.takeIf(String::isNotBlank) ?: stringResource(R.string.chat_msg_reply_failed)
 
 @Composable
 private fun ReplyActionRow(actions: ReplyActions) {

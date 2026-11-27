@@ -153,6 +153,25 @@ class ReiApiTest {
         }
     }
 
+    @Test
+    fun aFailedReplyAndAResumableRunAreReadFromTheStream() {
+        val stream = ConversationStream()
+        val failed = """{"id":"a1","role":"assistant","text":"","status":"error","runId":"r1","createdAt":1,"error":{"code":"faulted","message":"It stopped."}}"""
+        fun failure(canContinue: Boolean) =
+            """{"runId":null,"runFailure":{"runId":"r1","reason":"faulted","error":{"code":"faulted","message":"It stopped."},"canContinue":$canContinue}}"""
+        fun detail(type: String, frame: String) = (stream.apply(type, Json.parseToJsonElement(frame).jsonObject) as SessionEvent.Updated).detail
+
+        val first = detail("snapshot", """{"epoch":"e","rev":0,"view":{"version":2,"session":$SessionJson,"items":[$failed],"runs":[],"live":${failure(true)}}}""")
+        val error = ReplyError("faulted", "It stopped.")
+        assertEquals(error, first.messages.single().error)
+        assertEquals(RunFailure("r1", error), first.failure)
+
+        // Not offered while another run works, when the server says it cannot resume, or once the failure is gone.
+        assertNull(detail("patch", """{"epoch":"e","rev":1,"runs":[{"status":"running"}]}""").failure)
+        assertNull(detail("patch", """{"epoch":"e","rev":2,"runs":[],"live":${failure(false)}}""").failure)
+        assertNull(detail("patch", """{"epoch":"e","rev":3,"live":{"runId":null}}""").failure)
+    }
+
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
 
     private fun sse(body: String) = MockResponse().setHeader("Content-Type", "text/event-stream").setBody(body)

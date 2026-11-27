@@ -59,12 +59,18 @@ data class Message(
     val runId: String? = null,
     /** Which version of an edited user message this is (1-based), when it has more than one. */
     val versions: MessageVersions? = null,
-    /** The plain-language reason a reply failed, from the server. */
-    val error: String? = null,
+    /** Why a reply failed, from the server. */
+    val error: ReplyError? = null,
     /** An internal message the chat never shows. */
     val internal: Boolean = false,
     val takeover: TakeoverInfo? = null,
 )
+
+/** A failure as the server words it: [message] is plain language, [code] is stable. */
+data class ReplyError(val code: String?, val message: String)
+
+/** The last run failed and the chat can be continued from where it stopped. [runId] names the run, when known. */
+data class RunFailure(val runId: String?, val error: ReplyError)
 
 data class MessageVersions(val index: Int, val count: Int)
 
@@ -140,6 +146,8 @@ data class SessionDetail(
     val messages: List<Message>,
     val before: String?,
     val busy: Boolean,
+    /** Set while there is a failed run to continue. */
+    val failure: RunFailure? = null,
 )
 
 sealed interface SessionEvent {
@@ -229,12 +237,14 @@ internal fun JsonObject.message() = Message(
         val count = v["count"]?.jsonPrimitive?.int ?: 0
         if (count > 1) MessageVersions(v["index"]?.jsonPrimitive?.int ?: 1, count) else null
     },
-    error = (get("error") as? JsonObject)?.optionalString("message"),
+    error = (get("error") as? JsonObject)?.replyError(),
     internal = this["internal"]?.jsonPrimitive?.boolean == true,
     takeover = (get("takeover") as? JsonObject)?.let { t ->
         TakeoverInfo(t.string("id"), t.string("status"), t.optionalString("reason"), t.optionalString("title"), t.optionalString("url"))
     },
 )
+
+internal fun JsonObject.replyError() = ReplyError(optionalString("code"), optionalString("message").orEmpty())
 
 internal fun JsonObject.authState() = AuthState(
     setupRequired = getValue("setupRequired").jsonPrimitive.boolean,
