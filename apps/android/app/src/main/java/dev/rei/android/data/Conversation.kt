@@ -4,13 +4,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 
-private data class LiveState(val runId: String?, val generation: String?)
-
-private fun JsonObject.liveState() = LiveState(
-    runId = optionalString("runId"),
-    generation = (get("generation") as? JsonObject)?.optionalString("text"),
-)
-
 internal data class Conversation(
     val session: Session,
     val items: List<Message>,
@@ -19,14 +12,12 @@ internal data class Conversation(
     private val live: JsonObject?,
 ) {
     fun detail(): SessionDetail {
-        val state = live?.liveState()
         return SessionDetail(
             session,
             items,
             before,
-            busy = state?.runId != null || runs.any { it == "running" || it == "queued" } ||
+            busy = live?.optionalString("runId") != null || runs.any { it == "running" || it == "queued" } ||
                 (runs.isEmpty() && session.status == "running"),
-            generation = state?.generation,
         )
     }
 

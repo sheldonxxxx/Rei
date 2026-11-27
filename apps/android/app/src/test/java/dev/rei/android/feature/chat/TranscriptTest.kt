@@ -31,57 +31,64 @@ class TranscriptTest {
 
     @Test
     fun activityFollowsItsTriggerAndPrecedesTheReply() {
-        val items = buildTranscript(listOf(user("u1"), reply("a1", "r1")), listOf(run("r1", "u1")), null, null, false)
+        val items = buildTranscript(listOf(user("u1"), reply("a1", "r1")), listOf(run("r1", "u1")), null, false)
         assertEquals(listOf("u1", "run:r1", "a1"), keys(items))
     }
 
     @Test
     fun anApprovalIsLiftedToJustBeforeItsRunsReply() {
         val messages = listOf(user("u1"), approval("p1", "r1"), reply("a1", "r1"))
-        val items = buildTranscript(messages, emptyList(), null, null, false)
+        val items = buildTranscript(messages, emptyList(), null, false)
         assertEquals(listOf("u1", "p1", "a1"), keys(items))
 
         // Decided after later chatter, it still sits right above its reply.
         val later = listOf(user("u1"), approval("p1", "r1"), Message("n", "compaction", "", "done"), reply("a1", "r1"))
-        assertEquals(listOf("u1", "notice:n", "p1", "a1"), keys(buildTranscript(later, emptyList(), null, null, false)))
+        assertEquals(listOf("u1", "notice:n", "p1", "a1"), keys(buildTranscript(later, emptyList(), null, false)))
     }
 
     @Test
     fun theLastReplyIsMarkedForRetryAndKnowsItsMessage() {
-        val items = buildTranscript(listOf(user("u1"), reply("a1"), user("u2"), reply("a2")), emptyList(), null, null, false)
+        val items = buildTranscript(listOf(user("u1"), reply("a1"), user("u2"), reply("a2")), emptyList(), null, false)
         val replies = items.filterIsInstance<TranscriptItem.Reply>()
         assertEquals(listOf(false, true), replies.map { it.isLast })
         assertEquals("u2", replies.last().retryOf?.id)
     }
 
     @Test
-    fun streamingTextComesLastAndThinkingOnlyWhenNothingElseShows() {
-        val withStream = buildTranscript(listOf(user("u1")), emptyList(), "partial", null, true)
-        assertTrue(withStream.last() is TranscriptItem.Streaming)
-        val thinking = buildTranscript(listOf(user("u1")), emptyList(), null, null, true)
+    fun theReplyBeingWrittenIsDrawnOnce() {
+        val messages = listOf(user("u1"), reply("a1", "r1", text = "partial", status = "streaming"))
+        val items = buildTranscript(messages, listOf(run("r1", "u1", "running")), null, true)
+        assertEquals(listOf("u1", "run:r1", "a1"), keys(items))
+    }
+
+    @Test
+    fun thinkingShowsUntilTheReplyHasSomethingToSay() {
+        val empty = buildTranscript(listOf(user("u1"), reply("a1", "r1", text = "", status = "streaming")), emptyList(), null, true)
+        assertEquals(listOf("u1", "thinking"), keys(empty))
+        val thinking = buildTranscript(listOf(user("u1")), emptyList(), null, true)
         assertTrue(thinking.last() is TranscriptItem.Thinking)
-        val idle = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), null, null, false)
+        val idle = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), null, false)
         assertTrue(idle.last() is TranscriptItem.Reply)
     }
 
     @Test
     fun thinkingNeverShowsWhileAnApprovalWaits() {
         // The approval is last: nothing is thinking, the run waits for the owner.
-        val atEnd = buildTranscript(listOf(user("u1"), approval("p1", "r1")), emptyList(), null, null, true)
+        val atEnd = buildTranscript(listOf(user("u1"), approval("p1", "r1")), emptyList(), null, true)
         assertTrue(atEnd.none { it is TranscriptItem.Thinking })
         // An older approval is still pending when another message is sent after it.
-        val older = buildTranscript(listOf(user("u1"), approval("p1", "r1"), user("u2")), emptyList(), null, null, true)
+        val older = buildTranscript(listOf(user("u1"), approval("p1", "r1"), user("u2")), emptyList(), null, true)
         assertTrue(older.none { it is TranscriptItem.Thinking })
         // Once it is decided, the run is thinking again.
         val decided = Message("p1", "system", "", "done", runId = "r1", approval = approval("p1", "r1").approval!!.copy(status = "approved"))
-        val after = buildTranscript(listOf(user("u1"), decided), emptyList(), null, null, true)
+        val after = buildTranscript(listOf(user("u1"), decided), emptyList(), null, true)
         assertTrue(after.last() is TranscriptItem.Thinking)
     }
 
     @Test
     fun anUnsentMessageShowsAfterTheTranscriptWithoutThinking() {
         val send = PendingSend("req", "later")
-        val items = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), null, send, true)
+        val items = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), send, true)
         assertEquals("pending:req", items.last().key)
         assertEquals(1, items.count { it is TranscriptItem.Pending })
         assertTrue(items.none { it is TranscriptItem.Thinking })
@@ -89,21 +96,21 @@ class TranscriptTest {
 
     @Test
     fun aLiveRunWhoseMessageIsOffScreenStillShowsItsActivity() {
-        val items = buildTranscript(listOf(reply("a0")), listOf(run("r9", "gone", "running")), null, null, true)
+        val items = buildTranscript(listOf(reply("a0")), listOf(run("r9", "gone", "running")), null, true)
         assertTrue(items.any { it.key == "run:r9" })
     }
 
     @Test
     fun blankRepliesAndFailuresAreShownOnlyWhenThereIsSomethingToSay() {
-        val items = buildTranscript(listOf(user("u1"), reply("empty", text = ""), reply("bad", text = "", status = "failed")), emptyList(), null, null, false)
+        val items = buildTranscript(listOf(user("u1"), reply("empty", text = ""), reply("bad", text = "", status = "failed")), emptyList(), null, false)
         assertEquals(listOf("u1", "bad"), keys(items))
     }
 
     @Test
     fun keysStayStableWhenAReplyArrives() {
-        val before = buildTranscript(listOf(user("u1")), emptyList(), "part", null, true)
-        val after = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), null, null, false)
-        assertEquals("u1", before.first().key)
-        assertEquals("u1", after.first().key)
+        val before = buildTranscript(listOf(user("u1"), reply("a1", text = "part", status = "streaming")), emptyList(), null, true)
+        val after = buildTranscript(listOf(user("u1"), reply("a1")), emptyList(), null, false)
+        assertEquals(listOf("u1", "a1"), keys(before))
+        assertEquals(keys(before), keys(after))
     }
 }

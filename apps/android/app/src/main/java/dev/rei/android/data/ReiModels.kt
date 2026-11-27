@@ -140,7 +140,6 @@ data class SessionDetail(
     val messages: List<Message>,
     val before: String?,
     val busy: Boolean,
-    val generation: String? = null,
 )
 
 sealed interface SessionEvent {

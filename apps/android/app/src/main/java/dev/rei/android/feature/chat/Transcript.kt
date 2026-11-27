@@ -38,11 +38,6 @@ sealed interface TranscriptItem {
         override val key get() = "pending:${send.requestId}"
     }
 
-    /** The reply that is still being written. */
-    data class Streaming(val text: String) : TranscriptItem {
-        override val key get() = "streaming"
-    }
-
     /** A run is working and nothing has appeared yet. */
     data object Thinking : TranscriptItem {
         override val key get() = "thinking"
@@ -50,17 +45,17 @@ sealed interface TranscriptItem {
 }
 
 /**
- * Turns the chat's messages, the runs' traces and the live reply into the items the transcript draws, oldest first.
+ * Turns the chat's messages and the runs' traces into the items the transcript draws, oldest first.
  *
  * - A run's activity row sits right after the message that started it, above the reply.
  * - A run's approval card belongs under its activity and above its reply (you decide before reading an answer that depended
  *   on it), so it is lifted to just before that run's reply, as on web.
- * - Your unsent message and the streaming reply come last.
+ * - The reply being written is the run's own assistant message, with status `streaming`; it is drawn once, in its place.
+ * - Your unsent message comes last.
  */
 fun buildTranscript(
     messages: List<Message>,
     runs: List<RunTrace>,
-    generation: String?,
     pending: PendingSend?,
     busy: Boolean,
 ): List<TranscriptItem> {
@@ -99,13 +94,11 @@ fun buildTranscript(
     if (pending != null) items += TranscriptItem.Pending(pending)
     // Any approval still waiting, wherever it sits (an older one stays pending when you send another message).
     val awaitingApproval = ordered.any { it.approval?.status == "pending" }
-    when {
-        !generation.isNullOrBlank() -> items += TranscriptItem.Streaming(generation)
-        // Not while an approval waits: nothing is "thinking" then, the run is waiting for you.
-        busy && pending == null && !awaitingApproval && items.lastOrNull().let {
+    // Not while an approval waits: nothing is "thinking" then, the run is waiting for you.
+    if (busy && pending == null && !awaitingApproval && items.lastOrNull().let {
             it is TranscriptItem.User || it == null || it is TranscriptItem.Approval
-        } -> items += TranscriptItem.Thinking
-    }
+        }
+    ) items += TranscriptItem.Thinking
     return items
 }
 
