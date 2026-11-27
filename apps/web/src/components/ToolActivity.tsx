@@ -1,5 +1,5 @@
 import type { LiveTool, Message, RunTrace, StepSummary } from "@rei/protocol";
-import { Fragment, type ReactNode, useId, useState } from "react";
+import { Fragment, type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/primitives/button.tsx";
 import type { ApprovalOutcomes, ParkedCalls } from "../lib/activity.ts";
 import { isParkedStep, isScriptStep, isSurfaceStep } from "../lib/activity.ts";
@@ -18,10 +18,29 @@ export interface ScriptCards {
   render: (message: Message) => ReactNode;
 }
 
+/** Keeps a toggle button stationary inside the chat scroller so the trace expands downward below it. */
+function useAnchoredToggle(open: boolean, onToggle?: (open: boolean) => void) {
+  const anchor = useRef<{ el: HTMLElement; top: number; open: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const pending = anchor.current;
+    if (!pending || pending.open !== open) return;
+    anchor.current = null;
+    const scroller = pending.el.closest(".messages");
+    if (!(scroller instanceof HTMLElement)) return;
+    const delta = pending.el.getBoundingClientRect().top - pending.top;
+    if (Math.abs(delta) > 0.5) scroller.scrollTop += delta;
+  }, [open]);
+  return (next: boolean, trigger: HTMLElement | null = null) => {
+    onToggle?.(next);
+    if (trigger) anchor.current = { el: trigger, top: trigger.getBoundingClientRect().top, open: next };
+  };
+}
+
 /** Shared chat activity. Full mode adds model calls, secondary metadata and Inspect to the same rows. */
 export function ToolActivity({
   trace,
   onOpen,
+  onToggle,
   outcomes,
   waitingForApproval = false,
   parked,
@@ -30,6 +49,8 @@ export function ToolActivity({
 }: {
   trace: RunTrace;
   onOpen?: ((runId: string, stepId: string) => void) | undefined;
+  /** Called when the user expands or collapses a trace list by hand. */
+  onToggle?: ((open: boolean) => void) | undefined;
   outcomes?: ApprovalOutcomes | undefined;
   waitingForApproval?: boolean;
   /** Calls of the live run that are parked (waiting for something outside the run). */
@@ -58,6 +79,7 @@ export function ToolActivity({
     if (!live && !onOpen) setExpanded(null);
   }
   const open = expanded ?? live;
+  const anchorToggle = useAnchoredToggle(open, onToggle);
   // Simple mode while working: the latest rows only, until the user expands the group by hand.
   const capped = !onOpen && live && expanded === null;
   const shown = capped ? tree.top.slice(-SIMPLE_LIVE_ROWS) : tree.top;
@@ -100,7 +122,11 @@ export function ToolActivity({
         className="activity-summary -ml-3 tabular-nums text-muted-foreground [&>svg]:-rotate-90 [&[aria-expanded=true]>svg]:rotate-0"
         aria-expanded={open}
         aria-controls={listId}
-        onClick={() => setExpanded(!open)}
+        onClick={(e) => {
+          const next = !open;
+          anchorToggle(next, e.currentTarget);
+          setExpanded(next);
+        }}
       >
         <span>
           {heading}
@@ -138,6 +164,7 @@ export function ToolActivity({
                 waitingForApproval={waitingForApproval}
                 parked={parked}
                 cards={cards}
+                onToggle={onToggle}
                 onOpen={onOpen ? (stepId) => onOpen(trace.run.id, stepId) : undefined}
               />
             ) : (
@@ -185,6 +212,7 @@ function ScriptRow({
   waitingForApproval,
   parked,
   cards,
+  onToggle,
   onOpen,
 }: {
   step: StepSummary;
@@ -194,6 +222,7 @@ function ScriptRow({
   waitingForApproval: boolean;
   parked: ParkedCalls | undefined;
   cards: ScriptCards | undefined;
+  onToggle: ((open: boolean) => void) | undefined;
   /** Inspect one step of this run (Full mode); undefined in Simple mode, where the calls are not shown. */
   onOpen: ((stepId: string) => void) | undefined;
 }) {
@@ -206,6 +235,7 @@ function ScriptRow({
   const [auto, setAuto] = useState(working);
   if (working && !auto) setAuto(true);
   const open = chosen ?? auto;
+  const anchorToggle = useAnchoredToggle(open, onToggle);
   const full = onOpen !== undefined;
   const known = calls.length > 0 || step.status === "ok";
   const wait = scriptWait(step, calls, pending, outcomes, waitingForApproval, parked);
@@ -223,7 +253,11 @@ function ScriptRow({
         full && calls.length > 0
           ? {
               open,
-              onToggle: () => setChosen(!open),
+              onToggle: (trigger) => {
+                const next = !open;
+                anchorToggle(next, trigger ?? null);
+                setChosen(next);
+              },
               controls: listId,
               label: open ? "Hide the script's calls" : "Show the script's calls",
             }

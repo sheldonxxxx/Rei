@@ -76,6 +76,7 @@ fun ToolActivityRow(
     waitingForApproval: Boolean = false,
     onInspect: ((stepId: String) -> Unit)? = null,
     onOpenPage: (pageId: String) -> Unit = {},
+    onToggle: ((open: Boolean) -> Unit)? = null,
 ) {
     val steps = visibleSteps(run, detail)
     if (steps.isEmpty()) return
@@ -106,7 +107,11 @@ fun ToolActivityRow(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .clickable(onClickLabel = clickActionLabel, role = Role.Button) { expanded = !open }
+                .clickable(onClickLabel = clickActionLabel, role = Role.Button) {
+                    val next = !open
+                    expanded = next
+                    onToggle?.invoke(next)
+                }
                 .semantics(mergeDescendants = true) {
                     stateDescription = toggleStateDesc
                     contentDescription = if (waitText != null) "$heading. $waitText" else heading
@@ -176,7 +181,7 @@ fun ToolActivityRow(
     }
 }
 
-/** One step: icon, what it did, its page or site as chips, and in Detail mode its facts and a chevron into Inspect. */
+/** One step: icon, what it did, and in Detail mode its page or site chips, facts and a chevron into Inspect. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ActivityRowItem(
@@ -252,9 +257,9 @@ internal fun ActivityRowItem(
             if (step.status != "ok") Text(status, style = MaterialTheme.typography.labelMedium, color = tone)
             if (onInspect != null) Icon(ReiIcons.Forward, null, Modifier.size(14.dp), tint = colors.onSurfaceVariant)
         }
-        if (step.pageId != null || step.webTitle != null) {
+        if (detail && (step.pageId != null || step.webTitle != null)) {
             FlowRow(
-                Modifier.padding(start = if (detail) 40.dp else 28.dp, end = if (detail) 12.dp else 0.dp, bottom = 4.dp),
+                Modifier.padding(start = 40.dp, end = 12.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

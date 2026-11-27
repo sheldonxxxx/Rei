@@ -164,4 +164,43 @@ describe("ToolActivity", () => {
     rerender(<ToolActivity trace={runTrace({ run: run({ status: "cancelled", endedAt: 5000 }) })} />);
     expect(screen.getByRole("button", { name: "Stopped after 4.0 s" })).toBeTruthy();
   });
+
+  it("hides trace badges in Simple mode, keeps them in Detail mode, and reports manual toggles", () => {
+    const onToggle = vi.fn();
+    const trace = runTrace({
+      steps: [
+        toolStep({
+          id: "s1",
+          toolName: "web_fetch",
+          activity: "Read guide",
+          web: { title: "Kyoto guide", host: "guide.example" },
+          page: { id: "pg1", title: "Notes", trashed: false },
+        }),
+      ],
+    });
+    const { container, rerender } = render(
+      <div className="messages">
+        <ul>
+          <ToolActivity trace={trace} onToggle={onToggle} />
+        </ul>
+      </div>,
+    );
+    const summary = screen.getByRole("button", { name: "Worked for 4.0 s" });
+    fireEvent.click(summary);
+    expect(onToggle).toHaveBeenLastCalledWith(true);
+    expect(container.querySelector(".activity-web")).toBeNull();
+    expect(container.querySelector(".activity-page")).toBeNull();
+
+    rerender(
+      <div className="messages">
+        <ul>
+          <ToolActivity trace={trace} onOpen={vi.fn()} onToggle={onToggle} />
+        </ul>
+      </div>,
+    );
+    expect(container.querySelector(".activity-web")?.textContent).toContain("Kyoto guide");
+    expect(container.querySelector(".activity-page")?.textContent).toBe("Notes");
+    fireEvent.click(summary);
+    expect(onToggle).toHaveBeenLastCalledWith(false);
+  });
 });

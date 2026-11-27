@@ -43,6 +43,7 @@ internal class TranscriptFollow(private val list: LazyListState, following: Bool
         private set
 
     private var opened = false
+    private var resumeAtEnd = false
 
     /** Scrolls of our own that are running; they say nothing about what the reader wants. */
     private var ownScrolls = 0
@@ -56,17 +57,33 @@ internal class TranscriptFollow(private val list: LazyListState, following: Bool
 
     /** Takes the end back; [follow] does the scrolling. */
     fun resume() {
+        resumeAtEnd = false
         following = true
+    }
+
+    /**
+     * Expanding a trace lets go of the end so the steps open downward below the summary instead of pulling it upward;
+     * collapsing it again resumes following if the list lands back at the end without scrolling away.
+     */
+    fun onTraceToggle(open: Boolean) {
+        if (open) {
+            resumeAtEnd = false
+            following = false
+        } else if (!following) {
+            if (!list.canScrollForward) following = true else resumeAtEnd = true
+        }
     }
 
     /** Shows the item at [index], which lets go of the end unless that is where it lands. */
     suspend fun show(index: Int, scrollOffset: Int) {
+        resumeAtEnd = false
         following = false
         own { list.scrollToItem(index, scrollOffset) }
         following = list.layoutInfo.isAtEnd()
     }
 
     suspend fun jumpToEnd(animate: Boolean) = own {
+        resumeAtEnd = false
         following = true
         scrollToEnd(animate)
     }
@@ -88,6 +105,7 @@ internal class TranscriptFollow(private val list: LazyListState, following: Bool
             when {
                 list.isScrollInProgress -> if (ownScrolls == 0) {
                     readerScrolling = true
+                    resumeAtEnd = false
                     following = false
                     // Remembered, because more may arrive between reaching the end and the scroll coming to rest.
                     if (!list.canScrollForward) reachedEnd = true else if (list.lastScrolledBackward) reachedEnd = false
@@ -96,6 +114,10 @@ internal class TranscriptFollow(private val list: LazyListState, following: Bool
                     readerScrolling = false
                     following = reachedEnd || list.layoutInfo.isAtEnd()
                     reachedEnd = false
+                }
+                resumeAtEnd && !list.canScrollForward -> {
+                    resumeAtEnd = false
+                    following = true
                 }
                 following && list.canScrollForward -> own { scrollToEnd(animate = added && animateNewItems()) }
             }

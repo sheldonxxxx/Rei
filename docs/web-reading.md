@@ -70,8 +70,8 @@ Stored copies live in the control plane's SQLite database, never in memory, hist
 
 ## In the app
 
-- **Simple mode:** each `web_fetch` step in the run's activity list shows a chip with the page title and host.
-- **Detail mode:** the step detail adds a **Fetch** section: where the page came from (fetched, fetched again, or the stored copy), how (HTTP or rendered, with the engine, why it rendered or why not, the wait for a slot, render time, connections and refusals, and media not loaded), what the model was shown and which sections, HTTP status, redirects, media type, bytes downloaded, extractor, quality, tokens returned against tokens on the page, and duration. A failed fetch keeps its status and quality.
+- **Simple mode:** each `web_fetch` step in the run's activity list stays a plain one-line activity row without the page badge.
+- **Detail mode:** each `web_fetch` step adds a chip with the page title and host, and the step detail adds a **Fetch** section: where the page came from (fetched, fetched again, or the stored copy), how (HTTP or rendered, with the engine, why it rendered or why not, the wait for a slot, render time, connections and refusals, and media not loaded), what the model was shown and which sections, HTTP status, redirects, media type, bytes downloaded, extractor, quality, tokens returned against tokens on the page, and duration. A failed fetch keeps its status and quality.
 - **Stored copy:** the page icon in the Fetch section opens the readable copy in the inspector (`GET /api/steps/:id/web-document`). It is for people only: it is served while the step's agent still holds the copy, and it never goes to the model. The output above it is exactly what the model saw.
 
 ## Not supported

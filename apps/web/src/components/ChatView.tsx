@@ -149,6 +149,7 @@ export function ChatView({
   const [actionError, setActionError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+  const resumeOnCollapse = useRef(false);
   const [showJump, setShowJump] = useState(false);
   const forceScroll = useRef(false);
   // How many rows the transcript had at the last follow, to tell a new row from a change inside one.
@@ -569,12 +570,33 @@ export function ChatView({
     if (!el) return;
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
     atBottom.current = near;
+    if (!near) resumeOnCollapse.current = false;
     setShowJump(!near);
   };
   const scrollToBottom = () => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   };
+  // Expanding a trace pauses bottom-pinning so the summary stays in place and the steps open downward; collapsing
+  // resumes pinning if the user did not scroll away and the end comes back into view.
+  const onTraceToggle = useCallback((open: boolean) => {
+    const el = scroller.current;
+    if (open) {
+      resumeOnCollapse.current = false;
+      atBottom.current = false;
+      easingUntil.current = 0;
+      return;
+    }
+    if (!atBottom.current && el) {
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+      if (near) {
+        atBottom.current = true;
+        setShowJump(false);
+      } else {
+        resumeOnCollapse.current = true;
+      }
+    }
+  }, []);
 
   // Follow new content only if the user was already at the bottom (or just sent something). Settled content eases into
   // place; text still streaming snaps, because a smooth scroll fighting a stream reads as lag. Opening a chat never
@@ -599,11 +621,13 @@ export function ChatView({
     // Opening lasts until the chat actually has a transcript to follow: an empty first pass must not use it up.
     if (state.ready) opening.current = false;
     forceScroll.current = false;
+    resumeOnCollapse.current = false;
     atBottom.current = true;
   }, [state.messages, state.pending, trace.runs, running]);
 
   useEffect(() => {
     atBottom.current = true;
+    resumeOnCollapse.current = false;
     opening.current = true;
   }, [sessionId]);
 
@@ -617,7 +641,16 @@ export function ChatView({
     if (!el || !list || typeof ResizeObserver === "undefined") return;
     let settle = 0;
     const pin = () => {
-      if (atBottom.current) el.scrollTop = el.scrollHeight;
+      if (atBottom.current) {
+        el.scrollTop = el.scrollHeight;
+        return;
+      }
+      const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_SLACK;
+      setShowJump(!near);
+      if (near && resumeOnCollapse.current) {
+        resumeOnCollapse.current = false;
+        atBottom.current = true;
+      }
     };
     const observer = new ResizeObserver(() => {
       const left = easingUntil.current - performance.now();
@@ -1077,6 +1110,7 @@ export function ChatView({
                                   parked={parked}
                                   liveCalls={liveCalls}
                                   cards={scriptCardList}
+                                  onToggle={onTraceToggle}
                                   onOpen={full ? (runId, stepId) => openInspector(runId, stepId) : undefined}
                                 />
                               ))}
@@ -1133,6 +1167,7 @@ export function ChatView({
                       aria-label="Jump to latest"
                       onClick={() => {
                         scrollToBottom();
+                        resumeOnCollapse.current = false;
                         atBottom.current = true;
                         setShowJump(false);
                       }}

@@ -353,6 +353,41 @@ describe("ChatView: Simple mode stays simple", () => {
     expect(screen.getByRole("button", { name: "Branch in new chat" })).toBeTruthy();
   });
 
+  it("keeps the viewport anchored on the summary when expanding a trace so it expands downward", async () => {
+    let onResize: ResizeObserverCallback | null = null;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          onResize = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const getTrace = vi.fn().mockResolvedValue({ session: session(), runs: [runTrace()], next: null });
+    const { es } = setup({ getTrace });
+    let height = 1000;
+    const log = screen.getByRole("log");
+    Object.defineProperty(log, "clientHeight", { configurable: true, value: 600 });
+    Object.defineProperty(log, "scrollHeight", { configurable: true, get: () => height });
+    open(es, session(), [userMsg(), replyMsg()]);
+    expect(log.scrollTop).toBe(1000);
+
+    const summary = await screen.findByRole("button", { name: "Worked for 4.0 s" });
+    log.scrollTop = 400;
+    fireEvent.click(summary);
+    height = 1220;
+    act(() => onResize?.([], {} as ResizeObserver));
+    expect(log.scrollTop).toBe(400);
+    expect(screen.getByRole("button", { name: "Jump to latest" })).toBeTruthy();
+
+    fireEvent.click(summary);
+    height = 1000;
+    act(() => onResize?.([], {} as ResizeObserver));
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
+  });
+
   it("shows only the latest five steps while the run works, all of them once expanded by hand, and hides the trace when it completes", async () => {
     const steps = Array.from({ length: 7 }, (_, i) => toolStep({ id: `t${i + 1}`, summary: `Step ${i + 1}` }));
     const working = runTrace({ run: run({ status: "running", endedAt: null }), steps: [step(), ...steps] });
