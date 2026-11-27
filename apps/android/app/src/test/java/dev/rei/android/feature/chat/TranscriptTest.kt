@@ -2,6 +2,8 @@ package dev.rei.android.feature.chat
 
 import dev.rei.android.data.Message
 import dev.rei.android.data.ReiApproval
+import dev.rei.android.data.ReplyError
+import dev.rei.android.data.RunFailure
 import dev.rei.android.data.RunTrace
 import dev.rei.android.data.TraceStep
 import org.junit.Assert.assertEquals
@@ -9,12 +11,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TranscriptTest {
-    private fun user(id: String, text: String = "hi") = Message(id, "user", text, "done")
-    private fun reply(id: String, run: String? = null, text: String = "answer", status: String = "done") =
+    private fun user(id: String, text: String = "hi") = Message(id, "user", text, "complete")
+    private fun reply(id: String, run: String? = null, text: String = "answer", status: String = "complete") =
         Message(id, "assistant", text, status, runId = run)
 
     private fun approval(id: String, run: String?) = Message(
-        id, "system", "", "done", runId = run,
+        id, "system", "", "complete", runId = run,
         approval = ReiApproval(
             "ap-$id", 1, "s", "Chat", "tool", "connector", "op", "write", null, "Do it", "{}",
             listOf("once"), "pending", emptyList(), 0, null, null, false, null,
@@ -42,7 +44,7 @@ class TranscriptTest {
         assertEquals(listOf("u1", "p1", "a1"), keys(items))
 
         // Decided after later chatter, it still sits right above its reply.
-        val later = listOf(user("u1"), approval("p1", "r1"), Message("n", "compaction", "", "done"), reply("a1", "r1"))
+        val later = listOf(user("u1"), approval("p1", "r1"), Message("n", "compaction", "", "complete"), reply("a1", "r1"))
         assertEquals(listOf("u1", "notice:n", "p1", "a1"), keys(buildTranscript(later, emptyList(), null, false)))
     }
 
@@ -80,7 +82,7 @@ class TranscriptTest {
         val older = buildTranscript(listOf(user("u1"), approval("p1", "r1"), user("u2")), emptyList(), null, true)
         assertTrue(older.none { it is TranscriptItem.Thinking })
         // Once it is decided, the run is thinking again.
-        val decided = Message("p1", "system", "", "done", runId = "r1", approval = approval("p1", "r1").approval!!.copy(status = "approved"))
+        val decided = Message("p1", "system", "", "complete", runId = "r1", approval = approval("p1", "r1").approval!!.copy(status = "approved"))
         val after = buildTranscript(listOf(user("u1"), decided), emptyList(), null, true)
         assertTrue(after.last() is TranscriptItem.Thinking)
     }
@@ -102,8 +104,41 @@ class TranscriptTest {
 
     @Test
     fun blankRepliesAndFailuresAreShownOnlyWhenThereIsSomethingToSay() {
-        val items = buildTranscript(listOf(user("u1"), reply("empty", text = ""), reply("bad", text = "", status = "failed")), emptyList(), null, false)
-        assertEquals(listOf("u1", "bad"), keys(items))
+        val items = buildTranscript(
+            listOf(user("u1"), reply("empty", text = ""), reply("bad", text = "", status = "error"), reply("cut", text = "", status = "aborted")),
+            emptyList(), null, false,
+        )
+        assertEquals(listOf("u1", "bad", "cut"), keys(items))
+    }
+
+    @Test
+    fun aFailureItsReplyExplainsEndsWithContinueAlone() {
+        val error = ReplyError("faulted", "The run hit an internal error and stopped.")
+        val failed = reply("a1", "r1", text = "", status = "error").copy(error = error)
+        val items = buildTranscript(listOf(user("u1"), failed), emptyList(), null, false, RunFailure("r1", error))
+        assertEquals(listOf("u1", "a1", "continue"), keys(items))
+        assertEquals(TranscriptItem.Continue(null), items.last())
+    }
+
+    @Test
+    fun aFailureNothingAboveExplainsSaysWhyBesideContinue() {
+        val error = ReplyError("interrupted", "The server stopped while the model was answering.")
+        // No reply on screen, a reply of another run, and a reply that words it differently.
+        val older = reply("a0", "r0", status = "error").copy(error = error)
+        val other = reply("a1", "r1", status = "error").copy(error = ReplyError("internal", "Something else."))
+        listOf(emptyList(), listOf(older), listOf(other)).forEach { replies ->
+            val items = buildTranscript(listOf(user("u1")) + replies, emptyList(), null, false, RunFailure("r1", error))
+            assertEquals(TranscriptItem.Continue(error), items.last())
+        }
+    }
+
+    @Test
+    fun continueIsOfferedOnceAndOnlyForAFailureToResume() {
+        val failed = listOf(user("u1"), reply("a1", "r1", status = "error"), user("u2"), reply("a2", "r2", status = "error"))
+        assertTrue(buildTranscript(failed, emptyList(), null, false).none { it is TranscriptItem.Continue })
+        val items = buildTranscript(failed, emptyList(), PendingSend("req", "again"), false, RunFailure("r2", ReplyError(null, "No.")))
+        assertEquals(1, items.count { it is TranscriptItem.Continue })
+        assertEquals(listOf("pending:req", "continue"), keys(items).takeLast(2))
     }
 
     @Test

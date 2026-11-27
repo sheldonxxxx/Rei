@@ -242,6 +242,7 @@
     <string name="chat_msg_sending">Sending…</string>
     <string name="chat_msg_reply_failed">Rei couldn’t finish this reply.</string>
     <string name="chat_msg_continue">Continue</string>
+    <string name="chat_msg_loop_guard">Stopped: this reply hit its step or time limit.</string>
     <string name="chat_msg_stopped">Stopped</string>
     <string name="chat_msg_thinking">%1$s is thinking…</string>
     <string name="chat_msg_edit_title">Edit message</string>

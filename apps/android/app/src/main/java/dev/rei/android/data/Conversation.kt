@@ -1,6 +1,7 @@
 package dev.rei.android.data
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 
@@ -12,13 +13,9 @@ internal data class Conversation(
     private val live: JsonObject?,
 ) {
     fun detail(): SessionDetail {
-        return SessionDetail(
-            session,
-            items,
-            before,
-            busy = live?.optionalString("runId") != null || runs.any { it == "running" || it == "queued" } ||
-                (runs.isEmpty() && session.status == "running"),
-        )
+        val busy = live?.optionalString("runId") != null || runs.any { it == "running" || it == "queued" } ||
+            (runs.isEmpty() && session.status == "running")
+        return SessionDetail(session, items, before, busy, failure = if (busy) null else live?.continuableFailure())
     }
 
     fun patch(frame: JsonObject): Conversation = copy(
@@ -39,6 +36,12 @@ internal data class Conversation(
         upsert.forEach { byId[it.id] = it }
         return order?.mapNotNull(byId::get) ?: byId.values.toList()
     }
+}
+
+private fun JsonObject.continuableFailure(): RunFailure? {
+    val failure = get("runFailure") as? JsonObject ?: return null
+    if (failure["canContinue"]?.jsonPrimitive?.boolean != true) return null
+    return RunFailure(failure.optionalString("runId"), failure.obj("error").replyError())
 }
 
 private fun JsonObject.runStatuses() = objects("runs").map { it.string("status") }

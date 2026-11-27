@@ -2,6 +2,8 @@ package dev.rei.android.feature.chat
 
 import dev.rei.android.R
 import dev.rei.android.data.Message
+import dev.rei.android.data.ReplyError
+import dev.rei.android.data.RunFailure
 import dev.rei.android.data.RunTrace
 import dev.rei.android.ui.UiText
 
@@ -13,7 +15,7 @@ sealed interface TranscriptItem {
         override val key get() = message.id
     }
 
-    /** A finished (or failed) assistant reply. [retryOf] is your message it answers, for Retry on the last reply. */
+    /** An assistant reply: being written, finished, stopped or failed. [retryOf] is your message it answers, for Retry on the last reply. */
     data class Reply(val message: Message, val isLast: Boolean, val retryOf: Message?) : TranscriptItem {
         override val key get() = message.id
     }
@@ -38,6 +40,11 @@ sealed interface TranscriptItem {
         override val key get() = "pending:${send.requestId}"
     }
 
+    /** The last run failed and can be continued. [error] is null when its reply above already says why. */
+    data class Continue(val error: ReplyError?) : TranscriptItem {
+        override val key get() = "continue"
+    }
+
     /** A run is working and nothing has appeared yet. */
     data object Thinking : TranscriptItem {
         override val key get() = "thinking"
@@ -51,19 +58,21 @@ sealed interface TranscriptItem {
  * - A run's approval card belongs under its activity and above its reply (you decide before reading an answer that depended
  *   on it), so it is lifted to just before that run's reply, as on web.
  * - The reply being written is the run's own assistant message, with status `streaming`; it is drawn once, in its place.
- * - Your unsent message comes last.
+ * - Your unsent message comes after the messages.
+ * - A run that failed and can be continued ends the list with Continue, once.
  */
 fun buildTranscript(
     messages: List<Message>,
     runs: List<RunTrace>,
     pending: PendingSend?,
     busy: Boolean,
+    failure: RunFailure? = null,
 ): List<TranscriptItem> {
     val ordered = liftApprovals(messages)
     val runsByTrigger = runs.filter { it.triggerMessageId != null && it.steps.isNotEmpty() }.groupBy { it.triggerMessageId }
     val shownIds = ordered.map(Message::id).toSet()
     val items = mutableListOf<TranscriptItem>()
-    val lastReply = ordered.lastOrNull { it.role == "assistant" && (it.text.isNotBlank() || it.parts.isNotEmpty() || it.status == "failed") }?.id
+    val lastReply = ordered.lastOrNull { it.role == "assistant" && it.isWorthShowing() }?.id
     var lastUser: Message? = null
     for (message in ordered) {
         when {
@@ -74,9 +83,8 @@ fun buildTranscript(
                 items += TranscriptItem.User(message)
                 runsByTrigger[message.id]?.forEach { items += TranscriptItem.Activity(it) }
             }
-            message.role == "assistant" -> {
-                val visible = message.text.isNotBlank() || message.parts.isNotEmpty() || message.status == "failed" || message.status == "cancelled"
-                if (visible) items += TranscriptItem.Reply(message, isLast = message.id == lastReply, retryOf = lastUser)
+            message.role == "assistant" -> if (message.isWorthShowing()) {
+                items += TranscriptItem.Reply(message, isLast = message.id == lastReply, retryOf = lastUser)
             }
             message.role == "compaction" -> items += TranscriptItem.Notice(
                 message.id,
@@ -99,8 +107,17 @@ fun buildTranscript(
             it is TranscriptItem.User || it == null || it is TranscriptItem.Approval
         }
     ) items += TranscriptItem.Thinking
+    if (failure != null) {
+        val explained = failure.runId != null && ordered.any {
+            it.runId == failure.runId && it.status == "error" && it.error?.message == failure.error.message
+        }
+        items += TranscriptItem.Continue(failure.error.takeUnless { explained })
+    }
     return items
 }
+
+/** An empty reply is shown only when how it ended is the news. */
+private fun Message.isWorthShowing() = text.isNotBlank() || parts.isNotEmpty() || status == "error" || status == "aborted"
 
 private fun liftApprovals(messages: List<Message>): List<Message> {
     val replyAt = HashMap<String, Int>()

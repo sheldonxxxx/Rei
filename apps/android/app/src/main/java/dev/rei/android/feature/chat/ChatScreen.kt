@@ -104,6 +104,7 @@ import dev.rei.android.ui.components.chat.ModelSheet
 import dev.rei.android.ui.components.chat.PermissionsSheet
 import dev.rei.android.ui.components.chat.NoticeLine
 import dev.rei.android.ui.components.chat.PendingBubble
+import dev.rei.android.ui.components.chat.ContinueRun
 import dev.rei.android.ui.components.chat.ReplyActions
 import dev.rei.android.ui.components.chat.SelectTextSheet
 import dev.rei.android.ui.components.chat.SkillSheet
@@ -173,8 +174,8 @@ private fun Conversation(
     LaunchedEffect(active) { chat.setVisible(active) }
     DisposableEffect(Unit) { onDispose { chat.setVisible(false) } }
 
-    val items = remember(state.messages, state.runs, state.pending, state.busy) {
-        buildTranscript(state.messages, state.runs, state.pending, state.busy)
+    val items = remember(state.messages, state.runs, state.pending, state.busy, state.detail?.failure) {
+        buildTranscript(state.messages, state.runs, state.pending, state.busy, state.detail?.failure)
     }
     val outcomes = remember(state.messages) { state.messages.mapNotNull { it.approval }.associate { it.id to it.status } }
 
@@ -567,11 +568,10 @@ private fun TranscriptRow(
                 onLongPress = { onLongPress(message) },
                 highlighted = state.focus == message.id,
                 streaming = streaming,
-                actions = if (streaming || message.status == "failed") null else ReplyActions(
+                actions = if (streaming || message.status == "error") null else ReplyActions(
                     onCopy = { onCopy(message.text) },
                     onInspect = message.runId?.let { run -> { onInspectRun(run) } },
                 ),
-                onContinue = if (message.status == "failed" && !state.busy) chat::continueRun else null,
                 showDetails = state.showDetails,
             )
         }
@@ -596,6 +596,7 @@ private fun TranscriptRow(
             onRetry = chat::retrySend,
             onDiscard = chat::discardPending,
         )
+        is TranscriptItem.Continue -> ContinueRun(item.error, onContinue = chat::continueRun)
         TranscriptItem.Thinking -> ThinkingLine(agentName)
     }
 }
